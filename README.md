@@ -55,10 +55,11 @@ Microsoft 365
 
 ## Development Status
 
-Task 005 is implemented: the MCP endpoint exposes identity-scoped Outlook
-mail tools for search, read, attachment metadata, bounded attachment text
-extraction, read state, archive, move, and categories. PDF, DOCX, XLSX, PPTX,
-and UTF-8 TXT attachments are extracted server-side under configurable limits.
+Task 006 is implemented: the MCP endpoint exposes identity-scoped Outlook
+mail tools with bounded attachment extraction, safe invocation audit events,
+security response headers, and explicit untrusted-content markers for email
+and attachment text. PDF, DOCX, XLSX, PPTX, and UTF-8 TXT extraction remains
+server-side under configurable limits.
 
 ## Run locally
 

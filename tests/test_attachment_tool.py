@@ -12,6 +12,7 @@ from m365_mcp.extractors import (
 )
 from m365_mcp.graph.client import GraphResponse
 from m365_mcp.mail import MailToolService
+from m365_mcp.security import untrusted_content_metadata
 
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
@@ -78,6 +79,7 @@ def test_mail_read_attachment_extracts_text_without_returning_base64() -> None:
             "truncated": False,
         },
         "content": "hello from attachment",
+        "content_metadata": untrusted_content_metadata("email_attachment"),
     }
     assert "contentBytes" not in result
 
