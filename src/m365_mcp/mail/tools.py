@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 
 from ..auth.context import get_auth_context
@@ -150,8 +151,8 @@ class MailToolService:
         return {"message_id": message_id, "is_read": is_read}
 
     async def archive(self, context: AuthContext, message_id: str) -> dict[str, Any]:
-        await self.mail_service.archive_message(context, message_id)
-        return {"message_id": message_id, "archived": True}
+        response = await self.mail_service.archive_message(context, message_id)
+        return {"message_id": _moved_id(response), "source_message_id": message_id, "archived": True}
 
     async def move(
         self,
@@ -159,13 +160,14 @@ class MailToolService:
         message_id: str,
         destination_folder_id: str,
     ) -> dict[str, Any]:
-        await self.mail_service.move_message(
+        response = await self.mail_service.move_message(
             context,
             message_id,
             destination_folder_id=destination_folder_id,
         )
         return {
-            "message_id": message_id,
+            "message_id": _moved_id(response),
+            "source_message_id": message_id,
             "destination_folder_id": destination_folder_id,
         }
 
@@ -194,7 +196,11 @@ def register_mail_tools(
         operation: Callable[[AuthContext], Awaitable[dict[str, Any]]],
     ) -> dict[str, Any]:
         context = get_auth_context(get_http_request())
-        return await logger.invoke(context, tool_name, operation)
+        try:
+            return await logger.invoke(context, tool_name, operation)
+        except Exception:
+            # Framework exception logging must never receive provider/parser details.
+            raise ToolError("Mailbox operation failed; consult the audit event.") from None
 
     @mcp.tool(
         name="mail_search",
@@ -305,6 +311,13 @@ def register_mail_tools(
             "mail_set_category",
             lambda context: service.set_category(context, message_id, categories),
         )
+
+
+def _moved_id(response: GraphResponse) -> str:
+    identifier = response.data.get("id") if isinstance(response.data, Mapping) else None
+    if not isinstance(identifier, str) or not identifier:
+        raise ValueError("Graph move response has no destination message id")
+    return identifier
 
 
 def _collection(data: Any) -> tuple[list[Any], str | None]:

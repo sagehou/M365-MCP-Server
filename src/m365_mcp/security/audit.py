@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import json
+from datetime import datetime, timezone
 from collections.abc import Awaitable, Callable
 from time import perf_counter
 from typing import TypeVar
@@ -14,11 +16,36 @@ T = TypeVar("T")
 AuditOperation = Callable[[AuthContext], Awaitable[T]]
 
 
+class AuditJsonFormatter(logging.Formatter):
+    """Serialize only allowlisted metadata, including an explicit UTC timestamp."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        fields = {name: getattr(record, name) for name in (
+            "event", "tenant_id", "user_id", "tool_name", "outcome", "duration_ms",
+            "error_type",
+        ) if hasattr(record, name)}
+        fields["timestamp"] = datetime.fromtimestamp(
+            record.created, timezone.utc
+        ).isoformat()
+        return json.dumps(fields, ensure_ascii=True)
+
+
+def configure_audit_logger() -> logging.Logger:
+    logger = logging.getLogger("m365_mcp.audit")
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(AuditJsonFormatter())
+        logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    return logger
+
+
 class AuditLogger:
     """Record safe MCP operation metadata without accepting arbitrary payloads."""
 
     def __init__(self, logger: logging.Logger | None = None) -> None:
-        self.logger = logger or logging.getLogger("m365_mcp.audit")
+        self.logger = logger if logger is not None else configure_audit_logger()
 
     async def invoke(
         self,

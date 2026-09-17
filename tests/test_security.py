@@ -26,7 +26,7 @@ def make_context() -> AuthContext:
 
 
 def test_audit_logger_records_identity_without_operation_payload(caplog: Any) -> None:
-    logger = logging.getLogger("m365_mcp.audit.test")
+    logger = logging.getLogger("test.audit.success")
     audit = AuditLogger(logger)
 
     async def operation(context: AuthContext) -> dict[str, str]:
@@ -48,7 +48,7 @@ def test_audit_logger_records_identity_without_operation_payload(caplog: Any) ->
 
 
 def test_audit_logger_records_safe_failure_type_only(caplog: Any) -> None:
-    logger = logging.getLogger("m365_mcp.audit.failure-test")
+    logger = logging.getLogger("test.audit.failure")
     audit = AuditLogger(logger)
 
     async def operation(context: AuthContext) -> None:

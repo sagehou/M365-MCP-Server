@@ -75,13 +75,14 @@ class JwtValidator:
         )
 
     async def _find_key(self, key_id: str) -> Mapping[str, Any]:
-        document = await self.documents.signing_keys()
-        keys = document.get("keys")
-        if not isinstance(keys, list):
-            raise TokenValidationError("Identity signing-key document is invalid")
-        for key in keys:
-            if isinstance(key, Mapping) and key.get("kid") == key_id:
-                return key
+        for refresh in (False, True):
+            document = await self.documents.signing_keys(force_refresh=refresh)
+            keys = document.get("keys")
+            if not isinstance(keys, list):
+                raise TokenValidationError("Identity signing-key document is invalid")
+            for key in keys:
+                if isinstance(key, Mapping) and key.get("kid") == key_id:
+                    return key
         raise TokenValidationError("Access-token signing key is not published")
 
     def _decode(self, token: str, public_key: Any) -> Mapping[str, Any]:

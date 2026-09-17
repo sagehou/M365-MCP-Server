@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         env_prefix="",
         extra="ignore",
         enable_decoding=False,
@@ -44,14 +45,15 @@ class Settings(BaseSettings):
         "https://graph.microsoft.com/.default",
     )
     graph_base_url: str = "https://graph.microsoft.com/v1.0"
-    graph_max_retries: int = 3
-    graph_retry_backoff_seconds: float = 0.5
-    graph_max_retry_delay_seconds: float = 30.0
+    graph_max_retries: int = Field(default=3, ge=0, le=5)
+    graph_retry_backoff_seconds: float = Field(default=0.5, ge=0, allow_inf_nan=False)
+    graph_max_retry_delay_seconds: float = Field(default=30.0, gt=0, allow_inf_nan=False)
+    graph_max_response_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
 
-    oidc_cache_ttl_seconds: int = 86_400
-    http_timeout_seconds: float = 10.0
-    attachment_max_bytes: int = 10 * 1024 * 1024
-    attachment_max_text_chars: int = 100_000
+    oidc_cache_ttl_seconds: int = Field(default=86_400, gt=0)
+    http_timeout_seconds: float = Field(default=10.0, gt=0, allow_inf_nan=False)
+    attachment_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
+    attachment_max_text_chars: int = Field(default=100_000, gt=0)
 
     @field_validator("allowed_tenants", "required_scopes", mode="before")
     @classmethod
@@ -104,6 +106,8 @@ class Settings(BaseSettings):
             missing.append("CLIENT_ID")
         if not self.allowed_tenants:
             missing.append("ALLOWED_TENANTS")
+        if not self.required_scopes:
+            missing.append("REQUIRED_SCOPES")
         if not self.expected_audiences:
             missing.append("AUDIENCE or CLIENT_ID")
 

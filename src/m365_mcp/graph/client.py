@@ -1,12 +1,13 @@
 """Reusable Microsoft Graph HTTP client with delegated-token handling."""
 
 import asyncio
+import math
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import httpx
 
@@ -41,7 +42,7 @@ class GraphClient:
     ) -> None:
         self.settings = settings
         self.obo_service = obo_service
-        self._client = http_client or httpx.AsyncClient()
+        self._client = http_client or httpx.AsyncClient(timeout=settings.http_timeout_seconds)
         self._owns_client = http_client is None
         self._sleeper = sleeper
         self._clock = clock or (lambda: datetime.now(timezone.utc))
@@ -70,7 +71,10 @@ class GraphClient:
 
         url = self._url(path)
         request_headers = self._headers(headers)
-        graph_token = self.obo_service.acquire_graph_token(
+        method = method.upper()
+        retry_safe = method in {"GET", "HEAD", "OPTIONS"}
+        graph_token = await asyncio.to_thread(
+            self.obo_service.acquire_graph_token,
             user_assertion=context.access_token,
             tenant_id=context.identity.tenant_id,
         )
@@ -78,29 +82,33 @@ class GraphClient:
 
         for attempt in range(self.settings.graph_max_retries + 1):
             try:
-                response = await self._client.request(
-                    method.upper(),
+                response = await self._request_bounded(
+                    method,
                     url,
                     params=params,
                     json=json_body,
                     headers=request_headers,
                 )
             except httpx.RequestError as exc:
-                if attempt >= self.settings.graph_max_retries:
+                if not retry_safe or attempt >= self.settings.graph_max_retries:
                     raise GraphTransportError(
-                        "Microsoft Graph transport failed after retries"
-                    ) from exc
+                        "Microsoft Graph transport failed; write outcome may be unknown"
+                    ) from None
                 await self._sleeper(self._backoff(attempt))
                 continue
 
             if (
                 response.status_code in self.RETRYABLE_STATUS_CODES
+                and (retry_safe or response.status_code == 429)
                 and attempt < self.settings.graph_max_retries
             ):
-                await self._sleeper(self._retry_delay(response, attempt))
+                delay = self._retry_delay(response, attempt)
+                if delay > self.settings.graph_max_retry_delay_seconds:
+                    raise self._api_error(response)
+                await self._sleeper(delay)
                 continue
 
-            if response.status_code >= 400:
+            if response.status_code >= 300:
                 raise self._api_error(response)
             return GraphResponse(
                 status_code=response.status_code,
@@ -111,13 +119,29 @@ class GraphClient:
 
         raise GraphTransportError("Microsoft Graph request exhausted retries")
 
+    async def _request_bounded(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        # Bound decoded bytes even for chunked or compressed responses, before JSON parsing.
+        async with self._client.stream(method, url, **kwargs) as response:
+            content = bytearray()
+            async for chunk in response.aiter_bytes():
+                if len(content) + len(chunk) > self.settings.graph_max_response_bytes:
+                    raise GraphTransportError("Microsoft Graph response exceeds the server limit")
+                content.extend(chunk)
+            return httpx.Response(
+                response.status_code, headers={
+                    key: value for key, value in response.headers.items()
+                    if key not in {"content-encoding", "content-length"}
+                },
+                content=bytes(content), request=response.request,
+            )
+
     def _url(self, path: str) -> str:
         if not isinstance(path, str) or not path:
             raise GraphPathError("A relative Graph path is required")
         parsed = urlsplit(path)
-        if parsed.scheme or parsed.netloc or not parsed.path:
+        if parsed.scheme or parsed.netloc or not parsed.path or parsed.query or parsed.fragment:
             raise GraphPathError("Absolute Graph URLs are not accepted")
-        if any(segment in {".", ".."} for segment in parsed.path.split("/")):
+        if any(segment in {".", ".."} for segment in unquote(parsed.path).split("/")):
             raise GraphPathError("Graph path traversal is not accepted")
         if parsed.path != "/me" and not parsed.path.startswith("/me/"):
             raise GraphPathError("Graph operations must use the delegated /me path")
@@ -137,7 +161,7 @@ class GraphClient:
     def _retry_delay(self, response: httpx.Response, attempt: int) -> float:
         retry_after = self._retry_after(response.headers.get("retry-after"))
         if retry_after is not None:
-            return min(retry_after, self.settings.graph_max_retry_delay_seconds)
+            return retry_after
         return self._backoff(attempt)
 
     def _backoff(self, attempt: int) -> float:
@@ -148,7 +172,8 @@ class GraphClient:
         if not value:
             return None
         try:
-            return max(0.0, float(value))
+            number = float(value)
+            return max(0.0, number) if math.isfinite(number) else None
         except ValueError:
             pass
         try:

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
+from threading import Lock
 
 import msal
 
@@ -27,6 +28,7 @@ class MsalOboService:
         self.settings = settings
         self._client_factory = client_factory or msal.ConfidentialClientApplication
         self._clients: dict[str, MsalApplication] = {}
+        self._client_lock = Lock()
 
     def acquire_graph_token(
         self,
@@ -56,6 +58,10 @@ class MsalOboService:
         raise OboTokenError("Microsoft Entra rejected the OBO token request")
 
     def _client_for_tenant(self, tenant_id: str) -> MsalApplication:
+        with self._client_lock:
+            return self._get_or_create_client(tenant_id)
+
+    def _get_or_create_client(self, tenant_id: str) -> MsalApplication:
         existing = self._clients.get(tenant_id)
         if existing is not None:
             return existing
@@ -64,6 +70,7 @@ class MsalOboService:
             client_id=self.settings.client_id,
             authority=self.settings.authority_for_tenant(tenant_id),
             client_credential=self.settings.client_credential(),
+            timeout=self.settings.http_timeout_seconds,
         )
         self._clients[tenant_id] = client
         return client
