@@ -6,6 +6,7 @@ from m365_mcp.app import app
 def test_health_endpoint() -> None:
     with TestClient(app) as client:
         response = client.get("/health")
+        healthz_response = client.get("/healthz")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -13,14 +14,8 @@ def test_health_endpoint() -> None:
         "service": "m365-mcp-server",
         "version": "0.1.0",
     }
-
-
-def test_healthz_alias() -> None:
-    with TestClient(app) as client:
-        response = client.get("/healthz")
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert healthz_response.status_code == 200
+    assert healthz_response.json() == response.json()
 
 
 def test_mcp_mount_is_present() -> None:
