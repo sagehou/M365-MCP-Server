@@ -11,13 +11,16 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115,<1",
     "fastmcp>=2.10.5,<3",
+    "httpx>=0.28,<1",
+    "msal>=1.31,<2",
     "pydantic>=2.10,<3",
+    "pydantic-settings>=2.6,<3",
+    "PyJWT[crypto]>=2.9,<3",
     "uvicorn[standard]>=0.34,<1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "httpx>=0.28,<1",
     "pytest>=8.3,<9",
 ]
 
