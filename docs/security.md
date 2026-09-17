@@ -27,13 +27,18 @@ Avoid:
 The protected `/mcp/` endpoint requires:
 
 - a bearer access token issued for this API audience
-- a tenant present in `ALLOWED_TENANTS`
+- a tenant explicitly present in `ALLOWED_TENANTS`, or `ALLOWED_TENANTS=*`
 - an exact issuer derived from the token tenant and Entra metadata
 - a delegated `scp` claim containing `REQUIRED_SCOPES`
 
+`ALLOWED_TENANTS=*` removes only the local tenant allowlist restriction. It does
+not bypass signature, issuer, audience, expiry, delegated-scope, or user-identity
+validation. Personal Microsoft accounts are accepted only when the Entra App
+Registration itself supports them; their tokens use the Microsoft consumer tenant.
+
 The server rejects Graph-destined tokens, application-only tokens with only
-`roles`, unknown tenants, invalid signatures, expired tokens, and mismatched
-issuers.
+`roles`, tenants outside an explicit allowlist, invalid signatures, expired tokens,
+and mismatched issuers.
 
 ## Tenant Isolation
 
@@ -46,7 +51,9 @@ The server validates:
 - delegated scopes
 
 Downstream operations must use the validated tenant-qualified identity and must
-not accept arbitrary mailbox or user identifiers from MCP tools.
+not accept arbitrary mailbox or user identifiers from MCP tools. Wildcard tenant
+admission does not weaken this per-request identity isolation: the tenant ID remains
+part of the validated identity and OBO authority.
 
 ## On-Behalf-Of
 
