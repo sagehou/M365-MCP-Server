@@ -85,17 +85,32 @@ replace `latest`.
 ## Configuration
 
 All runtime settings are supplied through environment variables. Configure
-exactly one of CLIENT_SECRET or CLIENT_CERT_PATH, set ALLOWED_TENANTS and
-AUDIENCE, and grant only the delegated Graph permissions required by the mail
-tools. Secrets must be injected by the deployment environment or secret
-management system.
+exactly one of CLIENT_SECRET or CLIENT_CERT_PATH, set ALLOWED_TENANTS and grant
+only the delegated Graph permissions required by the mail tools. Secrets must be
+injected by the deployment environment or secret management system.
+
+`ALLOWED_TENANTS` supports two modes:
+
+- comma-separated tenant GUIDs for an explicit allowlist;
+- `*` to accept any valid Microsoft tenant represented by a correctly validated
+  token. This includes the Microsoft consumer tenant when the App Registration's
+  Supported account types also allow personal Microsoft accounts.
+
+An empty `ALLOWED_TENANTS` remains invalid and fails closed. Do not combine `*`
+with explicit tenant IDs. For private enterprise deployments, an explicit tenant
+allowlist remains the narrower security boundary; `*` is intended for deliberately
+open multitenant deployments.
+
+`AUDIENCE` is optional. If omitted, the server accepts the configured `CLIENT_ID`
+and `api://<CLIENT_ID>` audience forms.
 
 ## Entra/client prerequisites and acceptance
 
 1. Register the API application, expose the access_as_user delegated scope and
-   configure v2 access tokens. Set CLIENT_ID, AUDIENCE, ALLOWED_TENANTS and
-   REQUIRED_SCOPES to the actual API registration. ALLOWED_TENANTS is a comma-
-   separated allowlist, not the unused historical TENANT_ID variable.
+   configure v2 access tokens. Set CLIENT_ID, ALLOWED_TENANTS and REQUIRED_SCOPES
+   to the actual API registration. Use a comma-separated tenant allowlist or `*`
+   intentionally. Leave AUDIENCE empty unless an explicit audience override is
+   required.
 2. Grant delegated Graph User.Read and Mail.ReadWrite plus the required target-
    tenant consent for the implemented read/update tools. Do not grant application
    mailbox permissions or Mail.Send; there is no send tool.
