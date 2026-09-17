@@ -67,8 +67,13 @@ acceptance is implied by mocked Graph/OBO tests. See [review status](docs/review
 
 ## Deploy
 
-Use a versioned container built by GitHub Actions. Configure Entra first and
-follow [the deployment checklist](docs/deployment.md):
+Configure Microsoft Entra before deploying. The step-by-step portal guide covers
+single-tenant and cross-tenant registration, `access_as_user`, Graph delegated
+permissions, OBO credentials, target-tenant consent and an optional test client:
+
+- [Microsoft Entra app registration guide](docs/entra-app-registration.md)
+
+Then follow [the deployment checklist](docs/deployment.md):
 
 ```bash
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
@@ -80,7 +85,7 @@ The application exposes:
 - `/mcp/` for the protected FastMCP Streamable HTTP endpoint
 
 Configure `CLIENT_ID`, exactly one client credential, `ALLOWED_TENANTS`,
-AUDIENCE, and REQUIRED_SCOPES before using /mcp/. The protected
+`AUDIENCE`, and `REQUIRED_SCOPES` before using `/mcp/`. The protected
 endpoint exposes only the current user's delegated Outlook mailbox operations.
 
 Tests and the Docker build run in GitHub Actions.
