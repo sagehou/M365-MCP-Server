@@ -4,8 +4,6 @@
 
 ## 快速入口
 
-像 rclone 的 Microsoft 配置文档一样，先把管理员实际要打开的入口放在最上面：
-
 - **Microsoft Entra 管理中心：** https://entra.microsoft.com/
 - **Azure Portal - Microsoft Entra 概览：** https://portal.azure.com/?quickstart=true#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview
 - **注册应用官方文档：** https://learn.microsoft.com/zh-cn/graph/auth-register-app-v2
