@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from io import BytesIO
 from typing import ClassVar, Protocol
+from zipfile import BadZipFile, ZipFile
 
 from docx import Document
 from openpyxl import load_workbook
@@ -199,6 +201,8 @@ class AttachmentExtractorRegistry:
             raise ValueError("max_text_chars must be positive")
         self.max_bytes = max_bytes
         self.max_text_chars = max_text_chars
+        self._slots = asyncio.Semaphore(2)
+        self._custom_handlers = extractors is not None
         handlers = tuple(extractors or default_extractors())
         self._by_extension: dict[str, AttachmentExtractor] = {}
         self._by_media_type: dict[str, AttachmentExtractor] = {}
@@ -231,6 +235,8 @@ class AttachmentExtractorRegistry:
             )
 
         handler = self._resolve(attachment)
+        if handler.format_name in {"docx", "xlsx", "pptx"}:
+            _validate_archive(attachment.content)
         try:
             extracted = handler.extract(attachment.content)
         except (AttachmentTooLargeError, InvalidAttachmentError):
@@ -244,6 +250,17 @@ class AttachmentExtractorRegistry:
             content=bounded,
             truncated=truncated,
         )
+
+    async def extract_async(self, attachment: AttachmentInput) -> ExtractionResult:
+        """Run built-in parsers outside the web process with a hard deadline."""
+        from .isolation import extract_isolated
+
+        if self._custom_handlers:
+            raise ValueError("Isolated extraction requires registered built-in handlers")
+        async with self._slots:
+            return await extract_isolated(
+                attachment, max_bytes=self.max_bytes, max_text_chars=self.max_text_chars
+            )
 
     def _resolve(self, attachment: AttachmentInput) -> AttachmentExtractor:
         filename = attachment.name.replace("\\", "/").rsplit("/", 1)[-1]
@@ -259,6 +276,19 @@ class AttachmentExtractorRegistry:
                 "Attachment format is not supported; use PDF, DOCX, XLSX, PPTX, or TXT"
             )
         return handler
+
+
+def _validate_archive(content: bytes) -> None:
+    """Reject expanded Office archives before document libraries load XML."""
+    try:
+        with ZipFile(BytesIO(content)) as archive:
+            entries = archive.infolist()
+            if len(entries) > 2048 or sum(item.file_size for item in entries) > 64 * 1024 * 1024:
+                raise AttachmentTooLargeError("Office archive exceeds expanded size or member limit")
+            if any(item.flag_bits & 1 for item in entries):
+                raise InvalidAttachmentError("Encrypted Office archives are not supported")
+    except BadZipFile:
+        raise InvalidAttachmentError("The Office attachment is not a valid archive") from None
 
 
 def _truncate(text: str, max_chars: int) -> tuple[str, bool]:

@@ -1,6 +1,7 @@
 """Exercise the real Streamable HTTP mount, not a direct tool function call."""
 
 import asyncio
+import base64
 import json
 from dataclasses import replace
 
@@ -12,8 +13,9 @@ from m365_mcp.graph import GraphClient, MailService
 from test_graph import make_context
 
 
-def test_http_initialize_list_and_concurrent_users_call_with_own_assertions():
+def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capfd, caplog):
     calls = []
+    writes = []
     class Validator:
         async def validate(self, token):
             return replace(make_context().identity, user_id=token, subject=token)
@@ -25,6 +27,22 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions():
         calls.append((request.headers["authorization"], request.url.path))
         if request.url.path.endswith("/failure"):
             raise RuntimeError("SECRET_PROVIDER_BODY")
+        if request.method in {"POST", "PATCH"}:
+            writes.append((request.method, request.url.path, json.loads(request.content)))
+        if request.url.path.endswith("/attachments/attachment"):
+            return httpx.Response(200, json={
+                "@odata.type": "#microsoft.graph.fileAttachment", "id": "attachment",
+                "name": "notes.txt", "size": 5,
+                "contentBytes": base64.b64encode(b"hello").decode(),
+            })
+        if request.url.path.endswith("/attachments"):
+            return httpx.Response(200, json={"value": [{"id": "attachment", "name": "notes.txt"}]})
+        if request.url.path == "/v1.0/me/messages":
+            assert "$search" in request.url.params
+            assert "$filter" not in request.url.params and "$orderby" not in request.url.params
+            return httpx.Response(200, json={"value": [{"id": "id", "subject": "test"}]})
+        if request.url.path.endswith("/move"):
+            return httpx.Response(201, json={"id": "moved-id"})
         return httpx.Response(200, json={"id": request.headers["authorization"]})
 
     async def exercise():
@@ -62,12 +80,39 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions():
                         assert not result.get("isError")
                         payload = json.loads(result["content"][0]["text"])
                         assert payload["message"]["id"] == "Bearer graph-" + user
+                    cases = [
+                        ("mail_search", {"query": "test"}, "messages"),
+                        ("mail_list_attachments", {"message_id": "id"}, "attachments"),
+                        ("mail_read_attachment", {"message_id": "id", "attachment_id": "attachment"}, "content"),
+                        ("mail_mark_read", {"message_id": "id", "is_read": False}, "is_read"),
+                        ("mail_archive", {"message_id": "id"}, "archived"),
+                        ("mail_move", {"message_id": "id", "destination_folder_id": "folder"}, "destination_folder_id"),
+                        ("mail_set_category", {"message_id": "id", "categories": ["Reviewed"]}, "categories"),
+                    ]
+                    for name, arguments, field in cases:
+                        result = await rpc("alice", "tools/call", {"name": name, "arguments": arguments})
+                        assert not result.get("isError"), result
+                        payload = json.loads(result["content"][0]["text"])
+                        assert field in payload
+                        if name in {"mail_archive", "mail_move"}:
+                            assert payload["message_id"] == "moved-id"
+                        if name == "mail_read_attachment":
+                            assert payload["content"] == "hello"
                     failure = await rpc("alice", "tools/call", {
                         "name": "mail_get", "arguments": {"message_id": "failure"}})
                     assert failure["isError"]
                     assert "SECRET_PROVIDER_BODY" not in json.dumps(failure)
+                    assert "verify mailbox state before retrying" in json.dumps(failure)
                     missing = await client.post("/mcp/", json={})
                     assert missing.status_code == 401
     asyncio.run(exercise())
     assert ("Bearer graph-alice", "/v1.0/me/messages/id") in calls
     assert ("Bearer graph-bob", "/v1.0/me/messages/id") in calls
+    assert writes == [
+        ("PATCH", "/v1.0/me/messages/id", {"isRead": False}),
+        ("POST", "/v1.0/me/messages/id/move", {"destinationId": "archive"}),
+        ("POST", "/v1.0/me/messages/id/move", {"destinationId": "folder"}),
+        ("PATCH", "/v1.0/me/messages/id", {"categories": ["Reviewed"]}),
+    ]
+    captured = capfd.readouterr()
+    assert "SECRET_PROVIDER_BODY" not in captured.out + captured.err + caplog.text
