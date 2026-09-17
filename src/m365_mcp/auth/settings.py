@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     def normalize_sets(cls, value: Any) -> frozenset[str]:
         return frozenset(_split_values(value) or ())
 
+    @field_validator("allowed_tenants")
+    @classmethod
+    def validate_allowed_tenants(cls, value: frozenset[str]) -> frozenset[str]:
+        if "*" in value and len(value) != 1:
+            raise ValueError("ALLOWED_TENANTS '*' cannot be combined with tenant IDs")
+        return value
+
     @field_validator("graph_scopes", mode="before")
     @classmethod
     def normalize_scopes(cls, value: Any) -> tuple[str, ...]:
@@ -91,7 +98,7 @@ class Settings(BaseSettings):
 
     def is_allowed_tenant(self, tenant_id: str) -> bool:
         allowed = {item.casefold() for item in self.allowed_tenants}
-        return tenant_id.casefold() in allowed
+        return "*" in allowed or tenant_id.casefold() in allowed
 
     def authority_for_tenant(self, tenant_id: str) -> str:
         if not self.is_allowed_tenant(tenant_id):
