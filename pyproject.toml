@@ -9,15 +9,15 @@ description = "An enterprise Microsoft 365 MCP server based on Microsoft Graph."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi>=0.115,<1",
-    "fastmcp>=2.10.5,<3",
+    "fastapi>=0.133,<1",
+    "fastmcp==4.0.4",
     "httpx>=0.28,<1",
     "msal>=1.31,<2",
     "pypdf>=5,<7",
     "python-docx>=1.1,<2",
     "openpyxl>=3.1,<4",
     "python-pptx>=1.0,<2",
-    "pydantic>=2.10,<3",
+    "pydantic>=2.12,<3",
     "pydantic-settings>=2.6,<3",
     "PyJWT[crypto]>=2.9,<3",
     "uvicorn[standard]>=0.34,<1",

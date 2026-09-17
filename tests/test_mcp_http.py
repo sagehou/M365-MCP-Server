@@ -105,6 +105,51 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     assert "verify mailbox state before retrying" in json.dumps(failure)
                     missing = await client.post("/mcp/", json={})
                     assert missing.status_code == 401
+
+                    modern_meta = {
+                        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                        "io.modelcontextprotocol/clientCapabilities": {},
+                        "io.modelcontextprotocol/clientInfo": {
+                            "name": "ci-modern-regression",
+                            "version": "1",
+                        },
+                    }
+
+                    async def modern_rpc(token, method, params, name=None):
+                        headers = {
+                            "Authorization": "Bearer " + token,
+                            "Accept": "application/json, text/event-stream",
+                            "MCP-Protocol-Version": "2026-07-28",
+                            "Mcp-Method": method,
+                        }
+                        if name is not None:
+                            headers["Mcp-Name"] = name
+                        response = await client.post(
+                            "/mcp/",
+                            headers=headers,
+                            json={"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
+                        )
+                        assert response.status_code == 200, response.text
+                        assert "mcp-session-id" not in response.headers
+                        return response.json()["result"]
+
+                    discovered = await modern_rpc(
+                        "alice", "server/discover", {"_meta": modern_meta}
+                    )
+                    assert discovered["protocolVersion"] == "2026-07-28"
+                    modern_tools = await modern_rpc(
+                        "alice", "tools/list", {"_meta": modern_meta}
+                    )
+                    assert len(modern_tools["tools"]) == 8
+                    modern_result = await modern_rpc(
+                        "bob",
+                        "tools/call",
+                        {"name": "mail_get", "arguments": {"message_id": "id"}, "_meta": modern_meta},
+                        name="mail_get",
+                    )
+                    assert not modern_result.get("isError")
+                    modern_payload = json.loads(modern_result["content"][0]["text"])
+                    assert modern_payload["message"]["id"] == "Bearer graph-bob"
     asyncio.run(exercise())
     assert ("Bearer graph-alice", "/v1.0/me/messages/id") in calls
     assert ("Bearer graph-bob", "/v1.0/me/messages/id") in calls

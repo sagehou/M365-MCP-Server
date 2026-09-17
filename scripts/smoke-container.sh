@@ -22,6 +22,19 @@ fi
 curl --fail --silent http://127.0.0.1:18000/healthz
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18000/mcp/)" = 401
 test "$(docker exec "$container" id -u)" != 0
+startup_logs="$(docker logs "$container" 2>&1)"
+for forbidden in \
+  'AuthlibDeprecationWarning' \
+  'authlib.jose module is deprecated' \
+  'please use joserfc instead' \
+  'The httpx module is deprecated' \
+  'please use httpx2 instead'; do
+  if grep --fixed-strings --quiet "$forbidden" <<< "$startup_logs"; then
+    printf '%s\n' "$startup_logs"
+    printf 'Forbidden runtime warning found: %s\n' "$forbidden" >&2
+    exit 1
+  fi
+done
 # Exercise the installed worker from the non-root production image.
 docker exec "$container" python -c '
 import asyncio
