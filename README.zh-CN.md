@@ -78,6 +78,6 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 - `GET /health`（同时支持 `/healthz`），仅用于进程存活检查
 - `/mcp/`，受保护的 FastMCP Streamable HTTP Endpoint
 
-使用 `/mcp/` 前必须配置 `CLIENT_ID`、且只配置一种客户端凭据、`ALLOWED_TENANTS`、`AUDIENCE` 和 `REQUIRED_SCOPES`。受保护端点只允许当前登录用户访问其委托 Outlook 邮箱。
+使用 `/mcp/` 前必须配置 `CLIENT_ID`、且只配置一种客户端凭据、`ALLOWED_TENANTS` 和 `REQUIRED_SCOPES`。`ALLOWED_TENANTS` 可以填写逗号分隔的 Tenant ID 列表，也可以填写 `*` 表示接受任意有效 Microsoft Tenant；留空仍然按 fail closed 处理。`AUDIENCE` 可留空，此时 Server 会自动接受 API Client ID 和 `api://<client-id>` 两种形式。受保护端点只允许当前登录用户访问其委托 Outlook 邮箱。
 
 测试和 Docker 构建均在 GitHub Actions 中执行。
