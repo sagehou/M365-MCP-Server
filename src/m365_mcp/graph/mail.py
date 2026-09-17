@@ -46,7 +46,7 @@ class MailService:
             "$orderby": "receivedDateTime desc",
         }
         headers: dict[str, str] = {}
-        search_text = query.strip().replace('"', " ")
+        search_text = query.replace('"', " ")
         if search_text:
             params["$search"] = f'"{search_text}"'
             headers["ConsistencyLevel"] = "eventual"
