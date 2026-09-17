@@ -46,10 +46,11 @@ def make_settings(**overrides: Any) -> Settings:
     return Settings(**values)
 
 
-def make_token(*, tenant_id: str = TENANT_ID, scope: str = "access_as_user") -> tuple[str, dict[str, Any]]:
+def make_token(*, tenant_id: str = TENANT_ID, scope: str = "access_as_user",
+               kid: str = "test-key", claims_override: dict[str, Any] | None = None) -> tuple[str, dict[str, Any]]:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
-    public_jwk.update({"kid": "test-key", "issuer": ISSUER_TEMPLATE})
+    public_jwk.update({"kid": kid, "issuer": ISSUER_TEMPLATE})
     now = int(time.time())
     claims = {
         "aud": "api://api-client-id",
@@ -63,11 +64,12 @@ def make_token(*, tenant_id: str = TENANT_ID, scope: str = "access_as_user") -> 
         "sub": "subject-1",
         "tid": tenant_id,
     }
+    claims.update(claims_override or {})
     token = jwt.encode(
         claims,
         private_key,
         algorithm="RS256",
-        headers={"kid": "test-key"},
+        headers={"kid": kid},
     )
     return token, {
         "configuration": {

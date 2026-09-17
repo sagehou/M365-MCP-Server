@@ -39,32 +39,40 @@ class MailService:
     ) -> GraphResponse:
         if not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")
+        if len(query) > 2048:
+            raise ValueError("query must not exceed 2048 characters")
+        start = self._date_value(date_from) if date_from else None
+        end = self._date_value(date_to) if date_to else None
+        if start and end and datetime.fromisoformat(start) > datetime.fromisoformat(end):
+            raise ValueError("date_from must not be after date_to")
 
         params: dict[str, str | int] = {
             "$top": limit,
             "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview",
-            "$orderby": "receivedDateTime desc",
         }
-        headers: dict[str, str] = {}
         search_text = query.replace('"', " ").strip()
         if search_text:
-            params["$search"] = f'"{search_text}"'
-            headers["ConsistencyLevel"] = "eventual"
-
-        filters: list[str] = []
-        if date_from:
-            filters.append(f"receivedDateTime ge {self._date_value(date_from)}")
-        if date_to:
-            filters.append(f"receivedDateTime le {self._date_value(date_to)}")
-        if filters:
-            params["$filter"] = " and ".join(filters)
+            terms = [f"({search_text})"]
+            if start:
+                terms.append(f"received>={start}")
+            if end:
+                terms.append(f"received<={end}")
+            params["$search"] = '"' + " AND ".join(terms) + '"'
+        else:
+            params["$orderby"] = "receivedDateTime desc"
+            filters: list[str] = []
+            if start:
+                filters.append(f"receivedDateTime ge {start}")
+            if end:
+                filters.append(f"receivedDateTime le {end}")
+            if filters:
+                params["$filter"] = " and ".join(filters)
 
         return await self.graph_client.request(
             context,
             "GET",
             "/me/messages",
             params=params,
-            headers=headers,
         )
 
     async def get_message(
@@ -90,6 +98,7 @@ class MailService:
             context,
             "GET",
             f"/me/messages/{self._segment(message_id)}/attachments",
+            params={"$select": "id,name,contentType,size,isInline,lastModifiedDateTime"},
         )
 
     async def get_attachment(
@@ -170,7 +179,7 @@ class MailService:
 
     @staticmethod
     def _segment(value: str) -> str:
-        if not isinstance(value, str) or not value:
+        if not isinstance(value, str) or not value or value in {".", ".."}:
             raise ValueError("A non-empty Graph resource id is required")
         return quote(value, safe="")
 

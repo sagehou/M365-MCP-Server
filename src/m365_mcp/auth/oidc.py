@@ -47,6 +47,7 @@ class OidcDocumentProvider:
         self._lock = asyncio.Lock()
         self._configuration: tuple[float, Mapping[str, Any]] | None = None
         self._jwks: tuple[float, Mapping[str, Any]] | None = None
+        self._last_forced_refresh = float("-inf")
 
     async def configuration(self) -> Mapping[str, Any]:
         if self._configuration_is_fresh():
@@ -60,8 +61,8 @@ class OidcDocumentProvider:
             self._configuration = (self._clock(), document)
             return document
 
-    async def signing_keys(self) -> Mapping[str, Any]:
-        if self._jwks_is_fresh():
+    async def signing_keys(self, *, force_refresh: bool = False) -> Mapping[str, Any]:
+        if self._jwks_is_fresh() and not force_refresh:
             assert self._jwks is not None
             return self._jwks[1]
         configuration = await self.configuration()
@@ -69,9 +70,13 @@ class OidcDocumentProvider:
         if not isinstance(jwks_url, str) or not jwks_url:
             raise TokenValidationError("Identity metadata has no signing-key URL")
         async with self._lock:
-            if self._jwks_is_fresh():
+            refresh_allowed = force_refresh and self._clock() - self._last_forced_refresh >= 60
+            if self._jwks_is_fresh() and not refresh_allowed:
                 assert self._jwks is not None
                 return self._jwks[1]
+            if force_refresh:
+                # Rate-limit misses, including failed fetches, across all unknown kids.
+                self._last_forced_refresh = self._clock()
             document = await self._fetcher(jwks_url)
             self._jwks = (self._clock(), document)
             return document

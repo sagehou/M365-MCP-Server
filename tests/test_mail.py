@@ -57,9 +57,12 @@ def test_mail_search_builds_agent_friendly_graph_query() -> None:
     call = graph.calls[0]
     assert call["path"] == "/me/messages"
     assert call["params"]["$top"] == 10
-    assert call["params"]["$search"] == '"quarterly  results"'
-    assert "receivedDateTime ge 2026-01-01T00:00:00Z" in call["params"]["$filter"]
-    assert call["headers"] == {"ConsistencyLevel": "eventual"}
+    assert call["params"]["$search"] == (
+        '"(quarterly  results) AND received>=2026-01-01T00:00:00Z'
+        ' AND received<=2026-01-31T23:59:59Z"'
+    )
+    assert "$filter" not in call["params"]
+    assert "$orderby" not in call["params"]
 
 
 def test_mail_tool_service_omits_attachment_bytes() -> None:

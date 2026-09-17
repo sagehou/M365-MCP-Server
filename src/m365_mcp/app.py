@@ -42,8 +42,10 @@ def create_app(
     """Create an application with protected MCP mail tools."""
 
     configured_settings = settings or Settings()
-    server = mcp_server or FastMCP("M365 MCP Server")
-    http_app = mcp_http_app or server.http_app(path="/")
+    server = mcp_server or FastMCP("M365 MCP Server", mask_error_details=True)
+    http_app = mcp_http_app or server.http_app(
+        path="/", stateless_http=True, json_response=True
+    )
     validator = token_validator or JwtValidator(configured_settings)
 
     graph_client: GraphClient | None = None
@@ -101,6 +103,6 @@ def create_app(
     return application
 
 
-mcp = FastMCP("M365 MCP Server")
-mcp_app = mcp.http_app(path="/")
+mcp = FastMCP("M365 MCP Server", mask_error_details=True)
+mcp_app = mcp.http_app(path="/", stateless_http=True, json_response=True)
 app = create_app(mcp_server=mcp, mcp_http_app=mcp_app)
