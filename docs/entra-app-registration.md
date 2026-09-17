@@ -4,8 +4,6 @@
 
 ## Quick links
 
-Start here, similar to the direct portal links used in the rclone Microsoft setup documentation:
-
 - **Microsoft Entra admin center:** https://entra.microsoft.com/
 - **Azure portal - Microsoft Entra overview:** https://portal.azure.com/?quickstart=true#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview
 - **Register an application:** https://learn.microsoft.com/en-us/graph/auth-register-app-v2
