@@ -55,11 +55,10 @@ Microsoft 365
 
 ## Development Status
 
-Task 006 is implemented: the MCP endpoint exposes identity-scoped Outlook
-mail tools with bounded attachment extraction, safe invocation audit events,
-security response headers, and explicit untrusted-content markers for email
-and attachment text. PDF, DOCX, XLSX, PPTX, and UTF-8 TXT extraction remains
-server-side under configurable limits.
+Task 007 is implemented: the repository provides identity-scoped Outlook mail
+tools, bounded attachment extraction, safe invocation audit events, security
+response headers, and a non-root production container. GitHub Actions runs
+tests, builds and smoke-tests the image, and publishes version tags to GHCR.
 
 ## Run locally
 
@@ -76,7 +75,7 @@ The application exposes:
 - `/mcp/` for the protected FastMCP Streamable HTTP endpoint
 
 Configure `CLIENT_ID`, exactly one client credential, `ALLOWED_TENANTS`,
-`AUDIENCE`, and `REQUIRED_SCOPES` before using `/mcp/`. Task 002 does not
-expose Microsoft Graph or mailbox operations.
+AUDIENCE, and REQUIRED_SCOPES before using /mcp/. The protected
+endpoint exposes only the current user's delegated Outlook mailbox operations.
 
 Tests and the Docker build run in GitHub Actions.
