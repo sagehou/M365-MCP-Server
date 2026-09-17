@@ -55,8 +55,9 @@ Microsoft 365
 
 ## Development Status
 
-Bootstrap (Task 001) is implemented. Entra authentication and Microsoft Graph
-integration are intentionally not included yet.
+Task 002 is implemented: the MCP endpoint now validates Microsoft Entra delegated
+access tokens and provides an OBO service for downstream Graph tokens. Mail and
+Graph operations remain out of scope until the next tasks.
 
 ## Run locally
 
@@ -67,13 +68,13 @@ python -m pip install -e ".[dev]"
 python -m m365_mcp
 ```
 
-The bootstrap application exposes:
+The application exposes:
 
 - `GET /health` (also available as `/healthz`) for readiness checks
-- `/mcp/` for the FastMCP Streamable HTTP endpoint scaffold
+- `/mcp/` for the protected FastMCP Streamable HTTP endpoint
 
-Task 001 does not include authentication. Do not expose this bootstrap
-application to an untrusted network until the Entra authentication task is
-implemented.
+Configure `CLIENT_ID`, exactly one client credential, `ALLOWED_TENANTS`,
+`AUDIENCE`, and `REQUIRED_SCOPES` before using `/mcp/`. Task 002 does not
+expose Microsoft Graph or mailbox operations.
 
 Tests and the Docker build run in GitHub Actions.
