@@ -30,7 +30,7 @@ class SecurityHeadersMiddleware:
                 return
             headers = list(message.get("headers") or ())
             existing = {
-                name.casefold() for name, _ in headers if isinstance(name, bytes)
+                name.lower() for name, _ in headers if isinstance(name, bytes)
             }
             headers.extend(
                 (name, value) for name, value in self.HEADERS if name not in existing
