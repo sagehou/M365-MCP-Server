@@ -37,3 +37,13 @@ User mailbox
 - Never accept arbitrary mailbox/user identifiers from tools
 - Always operate with /me unless explicitly implementing shared mailbox support
 - Validate tenant and user identity from token claims
+## Integration Boundaries
+
+The Graph client accepts a validated `AuthContext`, obtains a delegated
+Microsoft Graph token through the Entra OBO service, and only permits relative
+paths under `/me`. It handles Graph throttling and transient failures before
+returning a sanitized response or error to the service layer.
+
+The mail service is an internal service foundation. MCP tool registration stays
+in a later task so Graph transport and mailbox policy remain independently
+testable.
