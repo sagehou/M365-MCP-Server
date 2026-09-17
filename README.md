@@ -86,8 +86,11 @@ The application exposes:
 - `GET /health` (also available as `/healthz`) for process liveness only
 - `/mcp/` for the protected FastMCP Streamable HTTP endpoint
 
-Configure `CLIENT_ID`, exactly one client credential, `ALLOWED_TENANTS`,
-`AUDIENCE`, and `REQUIRED_SCOPES` before using `/mcp/`. The protected
-endpoint exposes only the current user's delegated Outlook mailbox operations.
+Configure `CLIENT_ID`, exactly one client credential, `ALLOWED_TENANTS`, and
+`REQUIRED_SCOPES` before using `/mcp/`. `ALLOWED_TENANTS` accepts a comma-separated
+list of tenant IDs or `*` for any valid Microsoft tenant; an empty value fails
+closed. `AUDIENCE` is optional and, when omitted, the server accepts the API
+client ID and `api://<client-id>` forms. The protected endpoint exposes only the
+current user's delegated Outlook mailbox operations.
 
 Tests and the Docker build run in GitHub Actions.
