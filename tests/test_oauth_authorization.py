@@ -309,6 +309,38 @@ def test_wrong_pkce_or_client_does_not_consume_valid_code(tmp_path: Path) -> Non
     assert len(broker.completed_flows) == 1
 
 
+def test_new_authorization_reclaims_terminal_transaction_and_code_rows(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "oauth.db"
+    app, _, _ = make_app(database_path)
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        first_authorization = begin_authorization(client, client_id)
+        first_upstream_state = parse_qs(
+            urlsplit(first_authorization.headers["location"]).query
+        )["state"][0]
+        first_callback = complete_authorization(client, first_upstream_state)
+        first_local_code = local_code_from_redirect(
+            first_callback.headers["location"]
+        )
+        assert redeem_code(client, client_id, first_local_code).status_code == 200
+
+        second_authorization = begin_authorization(client, client_id)
+        assert second_authorization.status_code == 302
+
+    with sqlite3.connect(database_path) as connection:
+        transactions = connection.execute(
+            "SELECT completed_at FROM oauth_transactions"
+        ).fetchall()
+        code_count = connection.execute(
+            "SELECT COUNT(*) FROM oauth_codes"
+        ).fetchone()[0]
+
+    assert transactions == [(None,)]
+    assert code_count == 0
+
+
 def test_authorize_rejects_unsafe_parameters_before_upstream_redirect(
     tmp_path: Path,
 ) -> None:

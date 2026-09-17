@@ -135,3 +135,9 @@ and the transient MSAL cache are encrypted before being written to SQLite. Until
 PR4 introduces a persistent encryption key, they use a process-local key, so
 outstanding transactions and codes intentionally cannot survive a process
 restart.
+
+Before each new transaction or local code is stored, the SQLite adapter reclaims
+expired/completed transactions and expired/used codes so terminal OAuth state
+does not grow without bound. The production Uvicorn request-line access log is
+disabled; reverse proxies must also omit `/oauth/*` query strings so Entra
+codes, state, and PKCE values are not retained outside the allowlisted audit log.

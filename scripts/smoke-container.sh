@@ -107,16 +107,23 @@ test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --data-urlencode 'code_challenge_method=S256' \
   --data-urlencode 'resource=https://mcp.example.com/mcp/' \
   http://127.0.0.1:18001/oauth/authorize)" = 400
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  --get \
+  --data-urlencode 'code=ci-sensitive-entra-code' \
+  --data-urlencode 'state=ci-sensitive-upstream-state' \
+  http://127.0.0.1:18001/oauth/callback/entra)" = 400
 oauth_startup_logs="$(docker logs "$oauth_container" 2>&1)"
 for forbidden in \
   'AuthlibDeprecationWarning' \
   'authlib.jose module is deprecated' \
   'please use joserfc instead' \
   'The httpx module is deprecated' \
-  'please use httpx2 instead'; do
+  'please use httpx2 instead' \
+  'ci-sensitive-entra-code' \
+  'ci-sensitive-upstream-state'; do
   if grep --fixed-strings --quiet "$forbidden" <<< "$oauth_startup_logs"; then
     printf '%s\n' "$oauth_startup_logs"
-    printf 'Forbidden OAuth runtime warning found: %s\n' "$forbidden" >&2
+    printf 'Forbidden OAuth runtime log content found: %s\n' "$forbidden" >&2
     exit 1
   fi
 done

@@ -90,3 +90,5 @@ OAuth Issuer 和 Resource Metadata 只能由显式、经过验证的配置生成
 Dynamic Registration 只创建 Public Client，绝不签发 Client Secret。Client Record 使用带 Issuer Qualification 的 Key 存入 SQLite。Registration Audit Event 只包含生成的 Client ID 和 Result，不记录 Redirect URI 或 Request Body。在 Authorization、Refresh 和 E2E Security Gate 完成前，Discovery 阶段由默认关闭的 Feature Flag 保护。
 
 Interactive Authorization 强制要求 `response_type=code`、Exact Client/Redirect Binding、Configured MCP Resource、Configured Public Scope 与 S256 PKCE。WorkBuddy State 与新生成的 Entra State 分开保存；后者在 MSAL 完成 Callback 之前原子消费。Token A 必须再次通过现有 `JwtValidator`，之后才创建 Random、Hashed、Single-use Local Code。Browser Redirect 只包含该 Local Code 与原始 WorkBuddy State。Entra Authorization-flow Object、Token A 与临时 MSAL Cache 均加密后再写入 SQLite。在 PR4 引入 Persistent Encryption Key 之前，这些数据使用进程内密钥加密，因此未完成的 Transaction 或未兑换 Code 会有意在进程重启后失效。
+
+SQLite Adapter 在写入新的 Transaction 或 Local Code 前会回收 Expired/Completed Transaction 与 Expired/Used Code，避免终态 OAuth 数据无限增长。生产 Uvicorn Request-line Access Log 已关闭；反向代理也必须省略 `/oauth/*` Query String，防止 Entra Code、State 与 PKCE 值进入 Allowlist Audit Log 之外的日志。

@@ -91,6 +91,10 @@ Route `/.well-known/*`, `/oauth/*` and `/mcp/` through the same fixed public
 origin. Register `https://mcp.example.com/oauth/callback/entra` only on App B.
 Apply reverse-proxy request-size and rate limits to `/oauth/register`;
 the application deliberately does not add Redis or an enterprise rate limiter.
+The production entry point disables Uvicorn request-line access logs because
+OAuth authorization and callback query strings contain sensitive transient
+values. Configure every reverse proxy and log collector to omit query strings
+for `/oauth/*` as well.
 Do not set `OAUTH_ENABLED=true` in production until persistent refresh and
 WorkBuddy end-to-end gates are complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
 

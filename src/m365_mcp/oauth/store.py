@@ -268,6 +268,10 @@ class SQLiteOAuthStore:
 
     def _create_transaction_sync(self, transaction: OAuthTransaction) -> None:
         with self._connect() as connection:
+            self._delete_terminal_authorization_rows(
+                connection,
+                transaction.created_at,
+            )
             connection.execute(
                 """
                 INSERT INTO oauth_transactions (
@@ -328,6 +332,10 @@ class SQLiteOAuthStore:
         authorization_code: OAuthAuthorizationCode,
     ) -> None:
         with self._connect() as connection:
+            self._delete_terminal_authorization_rows(
+                connection,
+                authorization_code.created_at,
+            )
             connection.execute(
                 """
                 INSERT INTO oauth_codes (
@@ -393,6 +401,28 @@ class SQLiteOAuthStore:
             if updated.rowcount != 1:
                 return None
             return self._authorization_code_from_row(row, used_at=now)
+
+    @staticmethod
+    def _delete_terminal_authorization_rows(
+        connection: sqlite3.Connection,
+        now: int,
+    ) -> None:
+        """Reclaim terminal short-lived rows before each new persisted flow."""
+
+        connection.execute(
+            """
+            DELETE FROM oauth_transactions
+            WHERE expires_at <= ? OR completed_at IS NOT NULL
+            """,
+            (now,),
+        )
+        connection.execute(
+            """
+            DELETE FROM oauth_codes
+            WHERE expires_at <= ? OR used_at IS NOT NULL
+            """,
+            (now,),
+        )
 
     @staticmethod
     def _transaction_from_row(
