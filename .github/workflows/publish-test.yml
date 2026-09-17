@@ -1,6 +1,9 @@
 name: Publish test container
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
