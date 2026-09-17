@@ -303,7 +303,8 @@ api://<MCP_API_CLIENT_ID>/access_as_user
 - OBO to Microsoft Graph：已实现
 - MCP OAuth Discovery / Dynamic Client Registration：已在 `OAUTH_ENABLED` 后实现
 - MSAL Interactive Sign-in、S256 PKCE 与 Local Authorization-code Exchange：已在 `OAUTH_ENABLED` 后实现
-- Persistent Local Refresh Session 与真实 WorkBuddy 验收：尚未完成
+- Persistent Encrypted Local Refresh Session 与 Rotation：已在 `OAUTH_ENABLED` 后实现
+- 真实 WorkBuddy 验收：尚未完成
 
 ### 10.1 创建 Confidential App B Broker
 
@@ -327,7 +328,7 @@ api://<MCP_API_CLIENT_ID>/access_as_user
 
 MSAL 会自动管理 Reserved OpenID Scopes。Broker 显式请求 `api://<MCP_API_CLIENT_ID>/access_as_user`，返回的 Token A 仍必须通过现有 JWT Validator 复验。
 
-在 Persistent Refresh Session 交付前，第一次真实验证也可以使用下面的独立 Test Client App Registration。
+如需隔离诊断 Bearer Token，可继续使用下面的独立 Test Client App Registration；它不是正式 WorkBuddy OAuth 路径。
 
 ## 11. 可选：创建测试 Client App
 

@@ -16,36 +16,23 @@ from ..auth.settings import Settings
 from .audit import OAuthAuditLogger
 from .crypto import TokenProtectionError, TokenProtector
 from .entra import EntraAuthorizationBroker, EntraBrokerError
+from .errors import OAuthProtocolError
 from .models import (
     OAuthAuthorizationCode,
+    OAuthAuthorizationCodeTokenRequest,
     OAuthAuthorizationRequest,
-    OAuthTokenRequest,
+    OAuthRefreshTokenRequest,
     OAuthTokenResponse,
     OAuthTransaction,
 )
 from .registry import OAuthClientRegistry
+from .sessions import OAuthSessionService
 from .store import OAuthStore, OAuthStoreError
 
 
 _PKCE_CHALLENGE = re.compile(r"^[A-Za-z0-9_-]{43}$")
 _PKCE_VERIFIER = re.compile(r"^[A-Za-z0-9._~-]{43,128}$")
 _RESERVED_REDIRECT_PARAMETERS = frozenset({"code", "state", "error"})
-
-
-class OAuthProtocolError(Exception):
-    """Safe protocol error that can cross the public HTTP seam."""
-
-    def __init__(
-        self,
-        error: str,
-        description: str,
-        *,
-        status_code: int = 400,
-    ) -> None:
-        super().__init__(description)
-        self.error = error
-        self.description = description
-        self.status_code = status_code
 
 
 class OAuthAuthorizationService:
@@ -59,6 +46,7 @@ class OAuthAuthorizationService:
         broker: EntraAuthorizationBroker,
         token_validator: TokenValidator,
         token_protector: TokenProtector,
+        session_service: OAuthSessionService,
         audit_logger: OAuthAuditLogger | None = None,
     ) -> None:
         self.settings = settings
@@ -67,6 +55,7 @@ class OAuthAuthorizationService:
         self.broker = broker
         self.token_validator = token_validator
         self.token_protector = token_protector
+        self.session_service = session_service
         self.audit_logger = audit_logger or OAuthAuditLogger()
         self.issuer = settings.normalized_oauth_issuer_url
 
@@ -256,12 +245,10 @@ class OAuthAuthorizationService:
             transaction.workbuddy_state,
         )
 
-    async def exchange(self, request: OAuthTokenRequest) -> OAuthTokenResponse:
-        if request.grant_type != "authorization_code":
-            raise OAuthProtocolError(
-                "unsupported_grant_type",
-                "grant_type must be authorization_code",
-            )
+    async def exchange(
+        self,
+        request: OAuthAuthorizationCodeTokenRequest,
+    ) -> OAuthTokenResponse:
         if not _PKCE_VERIFIER.fullmatch(request.code_verifier):
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
         verifier_challenge = self._pkce_challenge(request.code_verifier)
@@ -292,13 +279,21 @@ class OAuthAuthorizationService:
             ) from exc
         access_token = bundle.get("access_token")
         access_token_expires_at = bundle.get("access_token_expires_at")
+        serialized_cache = bundle.get("serialized_cache")
         if not isinstance(access_token, str) or not access_token:
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
         if not isinstance(access_token_expires_at, int):
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
+        if not isinstance(serialized_cache, str) or not serialized_cache:
+            raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
         expires_in = access_token_expires_at - now
         if expires_in <= 0:
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
+        refresh_token = await self.session_service.issue(
+            authorization_code,
+            serialized_cache,
+            now,
+        )
         self.audit_logger.code_redeemed(
             authorization_code.client_id,
             authorization_code.tenant_id,
@@ -309,7 +304,14 @@ class OAuthAuthorizationService:
             access_token=access_token,
             expires_in=expires_in,
             scope=authorization_code.scope,
+            refresh_token=refresh_token,
         )
+
+    async def refresh(
+        self,
+        request: OAuthRefreshTokenRequest,
+    ) -> OAuthTokenResponse:
+        return await self.session_service.refresh(request)
 
     def _validated_scope(self, raw_scope: str) -> str:
         requested = frozenset(item for item in raw_scope.split() if item)

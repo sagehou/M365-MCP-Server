@@ -35,10 +35,11 @@ No production mailbox data is read or changed by those tests.
 - Configure Entra applications/consent and validate two real users, supported
   MCP clients, certificate or secret credentials, and representative attachments.
 - OAuth discovery, dynamic public-client registration, MSAL-backed interactive
-  authorization, S256 PKCE and one-time local authorization-code exchange are
-  implemented behind a default-off feature flag. Persistent encrypted refresh
-  sessions, rotation/replay prevention and automatic WorkBuddy sign-in acceptance
-  remain release blockers for a WorkBuddy-compatible v0.1.
+  authorization, S256 PKCE, one-time local authorization-code exchange and
+  persistent encrypted refresh sessions with rotation/replay prevention are
+  implemented behind a default-off feature flag. The WorkBuddy connector, CI
+  client-flow coverage and live automatic sign-in/refresh acceptance remain
+  release blockers for a WorkBuddy-compatible v0.1.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.

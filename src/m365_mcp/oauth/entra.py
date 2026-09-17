@@ -16,6 +16,10 @@ class EntraBrokerError(Exception):
     """Raised when Entra authorization cannot be completed safely."""
 
 
+class EntraRefreshRejectedError(EntraBrokerError):
+    """Raised when Microsoft requires a new interactive authorization."""
+
+
 class EntraAuthorizationBroker(Protocol):
     async def begin(self, upstream_state: str) -> UpstreamAuthorization: ...
 
@@ -24,6 +28,8 @@ class EntraAuthorizationBroker(Protocol):
         flow: Mapping[str, Any],
         authorization_response: Mapping[str, str],
     ) -> UpstreamTokenResult: ...
+
+    async def refresh(self, serialized_cache: str) -> UpstreamTokenResult: ...
 
 
 class MsalAuthorizationApplication(Protocol):
@@ -42,6 +48,15 @@ class MsalAuthorizationApplication(Protocol):
         scopes: Sequence[str] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]: ...
+
+    def get_accounts(self, **kwargs: Any) -> list[dict[str, Any]]: ...
+
+    def acquire_token_silent_with_error(
+        self,
+        scopes: Sequence[str],
+        account: Mapping[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any] | None: ...
 
 
 class MsalEntraAuthorizationBroker:
@@ -72,6 +87,9 @@ class MsalEntraAuthorizationBroker:
             dict(flow),
             dict(authorization_response),
         )
+
+    async def refresh(self, serialized_cache: str) -> UpstreamTokenResult:
+        return await asyncio.to_thread(self._refresh_sync, serialized_cache)
 
     def _begin_sync(self, upstream_state: str) -> UpstreamAuthorization:
         try:
@@ -109,8 +127,52 @@ class MsalEntraAuthorizationBroker:
             raise EntraBrokerError(
                 "Microsoft authorization response is invalid"
             ) from exc
-        access_token = result.get("access_token") if isinstance(result, dict) else None
-        expires_in = result.get("expires_in") if isinstance(result, dict) else None
+        return self._token_result(result, serialized_cache)
+
+    def _refresh_sync(self, serialized_cache: str) -> UpstreamTokenResult:
+        if not serialized_cache:
+            raise EntraRefreshRejectedError("Microsoft session is unavailable")
+        try:
+            cache = self._cache_factory()
+            cache.deserialize(serialized_cache)
+            application = self._new_application(cache)
+            accounts = application.get_accounts()
+            if len(accounts) != 1:
+                raise EntraRefreshRejectedError(
+                    "Microsoft session requires interactive authorization"
+                )
+            result = application.acquire_token_silent_with_error(
+                scopes=list(self.settings.entra_broker_scopes),
+                account=accounts[0],
+                force_refresh=True,
+            )
+            refreshed_cache = cache.serialize()
+        except EntraRefreshRejectedError:
+            raise
+        except Exception as exc:
+            raise EntraBrokerError("Microsoft token refresh is unavailable") from exc
+        if not isinstance(result, dict) or not result.get("access_token"):
+            error = result.get("error") if isinstance(result, dict) else None
+            if error in {
+                "invalid_grant",
+                "interaction_required",
+                "no_tokens_found",
+            } or result is None:
+                raise EntraRefreshRejectedError(
+                    "Microsoft session requires interactive authorization"
+                )
+            raise EntraBrokerError("Microsoft token refresh is unavailable")
+        return self._token_result(result, refreshed_cache)
+
+    @staticmethod
+    def _token_result(
+        result: Mapping[str, Any],
+        serialized_cache: str,
+    ) -> UpstreamTokenResult:
+        if not isinstance(serialized_cache, str) or not serialized_cache:
+            raise EntraBrokerError("Microsoft token cache is invalid")
+        access_token = result.get("access_token")
+        expires_in = result.get("expires_in")
         if not isinstance(access_token, str) or not access_token:
             raise EntraBrokerError("Microsoft authorization did not return a token")
         try:

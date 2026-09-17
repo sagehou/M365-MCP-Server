@@ -86,5 +86,54 @@ class OAuthAuditLogger:
             result="success",
         )
 
+    def refresh_succeeded(
+        self,
+        client_id: str,
+        tenant_id: str,
+        user_id: str,
+        correlation_id: str,
+    ) -> None:
+        self._record(
+            "oauth_refresh_succeeded",
+            client_id=client_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            correlation_id=correlation_id,
+            result="success",
+        )
+
+    def refresh_failed(
+        self,
+        client_id: str,
+        error_type: str,
+        correlation_id: str | None = None,
+    ) -> None:
+        fields = {
+            "client_id": client_id,
+            "error_type": error_type,
+            "result": "error",
+        }
+        if correlation_id is not None:
+            fields["correlation_id"] = correlation_id
+        self._record("oauth_refresh_failed", **fields)
+
+    def session_revoked(
+        self,
+        client_id: str,
+        tenant_id: str,
+        user_id: str,
+        correlation_id: str,
+        error_type: str,
+    ) -> None:
+        self._record(
+            "oauth_session_revoked",
+            client_id=client_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            correlation_id=correlation_id,
+            error_type=error_type,
+            result="success",
+        )
+
     def _record(self, event: str, **fields: str) -> None:
         self.logger.info(event, extra={"event": event, **fields})

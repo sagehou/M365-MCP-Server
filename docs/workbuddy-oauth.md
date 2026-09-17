@@ -14,22 +14,22 @@ authorization-code flow:
 - `GET /oauth/authorize` with exact client/redirect/resource binding and S256 PKCE
 - `GET /oauth/callback/entra` backed by MSAL Python and a separate upstream state
 - one-time local authorization codes with a maximum ten-minute lifetime
-- `POST /oauth/token` for `grant_type=authorization_code`
+- `POST /oauth/token` for `grant_type=authorization_code` and `refresh_token`
+- opaque local refresh tokens stored only as SHA-256 hashes
+- encrypted persistent MSAL cache with one-time token rotation and replay rejection
+- restart-safe sessions in the configured SQLite database
 - issuer-bound SQLite persistence at `OAUTH_DATABASE_PATH`
 
 The token endpoint returns the validated Entra access token for App A so the
 existing JWT validator and OBO path remain authoritative. It does not mint a new
-MCP JWT. The Entra authorization-flow object, Token A and the transient MSAL
-cache are encrypted under a process-local key while bound to the short-lived
-transaction or local authorization code; they never appear in the browser
-redirect.
+MCP JWT. The Entra authorization-flow object, Token A and MSAL cache are encrypted
+with AES-256-GCM under `OAUTH_ENCRYPTION_KEY`; sensitive token material never
+appears in the browser redirect or plaintext SQLite columns.
 
-Persistent encryption keys, opaque local refresh tokens, rotation, replay
-protection and restart-safe refresh sessions are implemented in the next phase.
-Until that phase and real WorkBuddy acceptance are complete, keep
-`OAUTH_ENABLED=false` outside controlled integration development.
-Controlled PR3 integration must use one server process and one replica because
-the temporary key is process-local. PR4 removes this restriction.
+Keep `OAUTH_ENABLED=false` outside controlled integration development until the
+real WorkBuddy acceptance gate is complete. Restarted or replacement processes
+must use the same SQLite database and encryption key. Distributed or multi-host
+session storage is outside the v0.1 scope.
 
 ## Authorization flow
 
@@ -44,7 +44,26 @@ the temporary key is process-local. PR4 removes this restriction.
 5. The browser receives only `code=<local-code>&state=<original-state>` at the
    exact registered redirect.
 6. `/oauth/token` atomically redeems the local code after exact client, redirect
-   and PKCE verification. A second redemption returns `invalid_grant`.
+   and PKCE verification. It returns Token A plus a random local refresh token;
+   a second code redemption returns `invalid_grant`.
+
+## Refresh flow
+
+1. WorkBuddy sends `grant_type=refresh_token`, its public `client_id` and the
+   current opaque local refresh token.
+2. The server hashes the handle and resolves an unexpired, non-revoked session
+   bound to the configured issuer and client.
+3. The encrypted MSAL cache is opened and MSAL performs a forced silent token
+   acquisition. The resulting Token A is revalidated and must identify the same
+   tenant and user as the original session.
+4. SQLite compare-and-swap replaces the old handle hash and encrypted cache with
+   the new values. Only the request that rotates the expected old hash succeeds.
+5. WorkBuddy receives Token A and a new opaque refresh token. Reuse of the old
+   value returns `invalid_grant`.
+
+Microsoft revocation, an unusable cache or identity mismatch revokes the local
+session. A transient upstream outage returns `temporarily_unavailable` without
+consuming the current local refresh token.
 
 ## Public URL configuration
 
@@ -52,10 +71,14 @@ Set the externally reachable URLs explicitly:
 
     MCP_PUBLIC_URL=https://mcp.example.com/mcp/
     OAUTH_ISSUER_URL=https://mcp.example.com
+    OAUTH_DATABASE_PATH=/data/oauth.db
+    OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
+    OAUTH_REFRESH_TOKEN_TTL_DAYS=30
 
-They must match the reverse-proxy routes exactly. The application does not derive
-them from request headers. Production values require HTTPS; HTTP is accepted only
-for loopback development.
+The public URLs must match the reverse-proxy routes exactly. The application does
+not derive them from request headers. Production values require HTTPS; HTTP is
+accepted only for loopback development. The encryption key must remain outside
+the database, image, repository and logs; losing it invalidates stored sessions.
 
 ## Dynamic registration policy
 

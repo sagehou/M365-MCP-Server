@@ -65,8 +65,10 @@ that an image has been released. Select an existing GHCR version before deployme
 The server accepts an Entra delegated bearer token obtained by the client.
 OAuth discovery, public-client registration, MSAL-backed interactive sign-in,
 S256 PKCE and one-time local authorization-code exchange are available behind
-`OAUTH_ENABLED`. The flag remains false until persistent refresh sessions and
-real WorkBuddy acceptance are complete. Drafts, OCR, shared mailboxes, RBAC,
+`OAUTH_ENABLED`. Persistent encrypted MSAL cache, opaque local refresh tokens,
+one-time rotation, replay rejection and restart-safe SQLite sessions are
+implemented. The flag remains false until real WorkBuddy acceptance is complete.
+Drafts, OCR, shared mailboxes, RBAC,
 rate limiting and other M365 workloads are not implemented. No live-tenant
 acceptance is implied by mocked Graph/OBO/OAuth tests.
 See [review status](docs/review-status.md), the

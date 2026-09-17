@@ -56,19 +56,21 @@ Compose 默认只绑定 `127.0.0.1`。如果反向代理运行在其他主机或
 
 ## OAuth Authorization Broker
 
-当前 OAuth 阶段提供 Discovery Metadata、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE 和一次性 Authorization-code Exchange。Persistent Refresh Session 尚未提供，因此默认保持关闭：
+OAuth Broker 已提供 Discovery Metadata、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Authorization-code Exchange 与 Persistent Local Refresh Session。在真实 WorkBuddy 验收完成前仍默认关闭：
 
     OAUTH_ENABLED=false
     MCP_PUBLIC_URL=https://mcp.example.com/mcp/
     OAUTH_ISSUER_URL=https://mcp.example.com
     OAUTH_DATABASE_PATH=/data/oauth.db
+    OAUTH_ENCRYPTION_KEY=<32-random-bytes-base64>
+    OAUTH_REFRESH_TOKEN_TTL_DAYS=30
     ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
     ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
     ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
 
-在集成开发中显式开启后，两个 Public URL 都来自经过验证的配置，绝不从 Host 或 Forwarded Header 推导。除 Loopback 开发外必须使用 HTTPS。Compose 把 Named Volume `oauth-data` 挂载到 `/data`，使 Registered Client 和未来 Session 在 Container Recreate 后仍然存在。该 Volume 属于敏感认证状态，必须纳入备份保护。PR3 的 Encryption Key 仅存在于进程内，因此受控集成运行必须严格使用一个 Server Process 和一个 Replica；在 PR4 提供 Persistent Shared Key 之前，不要把同一 Authorization Flow 分发到不同 Worker 或 Replica。
+在集成开发中显式开启后，两个 Public URL 都来自经过验证的配置，绝不从 Host 或 Forwarded Header 推导。除 Loopback 开发外必须使用 HTTPS。Compose 把 Named Volume `oauth-data` 挂载到 `/data`，使 Registered Client 与加密 Session 在 Container Recreate 后仍然存在。该 Volume 属于敏感认证状态，必须纳入备份保护。`OAUTH_ENCRYPTION_KEY` 必须存入部署 Secret Manager，不得进入 Database、Image、Repository 或 Log；恢复与替换进程必须使用同一 Database 和 Key。v0.1 不提供 Distributed 或 Multi-host Session Storage。
 
-反向代理必须把 `/.well-known/*`、`/oauth/*` 和 `/mcp/` 路由到同一固定 Public Origin，并且只在 App B 注册 `https://mcp.example.com/oauth/callback/entra`。对 `/oauth/register` 配置 Request-size 和 Rate Limit；应用不会为此增加 Redis 或 Enterprise Rate Limiter。生产入口已关闭 Uvicorn Request-line Access Log，因为 OAuth Authorization 和 Callback Query String 包含敏感的短期值；所有反向代理与日志采集器也必须对 `/oauth/*` 省略 Query String。在 Persistent Refresh 与 WorkBuddy E2E Gate 完成前，不要在生产设置 `OAUTH_ENABLED=true`。详见 [WorkBuddy OAuth](workbuddy-oauth.md)。
+反向代理必须把 `/.well-known/*`、`/oauth/*` 和 `/mcp/` 路由到同一固定 Public Origin，并且只在 App B 注册 `https://mcp.example.com/oauth/callback/entra`。对 `/oauth/register` 配置 Request-size 和 Rate Limit；应用不会为此增加 Redis 或 Enterprise Rate Limiter。生产入口已关闭 Uvicorn Request-line Access Log，因为 OAuth Authorization 和 Callback Query String 包含敏感的短期值；所有反向代理与日志采集器也必须对 `/oauth/*` 省略 Query String。在 WorkBuddy E2E Gate 完成前，不要在生产设置 `OAUTH_ENABLED=true`。详见 [WorkBuddy OAuth](workbuddy-oauth.md)。
 
 ## 容器发布
 

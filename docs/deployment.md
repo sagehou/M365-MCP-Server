@@ -65,15 +65,17 @@ required Entra configuration.
 
 ## OAuth authorization broker
 
-The current OAuth phase provides discovery metadata, dynamic public-client
-registration, MSAL-backed interactive authorization, S256 PKCE and one-time
-authorization-code exchange. Persistent refresh sessions are not yet available,
-so OAuth remains disabled by default:
+The OAuth broker provides discovery metadata, dynamic public-client registration,
+MSAL-backed interactive authorization, S256 PKCE, one-time authorization-code
+exchange and persistent local refresh sessions. OAuth remains disabled by default
+until live WorkBuddy acceptance is complete:
 
     OAUTH_ENABLED=false
     MCP_PUBLIC_URL=https://mcp.example.com/mcp/
     OAUTH_ISSUER_URL=https://mcp.example.com
     OAUTH_DATABASE_PATH=/data/oauth.db
+    OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
+    OAUTH_REFRESH_TOKEN_TTL_DAYS=30
     ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
     ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
     ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
@@ -81,11 +83,11 @@ so OAuth remains disabled by default:
 When explicitly enabled for integration development, both public URLs are
 validated configuration; they are never inferred from Host or forwarded headers.
 HTTPS is mandatory except for loopback development. Compose mounts the named
-`oauth-data` volume at `/data`, so registered clients and future sessions survive
-container recreation. Back up this volume as sensitive authentication state.
-The PR3 encryption key is process-local, so controlled integration runs must use
-exactly one server process and one replica. Do not load-balance an authorization
-flow across workers or replicas until PR4 provides a persistent shared key.
+`oauth-data` volume at `/data`, so registered clients and encrypted sessions survive
+container recreation. Back up this volume as sensitive authentication state. Store
+`OAUTH_ENCRYPTION_KEY` in the deployment secret manager, never in the database,
+image, repository or logs. Restores and replacement processes must use the same
+database and key. v0.1 does not provide distributed or multi-host session storage.
 
 Route `/.well-known/*`, `/oauth/*` and `/mcp/` through the same fixed public
 origin. Register `https://mcp.example.com/oauth/callback/entra` only on App B.
@@ -95,8 +97,8 @@ The production entry point disables Uvicorn request-line access logs because
 OAuth authorization and callback query strings contain sensitive transient
 values. Configure every reverse proxy and log collector to omit query strings
 for `/oauth/*` as well.
-Do not set `OAUTH_ENABLED=true` in production until persistent refresh and
-WorkBuddy end-to-end gates are complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
+Do not set `OAUTH_ENABLED=true` in production until the WorkBuddy end-to-end gate
+is complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
 
 ## Container release
 
@@ -155,8 +157,9 @@ and `api://<CLIENT_ID>` audience forms.
 4. Register a separate confidential App B with the broker callback, configure the
    three `ENTRA_BROKER_*` values and grant App B delegated access to App A's
    `api://<CLIENT_ID>/access_as_user` scope. Do not grant App B Graph permission.
-   Interactive sign-in and local authorization-code exchange are present behind
-   the disabled feature flag; persistent refresh remains a release blocker.
+   Interactive sign-in, local authorization-code exchange and encrypted refresh
+   sessions are present behind the disabled feature flag; live acceptance remains
+   a release blocker.
 5. Confirm /healthz returns 200 and /mcp/ without a bearer token returns 401.
    These checks do not validate tenant credentials, Graph consent or OBO.
 6. With two test users, initialize MCP, list the eight tools and read a known

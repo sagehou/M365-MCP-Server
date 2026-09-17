@@ -14,11 +14,12 @@ from .graph import GraphClient, MailService
 from .extractors import AttachmentExtractorRegistry
 from .mail import MailToolService, register_mail_tools
 from .oauth import (
+    AesGcmTokenProtector,
     DynamicClientRegistry,
-    EphemeralTokenProtector,
     MsalEntraAuthorizationBroker,
     OAuthAuthorizationService,
     OAuthClientRegistry,
+    OAuthSessionService,
     OAuthStore,
     SQLiteOAuthStore,
     create_oauth_router,
@@ -88,14 +89,27 @@ def create_app(
             store,
             configured_settings.normalized_oauth_issuer_url,
         )
-        authorization_service = authorization_service or OAuthAuthorizationService(
-            configured_settings,
-            registry,
-            store,
-            MsalEntraAuthorizationBroker(configured_settings),
-            validator,
-            EphemeralTokenProtector(),
-        )
+        if authorization_service is None:
+            broker = MsalEntraAuthorizationBroker(configured_settings)
+            token_protector = AesGcmTokenProtector(
+                configured_settings.oauth_encryption_key_bytes
+            )
+            session_service = OAuthSessionService(
+                configured_settings,
+                store,
+                broker,
+                validator,
+                token_protector,
+            )
+            authorization_service = OAuthAuthorizationService(
+                configured_settings,
+                registry,
+                store,
+                broker,
+                validator,
+                token_protector,
+                session_service,
+            )
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:

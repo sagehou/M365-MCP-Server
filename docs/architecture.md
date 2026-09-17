@@ -63,14 +63,15 @@ and do not know the SQLite schema.
 
 `SQLiteOAuthStore` is the persistence adapter at the internal store seam. It
 persists registered clients, atomically consumes Entra transactions and local
-authorization codes, and prepares the session table for PR4 refresh support.
+authorization codes, and compare-and-swap rotates issuer-bound refresh sessions.
 `MsalEntraAuthorizationBroker` is the true-external adapter for App B, while the
 existing `JwtValidator` revalidates Token A for App A before any local code is
-created. The Entra authorization-flow object, Token A and the transient MSAL
-cache are encrypted behind a process-local adapter in this phase; PR4 replaces
-it with a restart-safe key and session persistence.
+created. `OAuthSessionService` hides opaque-token hashing, encrypted MSAL cache
+persistence, silent refresh, identity rebinding checks, revocation and one-time
+rotation behind a small interface. The authorization-flow object, Token A and
+MSAL cache use AES-256-GCM under the configured restart-stable key.
 
 The public resource and issuer URLs come only from `MCP_PUBLIC_URL` and
 `OAUTH_ISSUER_URL`; request Host and forwarded-host headers never define this
-security metadata. The module remains disabled by default until refresh and real
-WorkBuddy acceptance are complete.
+security metadata. The module remains disabled by default until real WorkBuddy
+acceptance is complete.

@@ -121,8 +121,8 @@ exactly for the same client and issuer.
 Dynamic registration creates public clients only and never issues a client
 secret. Client records are stored in SQLite under an issuer-qualified key.
 Registration audit events contain the generated client ID and result, but not
-redirect URIs or request bodies. The discovery phase is guarded by a default-off
-feature flag until authorization, refresh and end-to-end security gates exist.
+redirect URIs or request bodies. The OAuth module is guarded by a default-off
+feature flag until live end-to-end acceptance is complete.
 
 Interactive authorization requires `response_type=code`, exact client and
 redirect binding, the configured MCP resource, the configured public scope and
@@ -131,13 +131,21 @@ state; the latter is atomically consumed before MSAL completes the callback.
 Token A is revalidated by the existing `JwtValidator` before a random, hashed,
 single-use local code is created. Browser redirects contain only that local code
 and the original WorkBuddy state. The Entra authorization-flow object, Token A
-and the transient MSAL cache are encrypted before being written to SQLite. Until
-PR4 introduces a persistent encryption key, they use a process-local key, so
-outstanding transactions and codes intentionally cannot survive a process
-restart.
+and MSAL cache are encrypted with AES-256-GCM before being written to SQLite.
+`OAUTH_ENCRYPTION_KEY` must decode from base64 to exactly 32 bytes and is required
+whenever OAuth is enabled. The key is not stored in SQLite.
 
-Before each new transaction or local code is stored, the SQLite adapter reclaims
-expired/completed transactions and expired/used codes so terminal OAuth state
-does not grow without bound. The production Uvicorn request-line access log is
+WorkBuddy receives a random 256-bit-equivalent local handle, never an Entra
+refresh token. SQLite stores only its SHA-256 hash and the encrypted MSAL cache.
+Refresh restores the cache, forces MSAL silent acquisition, revalidates Token A,
+checks that tenant and user still match the session, then compare-and-swap rotates
+the local handle. Concurrent or replayed use of the old handle returns
+`invalid_grant`; Microsoft revocation, corrupt cache or identity mismatch revokes
+the local session. Transient Microsoft failures do not consume the current handle.
+
+During initialization and normal OAuth writes, the SQLite adapter reclaims
+expired/completed transactions, expired/used codes, expired sessions and old
+revoked sessions so terminal OAuth state does not grow without bound. The
+production Uvicorn request-line access log is
 disabled; reverse proxies must also omit `/oauth/*` query strings so Entra
 codes, state, and PKCE values are not retained outside the allowlisted audit log.

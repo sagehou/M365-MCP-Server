@@ -1,4 +1,4 @@
-"""Short-lived protection for OAuth code-bound token material."""
+"""Persistent AEAD protection for OAuth token material."""
 
 from __future__ import annotations
 
@@ -25,8 +25,8 @@ class TokenProtector(Protocol):
     def open(self, protected: bytes) -> dict[str, Any]: ...
 
 
-class EphemeralTokenProtector:
-    """Encrypt token material with a process-local key until PR4 persists keys."""
+class AesGcmTokenProtector:
+    """Encrypt OAuth material with the configured restart-stable key."""
 
     def __init__(self, key: bytes | None = None) -> None:
         selected_key = key if key is not None else AESGCM.generate_key(bit_length=256)
@@ -64,3 +64,7 @@ class EphemeralTokenProtector:
         if not isinstance(payload, dict):
             raise TokenProtectionError("OAuth token material is invalid")
         return payload
+
+
+class EphemeralTokenProtector(AesGcmTokenProtector):
+    """Test/development adapter that generates a process-local key by default."""

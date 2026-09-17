@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -64,16 +64,27 @@ class OAuthAuthorizationRequest(BaseModel):
     resource: str | None = Field(default=None, max_length=2048)
 
 
-class OAuthTokenRequest(BaseModel):
+class OAuthAuthorizationCodeTokenRequest(BaseModel):
     """Validated shape of an authorization-code token request."""
 
     model_config = ConfigDict(extra="forbid")
 
-    grant_type: str = Field(min_length=1, max_length=50)
+    grant_type: Literal["authorization_code"]
     code: str = Field(min_length=1, max_length=512)
     client_id: str = Field(min_length=1, max_length=200)
     redirect_uri: str = Field(min_length=1, max_length=2048)
     code_verifier: str = Field(min_length=1, max_length=256)
+
+
+class OAuthRefreshTokenRequest(BaseModel):
+    """Validated shape of a public-client refresh-token request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    grant_type: Literal["refresh_token"]
+    refresh_token: str = Field(min_length=1, max_length=512)
+    client_id: str = Field(min_length=1, max_length=200)
+    scope: str | None = Field(default=None, min_length=1, max_length=500)
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +157,26 @@ class OAuthAuthorizationCode:
 
 
 @dataclass(frozen=True, slots=True)
+class OAuthSession:
+    """Persistent, issuer-bound local refresh session."""
+
+    id: str
+    issuer: str
+    client_id: str
+    tenant_id: str
+    user_id: str
+    scope: str
+    resource: str
+    refresh_token_hash: str
+    encrypted_msal_cache: bytes
+    created_at: int
+    updated_at: int
+    expires_at: int
+    revoked_at: int | None
+    rotation_family: str
+
+
+@dataclass(frozen=True, slots=True)
 class UpstreamAuthorization:
     """Authorization URI and opaque MSAL flow state returned by the broker."""
 
@@ -169,11 +200,15 @@ class OAuthTokenResponse:
     access_token: str
     expires_in: int
     scope: str
+    refresh_token: str | None = None
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        response: dict[str, object] = {
             "access_token": self.access_token,
             "token_type": "Bearer",
             "expires_in": self.expires_in,
             "scope": self.scope,
         }
+        if self.refresh_token is not None:
+            response["refresh_token"] = self.refresh_token
+        return response

@@ -303,7 +303,8 @@ Current repository status:
 - OBO to Microsoft Graph: implemented
 - MCP OAuth discovery / dynamic client registration: implemented behind `OAUTH_ENABLED`
 - MSAL interactive sign-in, S256 PKCE and local authorization-code exchange: implemented behind `OAUTH_ENABLED`
-- persistent local refresh sessions and live WorkBuddy acceptance: not yet complete
+- persistent encrypted local refresh sessions and rotation: implemented behind `OAUTH_ENABLED`
+- live WorkBuddy acceptance: not yet complete
 
 ### 10.1 Create the confidential App B broker
 
@@ -327,7 +328,7 @@ Current repository status:
 
 MSAL automatically manages its reserved OpenID scopes. The broker explicitly asks for `api://<MCP_API_CLIENT_ID>/access_as_user`, and the returned Token A is still revalidated by the existing JWT validator.
 
-Until persistent refresh sessions are delivered, the first live validation may also use a small dedicated test client app registration described below.
+For isolated bearer-token diagnostics, a small dedicated test client app registration may still be used as described below. It is not the production WorkBuddy OAuth path.
 
 ## 11. Optional: create a test client app
 

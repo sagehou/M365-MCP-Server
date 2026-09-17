@@ -1,5 +1,7 @@
 """Environment-backed authentication configuration."""
 
+import base64
+import binascii
 from pathlib import Path
 from typing import Any
 from ipaddress import ip_address
@@ -63,6 +65,8 @@ class Settings(BaseSettings):
     oauth_database_path: Path = Path("/data/oauth.db")
     oauth_transaction_ttl_seconds: int = Field(default=600, ge=60, le=900)
     oauth_authorization_code_ttl_seconds: int = Field(default=600, ge=60, le=600)
+    oauth_refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
+    oauth_encryption_key: SecretStr | None = None
     entra_broker_client_id: str | None = None
     entra_broker_client_secret: SecretStr | None = None
     entra_broker_authority: str = (
@@ -222,6 +226,28 @@ class Settings(BaseSettings):
             raise ConfigurationError("ENTRA_BROKER_CLIENT_SECRET is not configured")
         return self.entra_broker_client_secret.get_secret_value()
 
+    @property
+    def oauth_encryption_key_bytes(self) -> bytes:
+        """Decode the configured 256-bit AEAD key without exposing it."""
+
+        if self.oauth_encryption_key is None:
+            raise ConfigurationError("OAUTH_ENCRYPTION_KEY is not configured")
+        try:
+            decoded = base64.b64decode(
+                self.oauth_encryption_key.get_secret_value().encode("ascii"),
+                altchars=b"-_",
+                validate=True,
+            )
+        except (UnicodeEncodeError, binascii.Error, ValueError) as exc:
+            raise ConfigurationError(
+                "OAUTH_ENCRYPTION_KEY must be valid base64"
+            ) from exc
+        if len(decoded) != 32:
+            raise ConfigurationError(
+                "OAUTH_ENCRYPTION_KEY must decode to exactly 32 bytes"
+            )
+        return decoded
+
     def validate_oauth_discovery_configuration(self) -> None:
         """Fail closed when the optional OAuth discovery surface is enabled."""
 
@@ -251,11 +277,14 @@ class Settings(BaseSettings):
             missing.append("ENTRA_BROKER_CLIENT_ID")
         if self.entra_broker_client_secret is None:
             missing.append("ENTRA_BROKER_CLIENT_SECRET")
+        if self.oauth_encryption_key is None:
+            missing.append("OAUTH_ENCRYPTION_KEY")
         if missing:
             raise ConfigurationError(
                 "OAuth authorization configuration is incomplete: "
                 + ", ".join(missing)
             )
+        self.oauth_encryption_key_bytes
 
     def validate_auth_configuration(self) -> None:
         """Fail closed when the authentication boundary is not configured."""
