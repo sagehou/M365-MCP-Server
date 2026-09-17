@@ -10,6 +10,7 @@
 - **Expose a web API / add `access_as_user`:** https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-expose-web-apis
 - **OAuth 2.0 On-Behalf-Of flow:** https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow
 - **Microsoft Graph permissions reference:** https://learn.microsoft.com/en-us/graph/permissions-reference
+- **Access-token claims reference:** https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference
 - **Grant tenant-wide admin consent:** https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent
 
 For the steps below, use the **Microsoft Entra admin center** unless a step explicitly points elsewhere. Before creating anything, switch to the intended directory/tenant and confirm the tenant name shown in the portal.
@@ -22,7 +23,8 @@ It is written for the current implementation in this repository:
 - delegated user identity
 - OAuth 2.0 On-Behalf-Of (OBO) to Microsoft Graph
 - Microsoft Graph delegated permissions only
-- optional cross-tenant test where the app is registered in Tenant A and the mailbox user is in Tenant B
+- optional cross-tenant use where the app is registered in Tenant A and mailbox users are in other Microsoft Entra tenants
+- optional personal Microsoft accounts when the App Registration explicitly supports them
 
 > The MCP server is a protected web API, not an interactive web application. Do not add a redirect URI to the MCP API registration just because an OAuth client normally has one. Redirect URIs belong to the interactive client application.
 
@@ -32,16 +34,16 @@ It is written for the current implementation in this repository:
 Interactive client / MCP client
         |
         | token A
-        | aud = api://<MCP_API_CLIENT_ID>
+        | aud = <MCP_API_CLIENT_ID> or configured API audience
         | scp = access_as_user
-        | tid = target user tenant
+        | tid = signed-in user's tenant
         v
 M365 MCP Server
         |
         | OBO using MCP API confidential credential
         | scope = https://graph.microsoft.com/.default
         v
-Microsoft Entra ID (token A tenant)
+Microsoft identity platform
         |
         | token B, delegated user identity
         v
@@ -51,7 +53,7 @@ Microsoft Graph
 /me/messages
 ```
 
-The MCP server validates the inbound token, allowlists the token tenant, and performs OBO against the tenant identified by the inbound `tid` claim.
+The MCP server validates the inbound token and performs OBO against the tenant identified by the validated `tid` claim. `ALLOWED_TENANTS` can restrict this to specific tenants or use `*` to accept any valid Microsoft tenant.
 
 ## 2. Public-cloud assumption
 
@@ -64,21 +66,22 @@ GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 
 Do not mix global-cloud registrations with Microsoft 365 operated by 21Vianet. National clouds use different identity and Microsoft Graph endpoints and require separate validation before use.
 
-## 3. Choose the home tenant
+## 3. Choose the account reach
 
-For the cross-tenant test scenario used by this project:
+Choose the App Registration account type based on who should be able to sign in:
 
-- **Tenant A**: home tenant that owns the app registration.
-- **Tenant B**: Microsoft 365 tenant containing the test mailbox users.
+- **Accounts in this organizational directory only**: one Microsoft Entra tenant.
+- **Accounts in any organizational directory**: any work or school account from a Microsoft Entra tenant.
+- **Accounts in any organizational directory and personal Microsoft accounts**: work/school accounts plus Outlook.com, Hotmail, Live and other personal Microsoft accounts.
 
-For an internal production deployment where all users are in one organization, registering the app directly in the production tenant and using a single-tenant registration is simpler.
+For an internal deployment where all users belong to one organization, single-tenant is the simplest option.
 
-For the cross-tenant test, use a multitenant registration.
+For a service intended for multiple organizations, use a multitenant registration. If personal Outlook.com-style accounts are also required, select the account type that explicitly includes personal Microsoft accounts.
 
-## 4. Create the MCP API application in Tenant A
+## 4. Create the MCP API application
 
 1. Open https://entra.microsoft.com/ and sign in to the Microsoft Entra admin center.
-2. Switch to **Tenant A**.
+2. Switch to the tenant that will own the App Registration.
 3. Go to **Entra ID > App registrations > New registration**.
 4. Use a clear name, for example:
 
@@ -86,20 +89,27 @@ For the cross-tenant test, use a multitenant registration.
    M365-MCP-Server
    ```
 
-5. Under **Supported account types**, select:
+5. Under **Supported account types**, select the account reach chosen in the previous section. For organization-only multitenant use:
 
    ```text
    Accounts in any organizational directory
    (Any Microsoft Entra ID tenant - Multitenant)
    ```
 
-6. Leave **Redirect URI** empty.
+   To also support personal Microsoft accounts, select:
+
+   ```text
+   Accounts in any organizational directory
+   and personal Microsoft accounts
+   ```
+
+6. Leave **Redirect URI** empty for the MCP API registration.
 7. Select **Register**.
 
 Record the following values from **Overview**:
 
 - Application (client) ID
-- Directory (tenant) ID of Tenant A
+- Directory (tenant) ID of the home tenant
 
 The **Application (client) ID** becomes `CLIENT_ID` for the MCP server.
 
@@ -149,15 +159,9 @@ Mail.ReadWrite
 
 Do **not** add application mailbox permissions.
 
-In particular, do not add:
+In particular, do not add application-permission variants for mailbox access. `Mail.ReadWrite` delegated permission acts only in the signed-in user's delegated context and does not include mail sending.
 
-```text
-Mail.Read (Application)
-Mail.ReadWrite (Application)
-Mail.Send (Application)
-```
-
-`Mail.ReadWrite` delegated permission lets the app act only in the signed-in user's delegated context and does not include mail sending.
+Microsoft Graph currently supports the delegated `Mail.ReadWrite` permission for both work/school accounts and personal Microsoft accounts. Shared-mailbox-specific delegated permissions are a separate capability and are not part of the current MVP.
 
 `Mail.Send` is deliberately not required by the current MVP. Add the **delegated** `Mail.Send` permission only if the project later implements an approved send-mail tool.
 
@@ -201,23 +205,23 @@ CLIENT_CERT_THUMBPRINT=<certificate-thumbprint>
 
 Do not set `CLIENT_SECRET` when certificate authentication is used.
 
-## 8. Configure Tenant B for a cross-tenant test
+## 8. Organizational cross-tenant consent
 
-The multitenant application must have a service principal (Enterprise Application) in Tenant B and the downstream Microsoft Graph delegated permissions must be consented there.
+For an organizational user in another Microsoft Entra tenant, the multitenant application needs a service principal (Enterprise Application) in that tenant and the downstream Graph delegated permissions must be consented there.
 
-### Recommended test path: tenant-wide admin consent
+### Recommended enterprise test path: tenant-wide admin consent
 
-Sign in as an authorized administrator in **Tenant B** and open:
+Sign in as an authorized administrator in the target tenant and open:
 
 ```text
-https://login.microsoftonline.com/<TENANT-B-ID>/adminconsent?client_id=<MCP_API_CLIENT_ID>
+https://login.microsoftonline.com/<TARGET-TENANT-ID>/adminconsent?client_id=<MCP_API_CLIENT_ID>
 ```
 
 Review the requested delegated permissions carefully before accepting them.
 
-This provisions the enterprise application in Tenant B and grants tenant-wide consent to the API permissions configured on the multitenant app, subject to the administrator's role and tenant policy.
+This provisions the enterprise application in the target tenant and grants tenant-wide consent to the API permissions configured on the multitenant app, subject to the administrator's role and tenant policy.
 
-Then verify in Tenant B:
+Then verify in that tenant:
 
 1. Go to **Entra ID > Enterprise applications > All applications**.
 2. Find `M365-MCP-Server`.
@@ -233,23 +237,53 @@ Mail.ReadWrite
 
 Do not approve unexpected application permissions.
 
-## 9. Configure the MCP server for Tenant B
+Personal Microsoft accounts do not use a customer organization's Enterprise Application/admin-consent workflow in the same way. Their ability to sign in is controlled first by the App Registration's Supported account types, and the delegated permissions are consented in the personal-account flow.
 
-For a single target tenant test:
+## 9. Configure tenant admission on the MCP server
+
+### Explicit tenant allowlist
+
+For one approved organizational tenant:
 
 ```env
 CLIENT_ID=<MCP_API_CLIENT_ID>
 CLIENT_SECRET=<test-secret>
-AUDIENCE=api://<MCP_API_CLIENT_ID>
-ALLOWED_TENANTS=<TENANT-B-ID>
+AUDIENCE=
+ALLOWED_TENANTS=<TARGET-TENANT-ID>
 REQUIRED_SCOPES=access_as_user
 GRAPH_SCOPES=https://graph.microsoft.com/.default
 GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 ```
 
-For multiple approved tenants, `ALLOWED_TENANTS` is a comma-separated list.
+For multiple approved tenants, use a comma-separated list:
 
-The application registration home tenant ID is not used as the OBO authority for a Tenant B user. The server uses the validated inbound token's `tid` and performs OBO against that tenant-specific authority.
+```env
+ALLOWED_TENANTS=<TENANT-ID-1>,<TENANT-ID-2>
+```
+
+### Accept any Microsoft tenant
+
+For a deliberately open multitenant deployment:
+
+```env
+ALLOWED_TENANTS=*
+```
+
+`*` means any tenant that presents a token which passes the normal signature, issuer, audience, expiry and delegated-scope validation. It also includes the Microsoft consumer tenant used by personal Microsoft accounts **if** the App Registration's Supported account types allow personal Microsoft accounts.
+
+The Microsoft consumer tenant ID is:
+
+```text
+9188040d-6c67-4c5b-b112-36a304b66dad
+```
+
+If the App Registration is organization-only, personal accounts cannot obtain a valid token for the API, so `ALLOWED_TENANTS=*` does not override that Entra setting.
+
+Do not combine `*` with explicit tenant IDs. Leaving `ALLOWED_TENANTS` empty remains invalid and fails closed.
+
+`AUDIENCE` can normally be left empty. The server then accepts the configured `CLIENT_ID` and `api://<CLIENT_ID>` audience forms. Set `AUDIENCE` only when an explicit override is required.
+
+The App Registration home tenant ID is not used as the OBO authority for another tenant's user. The server uses the validated inbound token's `tid` and performs OBO against that tenant-specific authority.
 
 ## 10. The client application is separate from the MCP API
 
@@ -270,7 +304,7 @@ Current repository status:
 - MCP OAuth discovery / dynamic client registration: not implemented
 - interactive sign-in owned by the MCP server: not implemented
 
-Therefore the first live-tenant validation should use either:
+Therefore the first live validation should use either:
 
 1. an MCP client that can be configured with an Entra access token for this API, or
 2. a small dedicated test client app registration.
@@ -281,8 +315,6 @@ If a suitable MCP client cannot yet acquire token A, create a separate public-cl
 
 ### 11.1 Create the registration
 
-In Tenant A:
-
 1. Go to **App registrations > New registration**.
 2. Name it:
 
@@ -290,12 +322,7 @@ In Tenant A:
    M365-MCP-Test-Client
    ```
 
-3. For a cross-tenant test, select:
-
-   ```text
-   Accounts in any organizational directory
-   ```
-
+3. Select an account type that matches the identities you intend to test. For organization-only testing use **Accounts in any organizational directory**. To test Outlook.com/Hotmail/Live accounts too, select the option that also includes personal Microsoft accounts.
 4. Register it.
 5. Record its Application (client) ID as `TEST_CLIENT_ID`.
 
@@ -327,23 +354,19 @@ Alternatively, the API registration can explicitly preauthorize a known test cli
 A token sent to the MCP server must contain, at minimum:
 
 ```text
-aud = api://<MCP_API_CLIENT_ID>
-# Some Entra token forms may use the bare client ID; the server accepts the configured audience/client ID forms.
-
+aud = <MCP_API_CLIENT_ID> or another configured accepted audience
 scp includes access_as_user
-
-tid = <TENANT-B-ID>
-
-oid = the signed-in Tenant B user's object ID
+tid = the signed-in user's tenant ID
+oid/sub = the signed-in user identity
 ```
 
-An app-only token is invalid for this architecture. OBO requires a user principal.
+For a personal Microsoft account, `tid` is the Microsoft consumer tenant ID shown above. An app-only token is invalid for this architecture because OBO requires a user principal.
 
 ## 12. First live validation sequence
 
 Do not start with all tools. Validate the identity chain first.
 
-1. Sign in as a Tenant B test user.
+1. Sign in as a test user.
 2. Obtain token A for the MCP API scope.
 3. Call the MCP endpoint with token A.
 4. Confirm JWT validation succeeds.
@@ -352,7 +375,9 @@ Do not start with all tools. Validate the identity chain first.
 7. Test attachment metadata/read on a known test message.
 8. Test `mail_mark_read`.
 9. Test `mail_archive` on a disposable test message.
-10. Repeat with a second Tenant B user and confirm mailbox isolation.
+10. Repeat with a second user and confirm mailbox isolation.
+
+If personal Microsoft accounts are enabled, include one Outlook.com/Hotmail-style account in a separate validation pass before claiming support for that account type.
 
 ## 13. Expected security boundary
 
@@ -368,6 +393,8 @@ The Graph layer uses `/me` and the OBO delegated token. Effective access is cons
 - the delegated permissions granted to the application
 - the permissions of the signed-in user
 
+`ALLOWED_TENANTS=*` changes which validated Microsoft tenants may call the API; it does not change this per-user `/me` boundary.
+
 ## 14. Common problems
 
 ### AADSTS50011 - redirect URI mismatch
@@ -378,13 +405,13 @@ Fix: add the exact redirect URI to the interactive client app registration. Do n
 
 ### AADSTS65001 / consent_required
 
-Cause: the client-to-MCP scope or the MCP-to-Graph delegated permissions have not been consented in the target tenant.
+Cause: the client-to-MCP scope or the MCP-to-Graph delegated permissions have not been consented in the target identity context.
 
-Check:
+For organizational tenants check:
 
 - test/client app has `access_as_user` permission to M365-MCP-Server
-- M365-MCP-Server enterprise application exists in Tenant B
-- Tenant B has consented `User.Read` and `Mail.ReadWrite`
+- M365-MCP-Server enterprise application exists in the target tenant
+- target tenant has consented `User.Read` and `Mail.ReadWrite`
 
 ### AADSTS70011 - invalid scope
 
@@ -398,17 +425,21 @@ https://graph.microsoft.com/.default
 
 The actual Graph delegated permissions come from the app registration and consent grants.
 
-### OBO fails only for cross-tenant users
+### Organization account works but personal account does not
+
+Verify that both the MCP API registration and the interactive client registration use a Supported account type that includes personal Microsoft accounts. `ALLOWED_TENANTS=*` cannot widen the account types configured in Entra.
+
+### OBO fails only for an external organizational tenant
 
 Verify:
 
 - the app registration is multitenant
-- Tenant B is present in `ALLOWED_TENANTS`
-- the inbound token's `tid` is Tenant B
-- the enterprise application exists in Tenant B
-- Graph delegated permissions have been consented in Tenant B
+- the target tenant is explicitly allowlisted or `ALLOWED_TENANTS=*`
+- the inbound token's `tid` is the target tenant
+- the enterprise application exists in the target tenant
+- Graph delegated permissions have been consented in the target tenant
 
-The OBO authority must be tenant-specific. Do not use `/common` or `/organizations` for the OBO token exchange.
+The OBO authority is tenant-specific and is derived from the validated token tenant.
 
 ### Graph returns 403
 
@@ -419,7 +450,7 @@ Common causes:
 - Graph delegated permission was not consented
 - the token is app-only instead of delegated
 - the wrong user/tenant is signed in
-- Exchange/Microsoft 365 licensing or mailbox availability does not permit the requested operation
+- Exchange/Microsoft 365 mailbox availability does not permit the requested operation
 
 ## 15. Production hardening checklist
 
@@ -427,12 +458,13 @@ Before production:
 
 - Prefer certificate credentials over client secrets.
 - Keep only required delegated Graph permissions.
-- Review Tenant B Enterprise Application permissions.
-- Decide whether tenant-wide consent is appropriate for the organization.
+- Choose `ALLOWED_TENANTS=*` only when the deployment is intentionally open to all supported Microsoft tenants; otherwise use explicit tenant IDs.
+- Review target-tenant Enterprise Application permissions for organizational tenants.
+- Decide whether tenant-wide consent is appropriate for each organization.
 - Apply Conditional Access as required by organizational policy.
-- Restrict `ALLOWED_TENANTS` explicitly.
 - Do not enable application mailbox permissions.
 - Test at least two users for identity isolation.
+- If personal Microsoft accounts are supported, test that path separately.
 - Validate supported MCP clients with real sign-in behavior.
 - Rotate credentials before their expiration date.
 
@@ -444,9 +476,11 @@ Before production:
   https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-expose-web-apis
 - OAuth 2.0 On-Behalf-Of flow:
   https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow
-- MSAL Python token acquisition / OBO:
-  https://learn.microsoft.com/en-us/entra/msal/python/getting-started/acquiring-tokens
 - Microsoft Graph permissions reference:
   https://learn.microsoft.com/en-us/graph/permissions-reference
+- Access-token claims reference:
+  https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference
+- MSAL Python token acquisition / OBO:
+  https://learn.microsoft.com/en-us/entra/msal/python/getting-started/acquiring-tokens
 - Grant tenant-wide admin consent:
   https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent
