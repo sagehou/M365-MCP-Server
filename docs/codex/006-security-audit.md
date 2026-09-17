@@ -22,3 +22,14 @@ Harden the MCP server for enterprise deployment.
 ## Non goals
 
 - No SIEM integration initially.
+
+## Implementation notes
+
+Mail tool wrappers emit structured audit events containing only tenant, user,
+tool, outcome, duration, and safe exception type. They never log tool arguments
+or Graph payloads. HTTP responses receive defensive security headers.
+
+Message previews, message bodies, and extracted attachment text carry an
+untrusted-content marker and explicit handling warning. The server does not
+attempt to interpret instructions in email-derived content; clients must treat
+it as data only. SIEM integration remains out of scope.

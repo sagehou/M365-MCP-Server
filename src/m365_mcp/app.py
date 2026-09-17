@@ -13,6 +13,7 @@ from .auth.middleware import TokenValidator
 from .graph import GraphClient, MailService
 from .extractors import AttachmentExtractorRegistry
 from .mail import MailToolService, register_mail_tools
+from .security import AuditLogger, SecurityHeadersMiddleware
 
 
 class HealthResponse(BaseModel):
@@ -36,6 +37,7 @@ def create_app(
     mcp_server: FastMCP | None = None,
     mcp_http_app: Any | None = None,
     mail_service: MailService | None = None,
+    audit_logger: AuditLogger | None = None,
 ) -> FastAPI:
     """Create an application with protected MCP mail tools."""
 
@@ -58,6 +60,7 @@ def create_app(
     register_mail_tools(
         server,
         MailToolService(mail_service, attachment_extractor=attachment_extractor),
+        audit_logger=audit_logger or AuditLogger(),
     )
 
     if graph_client is None:
@@ -93,6 +96,7 @@ def create_app(
         include_in_schema=False,
     )
     application.add_middleware(BearerAuthMiddleware, validator=validator)
+    application.add_middleware(SecurityHeadersMiddleware)
     application.mount("/mcp", http_app)
     return application
 

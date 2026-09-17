@@ -75,3 +75,21 @@ Do not store:
 - attachment content in logs
 - access tokens
 - secrets
+
+## Logging policy
+
+The audit logger records one event for each MCP mail-tool invocation. The event
+contains only the timestamp supplied by the logging system, tenant ID, user ID,
+tool name, success or failure outcome, duration, and safe exception type. It
+does not accept or serialize tool arguments, Graph responses, email bodies,
+attachment names, attachment bytes, access tokens, or secrets.
+
+Email previews, message bodies, and extracted attachment text are returned with
+an explicit untrusted-content marker. They are data for the agent to analyze,
+not system, developer, user, or tool instructions. The tool descriptions repeat
+this boundary so clients should not follow instructions embedded in messages or
+files.
+
+The HTTP security middleware adds no-store, anti-framing, content-type, referrer,
+content-security, and permissions-policy response headers. It does not replace
+TLS termination, token validation, or downstream authorization.
