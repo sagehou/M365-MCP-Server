@@ -50,6 +50,8 @@ class Settings(BaseSettings):
 
     oidc_cache_ttl_seconds: int = 86_400
     http_timeout_seconds: float = 10.0
+    attachment_max_bytes: int = 10 * 1024 * 1024
+    attachment_max_text_chars: int = 100_000
 
     @field_validator("allowed_tenants", "required_scopes", mode="before")
     @classmethod

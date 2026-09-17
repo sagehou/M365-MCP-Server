@@ -1,5 +1,7 @@
-"""Agent-friendly Outlook mail tools backed by the internal mail service."""
+"""Agent-friendly Outlook mail tools backed by the delegated Graph service."""
 
+import base64
+import binascii
 from collections.abc import Mapping
 from typing import Any
 
@@ -8,6 +10,12 @@ from fastmcp.server.dependencies import get_http_request
 
 from ..auth.context import get_auth_context
 from ..auth.models import AuthContext
+from ..extractors import (
+    AttachmentExtractorRegistry,
+    AttachmentInput,
+    InvalidAttachmentError,
+    UnsupportedAttachmentError,
+)
 from ..graph.client import GraphResponse
 from ..graph.mail import MailService
 
@@ -15,8 +23,14 @@ from ..graph.mail import MailService
 class MailToolService:
     """Translate mailbox service responses into bounded MCP tool results."""
 
-    def __init__(self, mail_service: MailService) -> None:
+    def __init__(
+        self,
+        mail_service: MailService,
+        *,
+        attachment_extractor: AttachmentExtractorRegistry | None = None,
+    ) -> None:
         self.mail_service = mail_service
+        self.attachment_extractor = attachment_extractor or AttachmentExtractorRegistry()
 
     async def search(
         self,
@@ -49,6 +63,75 @@ class MailToolService:
         return {
             "attachments": [_attachment_metadata(item) for item in attachments],
             "next_link": next_link,
+        }
+
+    async def read_attachment(
+        self,
+        context: AuthContext,
+        message_id: str,
+        attachment_id: str,
+    ) -> dict[str, Any]:
+        response = await self.mail_service.get_attachment(
+            context,
+            message_id,
+            attachment_id,
+        )
+        attachment = _attachment_data(response.data)
+        if not attachment:
+            raise InvalidAttachmentError("Graph returned no attachment metadata")
+
+        odata_type = attachment.get("@odata.type")
+        if (
+            isinstance(odata_type, str)
+            and not odata_type.casefold().endswith("fileattachment")
+        ):
+            raise UnsupportedAttachmentError(
+                "Only Outlook file attachments can be extracted"
+            )
+
+        encoded = attachment.get("contentBytes")
+        if not isinstance(encoded, str) or not encoded:
+            raise InvalidAttachmentError(
+                "Graph did not return inline file attachment content"
+            )
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, UnicodeError, ValueError) as exc:
+            raise InvalidAttachmentError(
+                "Graph returned invalid file attachment content"
+            ) from exc
+
+        name = attachment.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise InvalidAttachmentError("Graph returned an attachment without a name")
+        content_type = attachment.get("contentType")
+        if not isinstance(content_type, str):
+            content_type = None
+        declared_size = attachment.get("size")
+        if not isinstance(declared_size, int) or isinstance(declared_size, bool):
+            declared_size = None
+
+        result = self.attachment_extractor.extract(
+            AttachmentInput(
+                name=name,
+                content=content,
+                content_type=content_type,
+                declared_size=declared_size,
+            )
+        )
+        attachment_identifier = attachment.get("id")
+        if not isinstance(attachment_identifier, str) or not attachment_identifier:
+            attachment_identifier = attachment_id
+        return {
+            "attachment": {
+                "id": attachment_identifier,
+                "name": name,
+                "content_type": content_type,
+                "size": len(content),
+                "format": result.format,
+                "truncated": result.truncated,
+            },
+            "content": result.content,
         }
 
     async def mark_read(
@@ -87,8 +170,11 @@ class MailToolService:
         return {"message_id": message_id, "categories": categories}
 
 
-def register_mail_tools(mcp: FastMCP, service: MailToolService) -> None:
-    """Register the initial mail tool set on a FastMCP server."""
+def register_mail_tools(
+    mcp: FastMCP,
+    service: MailToolService,
+) -> None:
+    """Register the identity-scoped mail tool set on a FastMCP server."""
 
     def context() -> AuthContext:
         return get_auth_context(get_http_request())
@@ -124,6 +210,16 @@ def register_mail_tools(mcp: FastMCP, service: MailToolService) -> None:
     )
     async def mail_list_attachments(message_id: str) -> dict[str, Any]:
         return await service.list_attachments(context(), message_id)
+
+    @mcp.tool(
+        name="mail_read_attachment",
+        description="Extract bounded text from one supported Outlook file attachment.",
+    )
+    async def mail_read_attachment(
+        message_id: str,
+        attachment_id: str,
+    ) -> dict[str, Any]:
+        return await service.read_attachment(context(), message_id, attachment_id)
 
     @mcp.tool(
         name="mail_mark_read",
@@ -163,6 +259,12 @@ def _collection(data: Any) -> tuple[list[Any], str | None]:
     items = values if isinstance(values, list) else []
     next_link = data.get("@odata.nextLink")
     return items, next_link if isinstance(next_link, str) else None
+
+
+def _attachment_data(data: Any) -> Mapping[str, Any]:
+    if not isinstance(data, Mapping):
+        return {}
+    return data
 
 
 def _attachment_metadata(item: Any) -> Any:

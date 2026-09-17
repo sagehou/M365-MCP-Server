@@ -92,6 +92,17 @@ class MailService:
             f"/me/messages/{self._segment(message_id)}/attachments",
         )
 
+    async def get_attachment(
+        self,
+        context: AuthContext,
+        message_id: str,
+        attachment_id: str,
+    ) -> GraphResponse:
+        return await self.graph_client.request(
+            context,
+            "GET",
+            f"/me/messages/{self._segment(message_id)}/attachments/{self._segment(attachment_id)}",
+        )
     async def mark_read(
         self,
         context: AuthContext,
