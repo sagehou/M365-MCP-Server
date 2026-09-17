@@ -75,11 +75,20 @@ Compose 默认只绑定 `127.0.0.1`。如果反向代理运行在其他主机或
 
 ## 配置
 
-所有 Runtime Settings 均通过环境变量提供。只允许配置 `CLIENT_SECRET` 或 `CLIENT_CERT_PATH` 其中一种，设置 `ALLOWED_TENANTS` 和 `AUDIENCE`，并只授予 Mail Tools 实际需要的 Graph Delegated Permissions。Secrets 必须由部署环境或 Secret Management System 注入。
+所有 Runtime Settings 均通过环境变量提供。只允许配置 `CLIENT_SECRET` 或 `CLIENT_CERT_PATH` 其中一种，并设置 `ALLOWED_TENANTS`。Graph Delegated Permissions 只授予 Mail Tools 实际需要的最小权限。Secrets 必须由部署环境或 Secret Management System 注入。
+
+`ALLOWED_TENANTS` 支持两种模式：
+
+- 填写逗号分隔的 Tenant GUID，形成显式 Allowlist；
+- 填写 `*`，接受任何能通过完整 Token Signature / Issuer / Audience / Scope 校验的有效 Microsoft Tenant。若 App Registration 的 Supported account types 同时允许 Personal Microsoft Accounts，则该语义也包含 Microsoft Consumer Tenant。
+
+`ALLOWED_TENANTS` 留空仍然是无效配置，并按 fail closed 处理。`*` 不能和具体 Tenant ID 混写。对于仅供内部组织使用的部署，显式 Tenant Allowlist 仍然是更窄的安全边界；`*` 适合明确要对所有 Microsoft Tenant 开放的 Multitenant 部署。
+
+`AUDIENCE` 可以留空。留空时 Server 会自动接受已配置的 `CLIENT_ID` 和 `api://<CLIENT_ID>` 两种 Audience 形式。
 
 ## Entra / Client 前置条件与验收
 
-1. 注册 API Application，暴露 `access_as_user` Delegated Scope，并使用 v2 Access Token。`CLIENT_ID`、`AUDIENCE`、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 必须对应真实 API Registration。`ALLOWED_TENANTS` 是逗号分隔 Allowlist，不是旧的 `TENANT_ID` 变量。
+1. 注册 API Application，暴露 `access_as_user` Delegated Scope，并使用 v2 Access Token。`CLIENT_ID`、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 必须对应真实 API Registration。`ALLOWED_TENANTS` 要么填写逗号分隔的 Tenant Allowlist，要么明确填写 `*`。除非确实需要覆盖默认 Audience 行为，否则 `AUDIENCE` 留空即可。
 2. 授予 Graph Delegated `User.Read` 和 `Mail.ReadWrite`，并在目标租户完成所需 Consent。不要授予 Application Mailbox Permissions 或 `Mail.Send`；当前没有发信工具。
 3. 只配置一种 Credential。使用证书时，将 PEM Private Key 以只读方式挂载进容器，把 `CLIENT_CERT_PATH` 设置为容器内路径，并设置 `CLIENT_CERT_THUMBPRINT`。只填写宿主机路径并不会自动挂载文件。Compose Override 可使用：`./secrets/client.pem:/run/secrets/client.pem:ro`。
 4. Client 必须取得发给本 API Scope 的 Delegated Token，并在每次 `/mcp/` 请求中发送 `Authorization: Bearer`。Graph Access Token 不会被本服务接受。自动 MCP OAuth Discovery / Interactive Sign-in 尚未实现，上线前必须验证目标客户端兼容性。
