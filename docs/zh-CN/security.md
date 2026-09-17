@@ -26,11 +26,13 @@ Server 在接受任何 MCP Request 前，通过 OpenID Connect Discovery Documen
 受保护的 `/mcp/` Endpoint 要求：
 
 - Bearer Access Token 的 Audience 必须是本 API
-- Token Tenant 必须存在于 `ALLOWED_TENANTS`
+- Token Tenant 必须显式存在于 `ALLOWED_TENANTS`，或者配置 `ALLOWED_TENANTS=*`
 - Issuer 必须与 Token Tenant 和 Entra Metadata 推导结果完全一致
 - Delegated `scp` Claim 必须包含 `REQUIRED_SCOPES`
 
-Server 会拒绝：发给 Graph 的 Token、只有 `roles` 的 Application-only Token、未知 Tenant、无效 Signature、Expired Token 和 Issuer Mismatch。
+`ALLOWED_TENANTS=*` 只取消 Server 本地的 Tenant Allowlist 限制，不会绕过 Signature、Issuer、Audience、Expiry、Delegated Scope 或 User Identity 校验。只有当 Entra App Registration 的 Supported account types 本身支持 Personal Microsoft Accounts 时，个人 Microsoft 账户才能登录；其 Token 使用 Microsoft Consumer Tenant。
+
+Server 会拒绝：发给 Graph 的 Token、只有 `roles` 的 Application-only Token、显式 Allowlist 之外的 Tenant、无效 Signature、Expired Token 和 Issuer Mismatch。
 
 ## Tenant Isolation
 
@@ -42,7 +44,7 @@ Server 验证：
 - Issuer
 - Delegated Scopes
 
-Downstream Operation 必须使用经过验证、带 Tenant Qualification 的 Identity，并且 MCP Tools 不得接受任意 Mailbox/User Identifier。
+Downstream Operation 必须使用经过验证、带 Tenant Qualification 的 Identity，并且 MCP Tools 不得接受任意 Mailbox/User Identifier。即使使用 `ALLOWED_TENANTS=*`，Tenant ID 仍然是每次请求 Identity 和 OBO Authority 的组成部分，因此不会取消用户/租户隔离。
 
 ## On-Behalf-Of
 
