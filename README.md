@@ -41,7 +41,7 @@ Design goals:
 ```
 MCP Client
    |
-   | OAuth 2.1
+   | Entra delegated bearer token
    v
 M365 MCP Server
    |
@@ -55,23 +55,28 @@ Microsoft 365
 
 ## Development Status
 
-Task 007 is implemented: the repository provides identity-scoped Outlook mail
-tools, bounded attachment extraction, safe invocation audit events, security
-response headers, and a non-root production container. GitHub Actions runs
-tests, builds and smoke-tests the image, and publishes version tags to GHCR.
+Tasks 001–007 have implementations and CI coverage, including all eight mail
+tools. GitHub Actions is the only build/test environment. The release workflow
+can publish reviewed stable version tags; a configured workflow is not evidence
+that an image has been released. Select an existing GHCR version before deployment.
 
-## Run locally
+The server accepts an Entra delegated bearer token obtained by the client.
+Interactive OAuth discovery/registration, drafts, OCR, shared mailboxes, RBAC,
+rate limiting and other M365 workloads are not implemented. No live-tenant
+acceptance is implied by mocked Graph/OBO tests. See [review status](docs/review-status.md).
 
-Install the package with Python 3.12 and start the HTTP server:
+## Deploy
+
+Use a versioned container built by GitHub Actions. Configure Entra first and
+follow [the deployment checklist](docs/deployment.md):
 
 ```bash
-python -m pip install -e ".[dev]"
-python -m m365_mcp
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 ```
 
 The application exposes:
 
-- `GET /health` (also available as `/healthz`) for readiness checks
+- `GET /health` (also available as `/healthz`) for process liveness only
 - `/mcp/` for the protected FastMCP Streamable HTTP endpoint
 
 Configure `CLIENT_ID`, exactly one client credential, `ALLOWED_TENANTS`,

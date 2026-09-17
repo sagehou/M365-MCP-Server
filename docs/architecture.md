@@ -44,6 +44,8 @@ Microsoft Graph token through the Entra OBO service, and only permits relative
 paths under `/me`. It handles Graph throttling and transient failures before
 returning a sanitized response or error to the service layer.
 
-The mail service is an internal service foundation. MCP tool registration stays
-in a later task so Graph transport and mailbox policy remain independently
-testable.
+The mail service is an internal layer behind eight registered MCP mail tools.
+The HTTP transport is stateless: every call carries and validates its own token,
+and no MCP session stores a caller identity. MSAL runs off the ASGI event loop.
+Attachment parsing runs in short-lived Linux workers, with resource limits.
+Graph transport, mailbox policy and HTTP integration have separate tests.

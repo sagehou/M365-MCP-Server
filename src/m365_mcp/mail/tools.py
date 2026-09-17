@@ -14,6 +14,7 @@ from ..auth.models import AuthContext
 from ..extractors import (
     AttachmentExtractorRegistry,
     AttachmentInput,
+    AttachmentTooLargeError,
     InvalidAttachmentError,
     UnsupportedAttachmentError,
 )
@@ -103,6 +104,8 @@ class MailToolService:
             raise InvalidAttachmentError(
                 "Graph did not return inline file attachment content"
             )
+        if len(encoded) > 4 * ((self.attachment_extractor.max_bytes + 2) // 3):
+            raise AttachmentTooLargeError("Attachment exceeds the encoded size limit")
         try:
             content = base64.b64decode(encoded, validate=True)
         except (binascii.Error, UnicodeError, ValueError) as exc:
@@ -120,7 +123,7 @@ class MailToolService:
         if not isinstance(declared_size, int) or isinstance(declared_size, bool):
             declared_size = None
 
-        result = self.attachment_extractor.extract(
+        result = await self.attachment_extractor.extract_async(
             AttachmentInput(
                 name=name,
                 content=content,

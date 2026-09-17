@@ -52,8 +52,8 @@ class Settings(BaseSettings):
 
     oidc_cache_ttl_seconds: int = Field(default=86_400, gt=0)
     http_timeout_seconds: float = Field(default=10.0, gt=0, allow_inf_nan=False)
-    attachment_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
-    attachment_max_text_chars: int = Field(default=100_000, gt=0)
+    attachment_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0, le=50 * 1024 * 1024)
+    attachment_max_text_chars: int = Field(default=100_000, gt=0, le=1_000_000)
 
     @field_validator("allowed_tenants", "required_scopes", mode="before")
     @classmethod

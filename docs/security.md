@@ -13,7 +13,6 @@ Preferred Graph permissions:
 
 - User.Read
 - Mail.ReadWrite
-- Mail.Send (optional)
 
 Avoid:
 
@@ -79,10 +78,17 @@ Do not store:
 ## Logging policy
 
 The audit logger records one event for each MCP mail-tool invocation. The event
-contains only the timestamp supplied by the logging system, tenant ID, user ID,
+is emitted as JSON to stderr and contains an explicit UTC timestamp, tenant ID, user ID,
 tool name, success or failure outcome, duration, and safe exception type. It
 does not accept or serialize tool arguments, Graph responses, email bodies,
 attachment names, attachment bytes, access tokens, or secrets.
+
+The tool boundary replaces exceptions before FastMCP logs them; raw provider or
+parser messages are not exposed. Invalid protocol/schema requests that never
+reach a registered mail-tool function are not mailbox audit events.
+Graph response bytes are bounded before JSON parsing. Attachment base64 length
+is checked before decoding; untrusted parsers run in resource-limited Linux
+processes without inherited Entra secrets, with timeout/cancellation cleanup.
 
 Email previews, message bodies, and extracted attachment text are returned with
 an explicit untrusted-content marker. They are data for the agent to analyze,

@@ -12,7 +12,7 @@ from m365_mcp.graph import GraphClient, MailService
 from test_graph import make_context
 
 
-def test_http_initialize_list_and_concurrent_users_call_with_own_assertions():
+def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capfd, caplog):
     calls = []
     class Validator:
         async def validate(self, token):
@@ -71,3 +71,5 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions():
     asyncio.run(exercise())
     assert ("Bearer graph-alice", "/v1.0/me/messages/id") in calls
     assert ("Bearer graph-bob", "/v1.0/me/messages/id") in calls
+    captured = capfd.readouterr()
+    assert "SECRET_PROVIDER_BODY" not in captured.out + captured.err + caplog.text
