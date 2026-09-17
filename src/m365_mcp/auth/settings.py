@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     graph_scopes: tuple[str, ...] = (
         "https://graph.microsoft.com/.default",
     )
+    graph_base_url: str = "https://graph.microsoft.com/v1.0"
+    graph_max_retries: int = 3
+    graph_retry_backoff_seconds: float = 0.5
+    graph_max_retry_delay_seconds: float = 30.0
 
     oidc_cache_ttl_seconds: int = 86_400
     http_timeout_seconds: float = 10.0
