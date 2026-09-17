@@ -22,7 +22,7 @@ class AuditJsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         fields = {name: getattr(record, name) for name in (
             "event", "tenant_id", "user_id", "tool_name", "outcome", "duration_ms",
-            "error_type",
+            "error_type", "client_id", "result", "correlation_id",
         ) if hasattr(record, name)}
         fields["timestamp"] = datetime.fromtimestamp(
             record.created, timezone.utc

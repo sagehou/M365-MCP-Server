@@ -34,8 +34,10 @@ No production mailbox data is read or changed by those tests.
   and pull access. A passing Docker build is not a published release.
 - Configure Entra applications/consent and validate two real users, supported
   MCP clients, certificate or secret credentials, and representative attachments.
-- Client-side sign-in/token acquisition remains external; automatic MCP OAuth
-  discovery and dynamic registration are not implemented.
+- OAuth discovery metadata and dynamic public-client registration are implemented
+  behind a default-off feature flag. Interactive authorization, local token
+  exchange, refresh sessions and automatic WorkBuddy sign-in remain release
+  blockers for a WorkBuddy-compatible v0.1.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.

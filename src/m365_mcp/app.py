@@ -13,6 +13,12 @@ from .auth.middleware import TokenValidator
 from .graph import GraphClient, MailService
 from .extractors import AttachmentExtractorRegistry
 from .mail import MailToolService, register_mail_tools
+from .oauth import (
+    DynamicClientRegistry,
+    OAuthClientRegistry,
+    SQLiteOAuthStore,
+    create_oauth_router,
+)
 from .security import AuditLogger, SecurityHeadersMiddleware
 
 
@@ -38,10 +44,12 @@ def create_app(
     mcp_http_app: Any | None = None,
     mail_service: MailService | None = None,
     audit_logger: AuditLogger | None = None,
+    oauth_registry: OAuthClientRegistry | None = None,
 ) -> FastAPI:
     """Create an application with protected MCP mail tools."""
 
     configured_settings = settings or Settings()
+    configured_settings.validate_oauth_discovery_configuration()
     server = mcp_server or FastMCP("M365 MCP Server", mask_error_details=True)
     http_app = mcp_http_app or server.http_app(
         path="/", stateless_http=True, json_response=True
@@ -65,16 +73,22 @@ def create_app(
         audit_logger=audit_logger or AuditLogger(),
     )
 
-    if graph_client is None:
-        lifespan = http_app.lifespan
-    else:
+    registry = oauth_registry
+    if configured_settings.oauth_enabled and registry is None:
+        registry = DynamicClientRegistry(
+            SQLiteOAuthStore(configured_settings.oauth_database_path),
+            configured_settings.normalized_oauth_issuer_url,
+        )
 
-        @asynccontextmanager
-        async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-            async with http_app.lifespan(application):
-                try:
-                    yield
-                finally:
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        async with http_app.lifespan(application):
+            try:
+                if registry is not None:
+                    await registry.initialize()
+                yield
+            finally:
+                if graph_client is not None:
                     await graph_client.aclose()
 
     application = FastAPI(
@@ -97,7 +111,19 @@ def create_app(
         response_model=HealthResponse,
         include_in_schema=False,
     )
-    application.add_middleware(BearerAuthMiddleware, validator=validator)
+    if configured_settings.oauth_enabled:
+        if registry is None:
+            raise RuntimeError("OAuth client registry is unavailable")
+        application.include_router(create_oauth_router(configured_settings, registry))
+    application.add_middleware(
+        BearerAuthMiddleware,
+        validator=validator,
+        resource_metadata_url=(
+            configured_settings.protected_resource_metadata_url
+            if configured_settings.oauth_enabled
+            else None
+        ),
+    )
     application.add_middleware(SecurityHeadersMiddleware)
     application.mount("/mcp", http_app)
     return application

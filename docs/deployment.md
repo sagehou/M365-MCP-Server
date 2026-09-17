@@ -60,9 +60,31 @@ Compose binds to 127.0.0.1 by default. A reverse proxy on another host/container
 needs an explicitly configured private interface/network; do not simply expose
 all interfaces. MCP_PORT controls both the listener and the health probe.
 Configure the external HTTPS endpoint URL in the MCP client and reverse proxy.
-MCP_PUBLIC_URL is not a server setting and does not enable OAuth discovery.
 Do not expose the container directly to the internet without TLS and the
 required Entra configuration.
+
+## OAuth discovery foundation
+
+The current OAuth phase provides discovery metadata and dynamic public-client
+registration, but not interactive authorization or token refresh. It therefore
+remains disabled by default:
+
+    OAUTH_ENABLED=false
+    MCP_PUBLIC_URL=https://mcp.example.com/mcp/
+    OAUTH_ISSUER_URL=https://mcp.example.com
+    OAUTH_DATABASE_PATH=/data/oauth.db
+
+When explicitly enabled for integration development, both public URLs are
+validated configuration; they are never inferred from Host or forwarded headers.
+HTTPS is mandatory except for loopback development. Compose mounts the named
+`oauth-data` volume at `/data`, so registered clients and future sessions survive
+container recreation. Back up this volume as sensitive authentication state.
+
+Route `/.well-known/*`, `/oauth/*` and `/mcp/` through the same fixed public
+origin. Apply reverse-proxy request-size and rate limits to `/oauth/register`;
+the application deliberately does not add Redis or an enterprise rate limiter.
+Do not set `OAUTH_ENABLED=true` in production until authorization-code, refresh,
+and WorkBuddy end-to-end gates are complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
 
 ## Container release
 
@@ -118,10 +140,11 @@ and `api://<CLIENT_ID>` audience forms.
    read-only into the container, set CLIENT_CERT_PATH to that container path and
    set CLIENT_CERT_THUMBPRINT. Merely setting a host path does not mount the file.
    A Compose override can add ./secrets/client.pem:/run/secrets/client.pem:ro.
-4. Register/configure the client to obtain a delegated token for this API scope,
-   and send Authorization: Bearer with every /mcp/ request. A Graph access token
-   is not accepted. Automatic MCP OAuth discovery/interactive sign-in is not
-   implemented; client compatibility must be validated before rollout.
+4. Until the complete OAuth broker is delivered, configure the client to obtain
+   a delegated token for this API scope and send Authorization: Bearer with every
+   /mcp/ request. A Graph access token is not accepted. Discovery and registration
+   are present behind a disabled feature flag; interactive sign-in is still a
+   release blocker.
 5. Confirm /healthz returns 200 and /mcp/ without a bearer token returns 401.
    These checks do not validate tenant credentials, Graph consent or OBO.
 6. With two test users, initialize MCP, list the eight tools and read a known

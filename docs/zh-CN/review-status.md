@@ -22,7 +22,7 @@ Unit Tests 和 Integration Tests 使用 Mocked Entra Metadata、OBO 和 Graph Tr
 
 - 选择并发布第一个批准的 Release Version；验证 GHCR Visibility 与 Pull Access。Docker Build 成功不等于已经发布镜像。
 - 配置 Entra Applications/Consent，并使用两个真实用户、受支持 MCP Clients、Certificate 或 Secret Credential 以及代表性附件做验证。
-- Client-side Sign-in / Token Acquisition 仍由外部负责；Automatic MCP OAuth Discovery 和 Dynamic Registration 尚未实现。
+- OAuth Discovery Metadata 和 Dynamic Public-client Registration 已在默认关闭的 Feature Flag 后实现。Interactive Authorization、Local Token Exchange、Refresh Session 和 WorkBuddy Automatic Sign-in 仍是兼容 WorkBuddy 的 v0.1 Release Blocker。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
 - OCR、Drafts、Shared Mailboxes、Enterprise RBAC / Rate Limiting / Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
 
