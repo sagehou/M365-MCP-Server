@@ -55,4 +55,25 @@ Microsoft 365
 
 ## Development Status
 
-Project initialization stage.
+Bootstrap (Task 001) is implemented. Entra authentication and Microsoft Graph
+integration are intentionally not included yet.
+
+## Run locally
+
+Install the package with Python 3.12 and start the HTTP server:
+
+```bash
+python -m pip install -e ".[dev]"
+python -m m365_mcp
+```
+
+The bootstrap application exposes:
+
+- `GET /health` (also available as `/healthz`) for readiness checks
+- `/mcp/` for the FastMCP Streamable HTTP endpoint scaffold
+
+Task 001 does not include authentication. Do not expose this bootstrap
+application to an untrusted network until the Entra authentication task is
+implemented.
+
+Tests and the Docker build run in GitHub Actions.
