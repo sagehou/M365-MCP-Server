@@ -203,7 +203,10 @@ def register_mail_tools(
             return await logger.invoke(context, tool_name, operation)
         except Exception:
             # Framework exception logging must never receive provider/parser details.
-            raise ToolError("Mailbox operation failed; consult the audit event.") from None
+            raise ToolError(
+                "Mailbox operation failed; consult the audit event. "
+                "For write operations, verify mailbox state before retrying."
+            ) from None
 
     @mcp.tool(
         name="mail_search",
