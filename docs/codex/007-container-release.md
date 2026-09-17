@@ -22,3 +22,15 @@ Prepare production container delivery.
 ## Non goals
 
 - No Kubernetes deployment in first release.
+
+## Implementation notes
+
+The production Dockerfile installs the application without a cache, runs as a
+dedicated non-root user, exposes port 8000, and declares a health check against
+the public health endpoint. Compose supplies environment configuration and
+health checks without persisting mailbox content.
+
+The CI workflow builds and starts the image remotely, then probes healthz.
+The release workflow runs on vX.Y.Z tags, reruns tests, and publishes version,
+major/minor, and latest tags to GHCR. Kubernetes and SIEM integrations remain
+out of scope.

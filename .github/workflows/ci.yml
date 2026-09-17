@@ -29,3 +29,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Docker image
         run: docker build --file docker/Dockerfile --tag m365-mcp-server:ci .
+      - name: Smoke test container health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name m365-mcp-ci --publish 18000:8000 m365-mcp-server:ci
+          trap 'docker rm --force m365-mcp-ci' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18000/healthz; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs m365-mcp-ci
+          exit 1
