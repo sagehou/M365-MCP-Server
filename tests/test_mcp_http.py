@@ -136,7 +136,8 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     discovered = await modern_rpc(
                         "alice", "server/discover", {"_meta": modern_meta}
                     )
-                    assert discovered["protocolVersion"] == "2026-07-28"
+                    assert discovered["resultType"] == "complete"
+                    assert "2026-07-28" in discovered["supportedVersions"]
                     modern_tools = await modern_rpc(
                         "alice", "tools/list", {"_meta": modern_meta}
                     )
