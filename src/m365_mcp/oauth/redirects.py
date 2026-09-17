@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from ipaddress import ip_address
 import re
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 
 _WORKBUDDY_PATH = re.compile(
     r"^/mcp/connector%3a[A-Za-z0-9._~-]+/oauth/callback$",
     re.IGNORECASE,
 )
+_RESERVED_QUERY_PARAMETERS = frozenset({"code", "state", "error"})
 
 
 def validate_redirect_uri(value: str) -> str:
@@ -54,6 +55,11 @@ def validate_redirect_uri(value: str) -> str:
         return value
 
     if scheme == "https" and parsed.hostname:
+        if any(
+            name in _RESERVED_QUERY_PARAMETERS
+            for name, _ in parse_qsl(parsed.query, keep_blank_values=True)
+        ):
+            raise ValueError("redirect_uri contains reserved OAuth parameters")
         return value
 
     raise ValueError("unsupported redirect_uri scheme")

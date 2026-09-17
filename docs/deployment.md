@@ -63,28 +63,36 @@ Configure the external HTTPS endpoint URL in the MCP client and reverse proxy.
 Do not expose the container directly to the internet without TLS and the
 required Entra configuration.
 
-## OAuth discovery foundation
+## OAuth authorization broker
 
-The current OAuth phase provides discovery metadata and dynamic public-client
-registration, but not interactive authorization or token refresh. It therefore
-remains disabled by default:
+The current OAuth phase provides discovery metadata, dynamic public-client
+registration, MSAL-backed interactive authorization, S256 PKCE and one-time
+authorization-code exchange. Persistent refresh sessions are not yet available,
+so OAuth remains disabled by default:
 
     OAUTH_ENABLED=false
     MCP_PUBLIC_URL=https://mcp.example.com/mcp/
     OAUTH_ISSUER_URL=https://mcp.example.com
     OAUTH_DATABASE_PATH=/data/oauth.db
+    ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
+    ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
+    ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
 
 When explicitly enabled for integration development, both public URLs are
 validated configuration; they are never inferred from Host or forwarded headers.
 HTTPS is mandatory except for loopback development. Compose mounts the named
 `oauth-data` volume at `/data`, so registered clients and future sessions survive
 container recreation. Back up this volume as sensitive authentication state.
+The PR3 encryption key is process-local, so controlled integration runs must use
+exactly one server process and one replica. Do not load-balance an authorization
+flow across workers or replicas until PR4 provides a persistent shared key.
 
 Route `/.well-known/*`, `/oauth/*` and `/mcp/` through the same fixed public
-origin. Apply reverse-proxy request-size and rate limits to `/oauth/register`;
+origin. Register `https://mcp.example.com/oauth/callback/entra` only on App B.
+Apply reverse-proxy request-size and rate limits to `/oauth/register`;
 the application deliberately does not add Redis or an enterprise rate limiter.
-Do not set `OAUTH_ENABLED=true` in production until authorization-code, refresh,
-and WorkBuddy end-to-end gates are complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
+Do not set `OAUTH_ENABLED=true` in production until persistent refresh and
+WorkBuddy end-to-end gates are complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
 
 ## Container release
 
@@ -140,11 +148,11 @@ and `api://<CLIENT_ID>` audience forms.
    read-only into the container, set CLIENT_CERT_PATH to that container path and
    set CLIENT_CERT_THUMBPRINT. Merely setting a host path does not mount the file.
    A Compose override can add ./secrets/client.pem:/run/secrets/client.pem:ro.
-4. Until the complete OAuth broker is delivered, configure the client to obtain
-   a delegated token for this API scope and send Authorization: Bearer with every
-   /mcp/ request. A Graph access token is not accepted. Discovery and registration
-   are present behind a disabled feature flag; interactive sign-in is still a
-   release blocker.
+4. Register a separate confidential App B with the broker callback, configure the
+   three `ENTRA_BROKER_*` values and grant App B delegated access to App A's
+   `api://<CLIENT_ID>/access_as_user` scope. Do not grant App B Graph permission.
+   Interactive sign-in and local authorization-code exchange are present behind
+   the disabled feature flag; persistent refresh remains a release blocker.
 5. Confirm /healthz returns 200 and /mcp/ without a bearer token returns 401.
    These checks do not validate tenant credentials, Graph consent or OBO.
 6. With two test users, initialize MCP, list the eight tools and read a known

@@ -46,10 +46,10 @@ Graph Client 接收经过验证的 `AuthContext`，通过 Entra OBO 服务取得
 
 Mail Service 位于 8 个已注册 MCP 邮件工具之后，作为内部业务层。HTTP Transport 是无状态的：每次调用都携带并重新验证自己的 Token，不在 MCP Session 中保存调用者身份。MSAL 在 ASGI Event Loop 之外执行。附件解析运行在短生命周期、带资源限制的 Linux Worker 中。Graph Transport、邮箱策略和 HTTP 集成分别有独立测试。
 
-## OAuth Discovery 基础
+## OAuth Authorization Broker
 
-OAuth Discovery 是现有 Resource Server 前方的独立模块。它的接口提供 Protected-resource Metadata、Authorization-server Metadata 和 Dynamic Public-client Registration。`DynamicClientRegistry` 负责 Redirect Validation 和 Issuer Binding；Route 不需要了解 SQLite Schema。
+OAuth 是现有 Resource Server 前方的独立 Deep Module。它的 Interface 提供 Discovery、Public-client Registration 与 Authorization-code Operation，同时隐藏 Redirect Policy、State Binding、PKCE、MSAL 与 SQLite 细节。`DynamicClientRegistry` 负责 Redirect Validation 和 Issuer Binding；`OAuthAuthorizationService` 负责 Interactive Flow；Route 只是 HTTP Adapter，不了解 SQLite Schema。
 
-`SQLiteOAuthStore` 是内部 Store Seam 的 Persistence Adapter。它持久化 Registered Client，并为后续 Authorization 和 Refresh 阶段预建 Transaction、Authorization-code 与 Session 表。Public Resource 和 Issuer URL 只能来自 `MCP_PUBLIC_URL` 与 `OAUTH_ISSUER_URL`；Request Host 和 Forwarded-host Header 不能定义这些安全 Metadata。
+`SQLiteOAuthStore` 是内部 Store Seam 的 Persistence Adapter。它持久化 Registered Client，原子消费 Entra Transaction 与 Local Authorization Code，并为 PR4 Refresh Support 预建 Session Table。`MsalEntraAuthorizationBroker` 是 App B 的 True-external Adapter；创建 Local Code 之前，现有 `JwtValidator` 会再次验证发给 App A 的 Token A。本阶段 Entra Authorization-flow Object、Token A 与临时 MSAL Cache 通过进程内 Adapter 加密；PR4 会替换成 Restart-safe Key 与 Session Persistence。
 
-该模块默认关闭。只有 Discovery 和 Registration 并不代表 Server 已成为可用的 OAuth Authorization Server。
+Public Resource 和 Issuer URL 只能来自 `MCP_PUBLIC_URL` 与 `OAUTH_ISSUER_URL`；Request Host 和 Forwarded-host Header 不能定义这些安全 Metadata。在 Refresh 与真实 WorkBuddy 验收完成前，该模块仍默认关闭。

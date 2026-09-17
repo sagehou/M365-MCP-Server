@@ -287,7 +287,7 @@ App Registration 的 Home Tenant ID 不用于其他 Tenant User 的 OBO Authorit
 
 ## 10. Client Application 与 MCP API 是两个角色
 
-上述 MCP API Registration 是 **Resource / Middle-tier API**，它自己不执行 Interactive Sign-in。
+上述 MCP API Registration 是 **App A**，即 Resource / Middle-tier API；它验证 Token A，并通过 OBO 访问 Graph。Interactive Sign-in 由独立 Confidential **App B** Broker 负责。
 
 Client 必须先取得 Token A：
 
@@ -301,13 +301,33 @@ api://<MCP_API_CLIENT_ID>/access_as_user
 
 - Inbound Bearer Token Validation：已实现
 - OBO to Microsoft Graph：已实现
-- MCP OAuth Discovery / Dynamic Client Registration：未实现
-- 由 MCP Server 自己负责 Interactive Sign-in：未实现
+- MCP OAuth Discovery / Dynamic Client Registration：已在 `OAUTH_ENABLED` 后实现
+- MSAL Interactive Sign-in、S256 PKCE 与 Local Authorization-code Exchange：已在 `OAUTH_ENABLED` 后实现
+- Persistent Local Refresh Session 与真实 WorkBuddy 验收：尚未完成
 
-因此第一次真实环境验证应使用：
+### 10.1 创建 Confidential App B Broker
 
-1. 可以配置为获取本 API Entra Access Token 的 MCP Client；或
-2. 独立的测试 Client App Registration。
+1. 新建第二个 App Registration，名称为 `M365-MCP-OAuth-Broker`。
+2. 组织账户场景选择 **Accounts in any organizational directory**。只有在明确要求并完成测试时，才选择同时包含 Personal Microsoft Accounts 的账户类型。
+3. 在 **Authentication > Web** 中只注册：
+
+   ```text
+   https://mcp.example.com/oauth/callback/entra
+   ```
+
+4. 单独创建 App B Client Secret，保存为 `ENTRA_BROKER_CLIENT_SECRET`。不得复用 App A 的 OBO Credential。
+5. 在 **API permissions** 中添加 App A 的 Delegated `access_as_user` Permission。不要向 App B 授予 Microsoft Graph Permission；Server 通过 App A 的 OBO 链路取得 Graph Access。
+6. 配置：
+
+   ```env
+   ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
+   ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
+   ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+   ```
+
+MSAL 会自动管理 Reserved OpenID Scopes。Broker 显式请求 `api://<MCP_API_CLIENT_ID>/access_as_user`，返回的 Token A 仍必须通过现有 JWT Validator 复验。
+
+在 Persistent Refresh Session 交付前，第一次真实验证也可以使用下面的独立 Test Client App Registration。
 
 ## 11. 可选：创建测试 Client App
 

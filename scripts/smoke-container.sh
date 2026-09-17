@@ -56,6 +56,11 @@ docker run --detach --name "$oauth_container" --publish "127.0.0.1:18001:$port" 
   --env "OAUTH_ENABLED=true" \
   --env "MCP_PUBLIC_URL=https://mcp.example.com/mcp/" \
   --env "OAUTH_ISSUER_URL=https://mcp.example.com" \
+  --env "CLIENT_ID=22222222-2222-2222-2222-222222222222" \
+  --env "CLIENT_SECRET=ci-api-secret" \
+  --env "ALLOWED_TENANTS=11111111-1111-1111-1111-111111111111" \
+  --env "ENTRA_BROKER_CLIENT_ID=33333333-3333-3333-3333-333333333333" \
+  --env "ENTRA_BROKER_CLIENT_SECRET=ci-broker-secret" \
   --health-interval=1s --health-start-period=1s "$image"
 oauth_ready=false
 for attempt in $(seq 1 45); do
@@ -91,6 +96,17 @@ assert registration["client_id"].startswith("mcp_")
 assert "client_secret" not in registration
 ' <<< "$registration"
 docker exec "$oauth_container" test -s /data/oauth.db
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  --get \
+  --data-urlencode 'client_id=unregistered-client' \
+  --data-urlencode 'redirect_uri=http://127.0.0.1:43123/oauth/callback' \
+  --data-urlencode 'response_type=code' \
+  --data-urlencode 'scope=access_as_user' \
+  --data-urlencode 'state=ci-state' \
+  --data-urlencode 'code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' \
+  --data-urlencode 'code_challenge_method=S256' \
+  --data-urlencode 'resource=https://mcp.example.com/mcp/' \
+  http://127.0.0.1:18001/oauth/authorize)" = 400
 oauth_startup_logs="$(docker logs "$oauth_container" 2>&1)"
 for forbidden in \
   'AuthlibDeprecationWarning' \

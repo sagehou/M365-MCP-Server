@@ -287,7 +287,7 @@ The App Registration home tenant ID is not used as the OBO authority for another
 
 ## 10. The client application is separate from the MCP API
 
-The MCP API registration above is a **resource / middle-tier API**. It does not perform an interactive sign-in itself.
+The MCP API registration above is **App A**, the resource / middle-tier API. It validates Token A and performs OBO to Graph. Interactive sign-in is owned by a separate confidential **App B** broker.
 
 A client must first obtain token A for:
 
@@ -301,13 +301,33 @@ Current repository status:
 
 - inbound bearer token validation: implemented
 - OBO to Microsoft Graph: implemented
-- MCP OAuth discovery / dynamic client registration: not implemented
-- interactive sign-in owned by the MCP server: not implemented
+- MCP OAuth discovery / dynamic client registration: implemented behind `OAUTH_ENABLED`
+- MSAL interactive sign-in, S256 PKCE and local authorization-code exchange: implemented behind `OAUTH_ENABLED`
+- persistent local refresh sessions and live WorkBuddy acceptance: not yet complete
 
-Therefore the first live validation should use either:
+### 10.1 Create the confidential App B broker
 
-1. an MCP client that can be configured with an Entra access token for this API, or
-2. a small dedicated test client app registration.
+1. Create a second app registration named `M365-MCP-OAuth-Broker`.
+2. Choose **Accounts in any organizational directory** for organization accounts. Use the account option that also includes personal Microsoft accounts only if that scenario is explicitly required and tested.
+3. Under **Authentication > Web**, register exactly:
+
+   ```text
+   https://mcp.example.com/oauth/callback/entra
+   ```
+
+4. Create a separate App B client secret and store it as `ENTRA_BROKER_CLIENT_SECRET`. Never reuse App A's OBO credential.
+5. Under **API permissions**, add App A's delegated `access_as_user` permission. Do not grant App B Microsoft Graph permissions; the server obtains Graph access through App A's OBO path.
+6. Configure:
+
+   ```env
+   ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
+   ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
+   ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+   ```
+
+MSAL automatically manages its reserved OpenID scopes. The broker explicitly asks for `api://<MCP_API_CLIENT_ID>/access_as_user`, and the returned Token A is still revalidated by the existing JWT validator.
+
+Until persistent refresh sessions are delivered, the first live validation may also use a small dedicated test client app registration described below.
 
 ## 11. Optional: create a test client app
 

@@ -123,3 +123,15 @@ secret. Client records are stored in SQLite under an issuer-qualified key.
 Registration audit events contain the generated client ID and result, but not
 redirect URIs or request bodies. The discovery phase is guarded by a default-off
 feature flag until authorization, refresh and end-to-end security gates exist.
+
+Interactive authorization requires `response_type=code`, exact client and
+redirect binding, the configured MCP resource, the configured public scope and
+S256 PKCE. WorkBuddy state is stored separately from a newly generated Entra
+state; the latter is atomically consumed before MSAL completes the callback.
+Token A is revalidated by the existing `JwtValidator` before a random, hashed,
+single-use local code is created. Browser redirects contain only that local code
+and the original WorkBuddy state. The Entra authorization-flow object, Token A
+and the transient MSAL cache are encrypted before being written to SQLite. Until
+PR4 introduces a persistent encryption key, they use a process-local key, so
+outstanding transactions and codes intentionally cannot survive a process
+restart.

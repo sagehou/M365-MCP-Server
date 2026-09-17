@@ -15,7 +15,11 @@ from .extractors import AttachmentExtractorRegistry
 from .mail import MailToolService, register_mail_tools
 from .oauth import (
     DynamicClientRegistry,
+    EphemeralTokenProtector,
+    MsalEntraAuthorizationBroker,
+    OAuthAuthorizationService,
     OAuthClientRegistry,
+    OAuthStore,
     SQLiteOAuthStore,
     create_oauth_router,
 )
@@ -45,11 +49,13 @@ def create_app(
     mail_service: MailService | None = None,
     audit_logger: AuditLogger | None = None,
     oauth_registry: OAuthClientRegistry | None = None,
+    oauth_store: OAuthStore | None = None,
+    oauth_authorization_service: OAuthAuthorizationService | None = None,
 ) -> FastAPI:
     """Create an application with protected MCP mail tools."""
 
     configured_settings = settings or Settings()
-    configured_settings.validate_oauth_discovery_configuration()
+    configured_settings.validate_oauth_authorization_configuration()
     server = mcp_server or FastMCP("M365 MCP Server", mask_error_details=True)
     http_app = mcp_http_app or server.http_app(
         path="/", stateless_http=True, json_response=True
@@ -74,10 +80,21 @@ def create_app(
     )
 
     registry = oauth_registry
-    if configured_settings.oauth_enabled and registry is None:
-        registry = DynamicClientRegistry(
-            SQLiteOAuthStore(configured_settings.oauth_database_path),
+    authorization_service = oauth_authorization_service
+    store = oauth_store
+    if configured_settings.oauth_enabled:
+        store = store or SQLiteOAuthStore(configured_settings.oauth_database_path)
+        registry = registry or DynamicClientRegistry(
+            store,
             configured_settings.normalized_oauth_issuer_url,
+        )
+        authorization_service = authorization_service or OAuthAuthorizationService(
+            configured_settings,
+            registry,
+            store,
+            MsalEntraAuthorizationBroker(configured_settings),
+            validator,
+            EphemeralTokenProtector(),
         )
 
     @asynccontextmanager
@@ -112,9 +129,15 @@ def create_app(
         include_in_schema=False,
     )
     if configured_settings.oauth_enabled:
-        if registry is None:
-            raise RuntimeError("OAuth client registry is unavailable")
-        application.include_router(create_oauth_router(configured_settings, registry))
+        if registry is None or authorization_service is None:
+            raise RuntimeError("OAuth authorization modules are unavailable")
+        application.include_router(
+            create_oauth_router(
+                configured_settings,
+                registry,
+                authorization_service,
+            )
+        )
     application.add_middleware(
         BearerAuthMiddleware,
         validator=validator,

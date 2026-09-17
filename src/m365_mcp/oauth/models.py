@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -48,6 +49,33 @@ class OAuthClientRegistration(BaseModel):
         return self
 
 
+class OAuthAuthorizationRequest(BaseModel):
+    """Validated shape of an MCP authorization request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_id: str = Field(min_length=1, max_length=200)
+    redirect_uri: str = Field(min_length=1, max_length=2048)
+    response_type: str = Field(min_length=1, max_length=50)
+    scope: str = Field(min_length=1, max_length=500)
+    state: str = Field(min_length=1, max_length=1024)
+    code_challenge: str = Field(min_length=1, max_length=128)
+    code_challenge_method: str = Field(min_length=1, max_length=20)
+    resource: str | None = Field(default=None, max_length=2048)
+
+
+class OAuthTokenRequest(BaseModel):
+    """Validated shape of an authorization-code token request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    grant_type: str = Field(min_length=1, max_length=50)
+    code: str = Field(min_length=1, max_length=512)
+    client_id: str = Field(min_length=1, max_length=200)
+    redirect_uri: str = Field(min_length=1, max_length=2048)
+    code_verifier: str = Field(min_length=1, max_length=256)
+
+
 @dataclass(frozen=True, slots=True)
 class OAuthClient:
     """Persisted public OAuth client bound to one issuer."""
@@ -77,3 +105,75 @@ class OAuthClient:
         if self.scope is not None:
             response["scope"] = self.scope
         return response
+
+
+@dataclass(frozen=True, slots=True)
+class OAuthTransaction:
+    """Persisted binding between an MCP request and one Entra authorization."""
+
+    transaction_id_hash: str
+    issuer: str
+    client_id: str
+    redirect_uri: str
+    workbuddy_state: str
+    entra_state_hash: str
+    code_challenge: str
+    scope: str
+    resource: str
+    protected_upstream_flow: bytes
+    created_at: int
+    expires_at: int
+    completed_at: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OAuthAuthorizationCode:
+    """One-time local authorization code with an encrypted token bundle."""
+
+    code_hash: str
+    issuer: str
+    client_id: str
+    redirect_uri: str
+    scope: str
+    resource: str
+    code_challenge: str
+    encrypted_msal_cache: bytes
+    tenant_id: str
+    user_id: str
+    created_at: int
+    expires_at: int
+    used_at: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UpstreamAuthorization:
+    """Authorization URI and opaque MSAL flow state returned by the broker."""
+
+    authorization_uri: str
+    flow: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class UpstreamTokenResult:
+    """Validated shape of the token material returned by MSAL."""
+
+    access_token: str
+    expires_in: int
+    serialized_cache: str
+
+
+@dataclass(frozen=True, slots=True)
+class OAuthTokenResponse:
+    """Local token response returned to the registered public client."""
+
+    access_token: str
+    expires_in: int
+    scope: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "access_token": self.access_token,
+            "token_type": "Bearer",
+            "expires_in": self.expires_in,
+            "scope": self.scope,
+        }

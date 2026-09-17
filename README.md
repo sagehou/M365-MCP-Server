@@ -63,11 +63,12 @@ can publish reviewed stable version tags; a configured workflow is not evidence
 that an image has been released. Select an existing GHCR version before deployment.
 
 The server accepts an Entra delegated bearer token obtained by the client.
-OAuth protected-resource metadata, authorization-server metadata and public
-client registration are available behind `OAUTH_ENABLED`, which remains false
-until the authorization and refresh flow is complete. Interactive sign-in,
-drafts, OCR, shared mailboxes, RBAC, rate limiting and other M365 workloads are
-not implemented. No live-tenant acceptance is implied by mocked Graph/OBO tests.
+OAuth discovery, public-client registration, MSAL-backed interactive sign-in,
+S256 PKCE and one-time local authorization-code exchange are available behind
+`OAUTH_ENABLED`. The flag remains false until persistent refresh sessions and
+real WorkBuddy acceptance are complete. Drafts, OCR, shared mailboxes, RBAC,
+rate limiting and other M365 workloads are not implemented. No live-tenant
+acceptance is implied by mocked Graph/OBO/OAuth tests.
 See [review status](docs/review-status.md), the
 [runtime dependency audit](docs/runtime-dependency-audit.md), and the
 [WorkBuddy OAuth guide](docs/workbuddy-oauth.md).
