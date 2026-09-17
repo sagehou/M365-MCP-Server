@@ -154,7 +154,7 @@ def test_mail_service_encodes_resource_ids_and_stays_on_me() -> None:
     paths: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        paths.append(request.url.path)
+        paths.append(request.url.raw_path.decode())
         return httpx.Response(200, json={"id": "message-1"})
 
     async def exercise() -> None:
