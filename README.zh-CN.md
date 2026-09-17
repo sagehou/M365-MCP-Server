@@ -59,7 +59,7 @@ Microsoft 365
 
 任务 001–007 已有实现和 CI 覆盖，包括全部 8 个邮件工具。GitHub Actions 是当前唯一的构建/测试环境。稳定版发布工作流可以发布经过审核的版本标签；工作流存在并不代表镜像已经发布，部署前必须选择一个实际存在的 GHCR 版本。
 
-服务端接收由客户端取得的 Entra 委托 Bearer Token。交互式 OAuth discovery/registration、草稿、OCR、共享邮箱、RBAC、限流以及其他 M365 工作负载尚未实现。mock 的 Graph/OBO 测试不代表真实租户已经验收。详见[实现复核状态](docs/zh-CN/review-status.md)。
+服务端接收由客户端取得的 Entra 委托 Bearer Token。交互式 OAuth discovery/registration、草稿、OCR、共享邮箱、RBAC、限流以及其他 M365 工作负载尚未实现。mock 的 Graph/OBO 测试不代表真实租户已经验收。详见[实现复核状态](docs/zh-CN/review-status.md)和[运行时依赖审计](docs/zh-CN/runtime-dependency-audit.md)。
 
 ## 部署
 
