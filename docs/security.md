@@ -64,8 +64,10 @@ Record:
 - operation result
 
 Mail attachment listing removes `contentBytes` before returning data to
-MCP clients. Content extraction is a separate task with its own size and format
-limits.
+MCP clients. The mail_read_attachment tool decodes file attachments only on
+the server, applies byte and extracted-text limits, and returns metadata plus
+text for PDF, DOCX, XLSX, PPTX, and TXT files. It never returns the Graph
+contentBytes base64 field to an MCP client.
 
 Do not store:
 
