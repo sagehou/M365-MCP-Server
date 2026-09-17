@@ -7,6 +7,7 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from m365_mcp.app import create_app
 from m365_mcp.auth import (
@@ -22,6 +23,8 @@ from m365_mcp.auth.validator import JwtValidator
 
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
+OTHER_TENANT_ID = "00000000-0000-0000-0000-000000000003"
+MSA_TENANT_ID = "9188040d-6c67-4c5b-b112-36a304b66dad"
 ISSUER = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
 ISSUER_TEMPLATE = "https://login.microsoftonline.com/{tenantid}/v2.0"
 
@@ -80,15 +83,22 @@ def make_token(*, tenant_id: str = TENANT_ID, scope: str = "access_as_user",
     }
 
 
-def make_validator(token_documents: dict[str, dict[str, Any]]) -> JwtValidator:
-    settings = make_settings()
+def make_validator(
+    token_documents: dict[str, dict[str, Any]],
+    *,
+    settings: Settings | None = None,
+) -> JwtValidator:
+    configured_settings = settings or make_settings()
     fetcher = FakeFetcher(
         {
-            settings.discovery_url: token_documents["configuration"],
+            configured_settings.discovery_url: token_documents["configuration"],
             token_documents["configuration"]["jwks_uri"]: token_documents["jwks"],
         }
     )
-    return JwtValidator(settings, OidcDocumentProvider(settings, fetcher=fetcher))
+    return JwtValidator(
+        configured_settings,
+        OidcDocumentProvider(configured_settings, fetcher=fetcher),
+    )
 
 
 def test_valid_delegated_token_returns_tenant_qualified_identity() -> None:
@@ -103,7 +113,7 @@ def test_valid_delegated_token_returns_tenant_qualified_identity() -> None:
 
 
 def test_validator_rejects_wrong_tenant_and_scope() -> None:
-    token, documents = make_token(tenant_id="00000000-0000-0000-0000-000000000003")
+    token, documents = make_token(tenant_id=OTHER_TENANT_ID)
     validator = make_validator(documents)
 
     with pytest.raises(TokenValidationError):
@@ -113,6 +123,22 @@ def test_validator_rejects_wrong_tenant_and_scope() -> None:
     validator = make_validator(documents)
     with pytest.raises(InsufficientScopeError):
         asyncio.run(validator.validate(token))
+
+
+@pytest.mark.parametrize("tenant_id", [OTHER_TENANT_ID, MSA_TENANT_ID])
+def test_wildcard_allows_any_valid_microsoft_tenant(tenant_id: str) -> None:
+    token, documents = make_token(tenant_id=tenant_id)
+    settings = make_settings(allowed_tenants={"*"})
+
+    identity = asyncio.run(make_validator(documents, settings=settings).validate(token))
+
+    assert identity.tenant_id == tenant_id
+    assert settings.authority_for_tenant(tenant_id).endswith(f"/{tenant_id}")
+
+
+def test_wildcard_cannot_be_combined_with_explicit_tenant_ids() -> None:
+    with pytest.raises(ValidationError):
+        make_settings(allowed_tenants={"*", TENANT_ID})
 
 
 def test_obo_uses_allowlisted_tenant_and_configured_graph_scope() -> None:
