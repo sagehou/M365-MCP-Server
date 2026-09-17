@@ -55,10 +55,9 @@ Microsoft 365
 
 ## Development Status
 
-Task 003 is implemented: the MCP endpoint validates Microsoft Entra delegated
-access tokens, the Graph wrapper performs delegated OBO calls with retry
-handling, and the internal mail service foundation is ready. MCP mail tools
-remain out of scope until the next task.
+Task 004 is implemented: the MCP endpoint exposes identity-scoped Outlook
+mail tools for search, read, attachment metadata, read state, archive, move, and
+categories. Attachment content extraction remains in the next task.
 
 ## Run locally
 

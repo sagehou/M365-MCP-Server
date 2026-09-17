@@ -63,9 +63,13 @@ Record:
 - MCP tool
 - operation result
 
+Mail attachment listing removes `contentBytes` before returning data to
+MCP clients. Content extraction is a separate task with its own size and format
+limits.
+
 Do not store:
 
-- email body
-- attachment content
+- email body in logs
+- attachment content in logs
 - access tokens
 - secrets
