@@ -1,3 +1,5 @@
+**English** | [简体中文](README.zh-CN.md)
+
 # M365 MCP Server
 
 Enterprise Microsoft 365 MCP Server based on Microsoft Graph API.

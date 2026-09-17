@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/006-security-audit.md)
+
 # Task 006 - Security and Audit
 
 ## Goal

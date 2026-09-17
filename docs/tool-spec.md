@@ -1,3 +1,5 @@
+**English** | [简体中文](zh-CN/tool-spec.md)
+
 # MCP Tool Specification
 
 ## Mail Tools

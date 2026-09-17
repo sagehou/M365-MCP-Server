@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/README.md)
+
 # Codex Development Guide
 
 This directory contains incremental development tasks.

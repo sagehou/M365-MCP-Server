@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/004-mail-tools.md)
+
 # Task 004 - Mail MCP Tools
 
 ## Goal

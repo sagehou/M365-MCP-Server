@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/005-attachment-extraction.md)
+
 # Task 005 - Attachment Extraction
 
 ## Goal

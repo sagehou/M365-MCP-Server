@@ -1,3 +1,5 @@
+**English** | [简体中文](zh-CN/entra-app-registration.md)
+
 # Microsoft Entra App Registration Guide
 
 This guide describes the Microsoft Entra configuration required by M365 MCP Server.

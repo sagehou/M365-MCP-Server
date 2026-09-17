@@ -1,3 +1,5 @@
+**English** | [简体中文](zh-CN/deployment.md)
+
 # Deployment
 
 ## Supported deployment artifact

@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/002-entra-auth-obo.md)
+
 # Task 002 - Entra Authentication and OBO
 
 ## Goal

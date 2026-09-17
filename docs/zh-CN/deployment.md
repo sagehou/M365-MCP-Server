@@ -1,0 +1,92 @@
+[English](../deployment.md) | **简体中文**
+
+# 部署
+
+## 支持的交付物
+
+正式支持的交付物是容器镜像：
+
+    ghcr.io/sagehou/m365-mcp-server:<version>
+
+镜像使用 Python 3.12 构建，并以非 root 用户运行。默认暴露 8000 端口，并提供无需认证的 `/health` 与 `/healthz` 健康检查，供容器和反向代理探测使用。MCP Endpoint 仍由 Microsoft Entra Bearer Token 校验保护。
+
+## 先完成 Entra 配置
+
+部署前先按照以下手册完成 Portal 配置：
+
+- [Microsoft Entra 应用注册操作手册](entra-app-registration.md)
+
+该手册覆盖服务器当前使用的应用模型，包括跨租户测试、`access_as_user` API Scope、Microsoft Graph 委托权限、OBO 凭据、目标租户授权以及可选测试客户端注册。
+
+## Docker Compose 部署
+
+复制环境变量模板到 deploy 目录，填写 Entra 和 Graph 配置，并确保实际 `.env` 不进入版本控制：
+
+    cp deploy/.env.example deploy/.env
+
+启动镜像：
+
+    docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
+
+检查容器状态和进程存活：
+
+    docker compose --env-file deploy/.env -f deploy/docker-compose.yml ps
+    curl --fail http://127.0.0.1:8000/healthz
+
+`M365_MCP_IMAGE` 必须指向已经存在的版本或 Digest。模板故意使用 `CHANGE_ME`。正式启动前应先用同样参数执行 `docker compose ... pull`，如果镜像不存在则停止部署。若 GHCR Package 为 private，还需要使用具有 package read 权限的凭据执行 `docker login ghcr.io`。
+
+真实环境预发布验证可以使用仓库从已审核 `main` 分支发布的：
+
+```text
+ghcr.io/sagehou/m365-mcp-server:edge
+ghcr.io/sagehou/m365-mcp-server:sha-<commit>
+```
+
+记录可复现测试结果时优先使用 SHA Tag。稳定版 `latest` 仅用于正式版本发布。
+
+## 生产网络边界
+
+推荐在反向代理终止 TLS，并固定公网 Hostname：
+
+    Traefik -> HTTPS -> M365 MCP Server -> Microsoft Graph
+
+Compose 默认只绑定 `127.0.0.1`。如果反向代理运行在其他主机或容器中，需要显式配置私有接口/网络，不要简单绑定所有接口。`MCP_PORT` 同时控制监听端口和健康检查端口。外部 HTTPS Endpoint URL 应配置在 MCP Client 与反向代理中。
+
+`MCP_PUBLIC_URL` 不是当前 Server Setting，也不会自动开启 OAuth Discovery。没有 TLS 和完整 Entra 配置时，不要把容器直接暴露到 Internet。
+
+## 容器发布
+
+稳定版 Release Workflow 只响应 `vX.Y.Z` 格式的 Version Tag。它会：
+
+1. 运行测试
+2. 确认被打 Tag 的 Commit 位于 `main`
+3. 构建生产 Dockerfile
+4. 对该精确镜像执行 Smoke Test
+5. 通过后才发布
+
+示例：
+
+    git tag v0.1.0
+    git push origin v0.1.0
+
+对于 `v0.1.0`，Workflow 会发布 version、major/minor 和 `latest` GHCR Tags。Workflow 使用仓库 GitHub Token 发布 Package，不在仓库中保存 Registry Secret。
+
+独立测试镜像 Workflow 在测试、Docker Build 和 Smoke Test 成功后，从 `main` 发布 `edge` 和 Commit-specific SHA Tag；测试标签不会覆盖 `latest`。
+
+## 配置
+
+所有 Runtime Settings 均通过环境变量提供。只允许配置 `CLIENT_SECRET` 或 `CLIENT_CERT_PATH` 其中一种，设置 `ALLOWED_TENANTS` 和 `AUDIENCE`，并只授予 Mail Tools 实际需要的 Graph Delegated Permissions。Secrets 必须由部署环境或 Secret Management System 注入。
+
+## Entra / Client 前置条件与验收
+
+1. 注册 API Application，暴露 `access_as_user` Delegated Scope，并使用 v2 Access Token。`CLIENT_ID`、`AUDIENCE`、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 必须对应真实 API Registration。`ALLOWED_TENANTS` 是逗号分隔 Allowlist，不是旧的 `TENANT_ID` 变量。
+2. 授予 Graph Delegated `User.Read` 和 `Mail.ReadWrite`，并在目标租户完成所需 Consent。不要授予 Application Mailbox Permissions 或 `Mail.Send`；当前没有发信工具。
+3. 只配置一种 Credential。使用证书时，将 PEM Private Key 以只读方式挂载进容器，把 `CLIENT_CERT_PATH` 设置为容器内路径，并设置 `CLIENT_CERT_THUMBPRINT`。只填写宿主机路径并不会自动挂载文件。Compose Override 可使用：`./secrets/client.pem:/run/secrets/client.pem:ro`。
+4. Client 必须取得发给本 API Scope 的 Delegated Token，并在每次 `/mcp/` 请求中发送 `Authorization: Bearer`。Graph Access Token 不会被本服务接受。自动 MCP OAuth Discovery / Interactive Sign-in 尚未实现，上线前必须验证目标客户端兼容性。
+5. 确认 `/healthz` 返回 200，未带 Bearer Token 的 `/mcp/` 返回 401。这两个检查不能证明 Tenant Credential、Graph Consent 或 OBO 已正确工作。
+6. 使用两个测试用户分别初始化 MCP、列出 8 个工具并读取各自邮箱中的已知消息，确认无法跨用户访问消息。写操作只对可丢弃测试消息执行，并检查 Move 后的新 ID。
+7. 读取代表性附件；确认 JSON Audit Event 包含 Identity、Tool、Outcome 和 Timestamp，但不包含邮件正文、文件名或 Token。若 OBO/Tool 调用失败，应查看 Audit Error Type 与 Entra Sign-in Diagnostics，禁止开启 Payload/Token Logging。
+
+附件 Worker 默认限制：512 MiB Address Space、15 CPU Seconds、20 Seconds Wall Time，并且每个 Server Process 最多两个 Active Workers。Office Archive 最多允许 64 MiB 解压数据和 2048 个 Entries。这些限制用于资源隔离，并不等价于 Filesystem/Network Sandbox。生产环境还应在反向代理配置 Request Size / Concurrency Limits，并设置 Container Memory/PID Limits。
+
+如果提高 `ATTACHMENT_MAX_BYTES`，也要同步提高 `GRAPH_MAX_RESPONSE_BYTES`，因为 Graph JSON 中 Base64 后的数据至少需要原始字节的 4/3，再加 Metadata。

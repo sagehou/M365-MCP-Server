@@ -1,3 +1,5 @@
+**English** | [简体中文](zh-CN/codex-guide.md)
+
 # Codex Development Guide
 
 ## Instructions

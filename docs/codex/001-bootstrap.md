@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/001-bootstrap.md)
+
 # Task 001 - Bootstrap
 
 ## Goal

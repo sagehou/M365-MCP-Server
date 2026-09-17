@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/007-container-release.md)
+
 # Task 007 - Container Release
 
 ## Goal

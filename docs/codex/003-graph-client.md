@@ -1,3 +1,5 @@
+**English** | [简体中文](../zh-CN/codex/003-graph-client.md)
+
 # Task 003 - Microsoft Graph Client
 
 ## Goal
