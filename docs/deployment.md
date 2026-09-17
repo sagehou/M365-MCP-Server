@@ -11,6 +11,17 @@ and provides unauthenticated health endpoints at /health and /healthz for
 container and reverse-proxy probes. The MCP endpoint remains protected by
 Microsoft Entra bearer-token validation.
 
+## Entra setup first
+
+Before deploying, complete the portal configuration in:
+
+- [Microsoft Entra app registration guide](entra-app-registration.md)
+
+That guide covers the exact application model used by this server, including
+multitenant cross-tenant testing, the `access_as_user` API scope, delegated
+Microsoft Graph permissions, OBO credentials, target-tenant consent and an
+optional test client registration.
+
 ## Compose deployment
 
 Copy the environment template into the deploy directory, fill in the Entra
@@ -32,6 +43,11 @@ contains CHANGE_ME. Before starting, run docker compose with the same options
 and the pull subcommand; stop if the image is unavailable. Private GHCR packages
 also require docker login ghcr.io using a credential with package read access.
 
+For live pre-release validation, the repository can publish the reviewed main
+branch as `ghcr.io/sagehou/m365-mcp-server:edge` and a commit-specific
+`sha-<commit>` tag. Prefer the SHA tag when recording reproducible test results.
+Stable `latest` remains reserved for a versioned release.
+
 ## Production network boundary
 
 Terminate TLS and enforce the public hostname at a reverse proxy:
@@ -48,8 +64,8 @@ required Entra configuration.
 
 ## Container release
 
-The release workflow is triggered only by a version tag matching vX.Y.Z. It
-runs the test suite, verifies that the tagged commit is in main, builds the
+The stable release workflow is triggered only by a version tag matching vX.Y.Z.
+It runs the test suite, verifies that the tagged commit is in main, builds the
 production Dockerfile, smoke-tests that exact image, and only then publishes.
 For an approved release version, tag the reviewed main commit (example only):
 
@@ -59,6 +75,10 @@ For an approved release version, tag the reviewed main commit (example only):
 For a v0.1.0 tag, the workflow publishes the version, major/minor, and latest
 GHCR tags. The workflow uses the repository GitHub token for package publishing;
 no registry secret is committed.
+
+The separate test-image workflow publishes `edge` and a commit-specific SHA tag
+from main after tests, Docker build and smoke tests succeed. Test tags do not
+replace `latest`.
 
 ## Configuration
 
@@ -74,9 +94,9 @@ management system.
    configure v2 access tokens. Set CLIENT_ID, AUDIENCE, ALLOWED_TENANTS and
    REQUIRED_SCOPES to the actual API registration. ALLOWED_TENANTS is a comma-
    separated allowlist, not the unused historical TENANT_ID variable.
-2. Grant delegated Graph Mail.ReadWrite and the required tenant consent for the
-   implemented read/update tools. Do not grant application permissions or Mail.Send;
-   there is no send tool.
+2. Grant delegated Graph User.Read and Mail.ReadWrite plus the required target-
+   tenant consent for the implemented read/update tools. Do not grant application
+   mailbox permissions or Mail.Send; there is no send tool.
 3. Configure exactly one credential. For a certificate, mount its PEM private key
    read-only into the container, set CLIENT_CERT_PATH to that container path and
    set CLIENT_CERT_THUMBPRINT. Merely setting a host path does not mount the file.
