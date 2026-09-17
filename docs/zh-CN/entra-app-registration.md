@@ -2,6 +2,20 @@
 
 # Microsoft Entra 应用注册操作手册
 
+## 快速入口
+
+像 rclone 的 Microsoft 配置文档一样，先把管理员实际要打开的入口放在最上面：
+
+- **Microsoft Entra 管理中心：** https://entra.microsoft.com/
+- **Azure Portal - Microsoft Entra 概览：** https://portal.azure.com/?quickstart=true#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview
+- **注册应用官方文档：** https://learn.microsoft.com/zh-cn/graph/auth-register-app-v2
+- **暴露 Web API / 添加 `access_as_user`：** https://learn.microsoft.com/zh-cn/entra/identity-platform/quickstart-configure-app-expose-web-apis
+- **OAuth 2.0 On-Behalf-Of 流程：** https://learn.microsoft.com/zh-cn/entra/identity-platform/v2-oauth2-on-behalf-of-flow
+- **Microsoft Graph 权限参考：** https://learn.microsoft.com/zh-cn/graph/permissions-reference
+- **授予租户范围管理员同意：** https://learn.microsoft.com/zh-cn/entra/identity/enterprise-apps/grant-admin-consent
+
+下面的操作默认使用 **Microsoft Entra 管理中心**。创建任何对象之前，先切换到目标 Directory / Tenant，并确认 Portal 顶部显示的租户名称正确。
+
 本文说明 M365 MCP Server 所需的 Microsoft Entra 配置。
 
 内容与当前仓库实现保持一致：
@@ -65,7 +79,7 @@ GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 
 ## 4. 在 Tenant A 创建 MCP API Application
 
-1. 登录 Microsoft Entra Admin Center。
+1. 打开 https://entra.microsoft.com/ 并登录 Microsoft Entra Admin Center。
 2. 切换到 **Tenant A**。
 3. 打开 **Entra ID > App registrations > New registration**。
 4. 使用清晰名称，例如：
