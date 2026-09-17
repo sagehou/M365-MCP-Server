@@ -2,6 +2,20 @@
 
 # Microsoft Entra App Registration Guide
 
+## Quick links
+
+Start here, similar to the direct portal links used in the rclone Microsoft setup documentation:
+
+- **Microsoft Entra admin center:** https://entra.microsoft.com/
+- **Azure portal - Microsoft Entra overview:** https://portal.azure.com/?quickstart=true#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/Overview
+- **Register an application:** https://learn.microsoft.com/en-us/graph/auth-register-app-v2
+- **Expose a web API / add `access_as_user`:** https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-expose-web-apis
+- **OAuth 2.0 On-Behalf-Of flow:** https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-on-behalf-of-flow
+- **Microsoft Graph permissions reference:** https://learn.microsoft.com/en-us/graph/permissions-reference
+- **Grant tenant-wide admin consent:** https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/grant-admin-consent
+
+For the steps below, use the **Microsoft Entra admin center** unless a step explicitly points elsewhere. Before creating anything, switch to the intended directory/tenant and confirm the tenant name shown in the portal.
+
 This guide describes the Microsoft Entra configuration required by M365 MCP Server.
 
 It is written for the current implementation in this repository:
@@ -65,7 +79,7 @@ For the cross-tenant test, use a multitenant registration.
 
 ## 4. Create the MCP API application in Tenant A
 
-1. Sign in to the Microsoft Entra admin center.
+1. Open https://entra.microsoft.com/ and sign in to the Microsoft Entra admin center.
 2. Switch to **Tenant A**.
 3. Go to **Entra ID > App registrations > New registration**.
 4. Use a clear name, for example:
