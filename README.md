@@ -65,7 +65,8 @@ that an image has been released. Select an existing GHCR version before deployme
 The server accepts an Entra delegated bearer token obtained by the client.
 Interactive OAuth discovery/registration, drafts, OCR, shared mailboxes, RBAC,
 rate limiting and other M365 workloads are not implemented. No live-tenant
-acceptance is implied by mocked Graph/OBO tests. See [review status](docs/review-status.md).
+acceptance is implied by mocked Graph/OBO tests. See [review status](docs/review-status.md)
+and the [runtime dependency audit](docs/runtime-dependency-audit.md).
 
 ## Deploy
 
