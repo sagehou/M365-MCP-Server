@@ -9,6 +9,7 @@ description = "An enterprise Microsoft 365 MCP server based on Microsoft Graph."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "cryptography>=43,<50",
     "fastapi>=0.133,<1",
     "fastmcp==4.0.4",
     "httpx>=0.28,<1",

@@ -52,18 +52,25 @@ and no MCP session stores a caller identity. MSAL runs off the ASGI event loop.
 Attachment parsing runs in short-lived Linux workers, with resource limits.
 Graph transport, mailbox policy and HTTP integration have separate tests.
 
-## OAuth discovery foundation
+## OAuth authorization broker
 
-OAuth discovery is a separate module in front of the existing resource server.
-Its interface exposes protected-resource metadata, authorization-server metadata
-and dynamic public-client registration. `DynamicClientRegistry` owns redirect
-validation and issuer binding; routes do not know the SQLite schema.
+OAuth is a separate deep module in front of the existing resource server. Its
+interface exposes discovery, public-client registration and authorization-code
+operations while hiding redirect policy, state binding, PKCE, MSAL and SQLite
+details. `DynamicClientRegistry` owns redirect validation and issuer binding;
+`OAuthAuthorizationService` owns the interactive flow; routes are HTTP adapters
+and do not know the SQLite schema.
 
 `SQLiteOAuthStore` is the persistence adapter at the internal store seam. It
-persists registered clients and prepares transaction, authorization-code and
-session tables for the later authorization and refresh phases. The public
-resource and issuer URLs come only from `MCP_PUBLIC_URL` and `OAUTH_ISSUER_URL`;
-request Host and forwarded-host headers never define this security metadata.
+persists registered clients, atomically consumes Entra transactions and local
+authorization codes, and prepares the session table for PR4 refresh support.
+`MsalEntraAuthorizationBroker` is the true-external adapter for App B, while the
+existing `JwtValidator` revalidates Token A for App A before any local code is
+created. The Entra authorization-flow object, Token A and the transient MSAL
+cache are encrypted behind a process-local adapter in this phase; PR4 replaces
+it with a restart-safe key and session persistence.
 
-The module is disabled by default. Discovery and registration alone do not make
-the server an operational OAuth authorization server.
+The public resource and issuer URLs come only from `MCP_PUBLIC_URL` and
+`OAUTH_ISSUER_URL`; request Host and forwarded-host headers never define this
+security metadata. The module remains disabled by default until refresh and real
+WorkBuddy acceptance are complete.

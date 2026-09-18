@@ -19,6 +19,8 @@ RESOURCE = "https://mcp.example.com/mcp/"
 WORKBUDDY_REDIRECT = (
     "workbuddy://workbuddy/mcp/connector%3Aoutlook-mail/oauth/callback"
 )
+TENANT_ID = "11111111-1111-1111-1111-111111111111"
+API_CLIENT_ID = "22222222-2222-2222-2222-222222222222"
 
 
 class NeverCalledValidator:
@@ -33,6 +35,11 @@ def make_settings(database_path: Path, **overrides: Any) -> Settings:
         "oauth_issuer_url": ISSUER,
         "oauth_database_path": database_path,
         "required_scopes": {"access_as_user"},
+        "client_id": API_CLIENT_ID,
+        "client_secret": "test-api-secret",
+        "allowed_tenants": {TENANT_ID},
+        "entra_broker_client_id": "33333333-3333-3333-3333-333333333333",
+        "entra_broker_client_secret": "test-broker-secret",
     }
     values.update(overrides)
     return Settings(**values)
@@ -174,6 +181,7 @@ def test_dcr_accepts_supported_redirects_and_persists_exact_values(
     [
         (registration(redirect_uris=["http://public.example.com/oauth/callback"]), None),
         (registration(redirect_uris=["workbuddy://evil/oauth/callback"]), None),
+        (registration(redirect_uris=["https://client.example/callback?code=chosen"]), None),
         (registration(redirect_uris=[]), None),
         ({"client_name": "Missing redirect"}, None),
         (registration(application_type="desktop"), None),

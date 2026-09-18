@@ -4,13 +4,19 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
 from ..auth.settings import Settings
-from .models import OAuthClientRegistration
+from .authorization import OAuthAuthorizationService, OAuthProtocolError
+from .models import (
+    OAuthAuthorizationRequest,
+    OAuthClientRegistration,
+    OAuthTokenRequest,
+)
 from .registry import OAuthClientRegistry, OAuthRegistrationUnavailableError
 
 
@@ -24,9 +30,33 @@ def _oauth_error(description: str, *, status_code: int = 400) -> JSONResponse:
     )
 
 
+def _protocol_error(error: OAuthProtocolError) -> JSONResponse:
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "error": error.error,
+            "error_description": error.description,
+        },
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
+def _single_value_parameters(items: list[tuple[str, str]]) -> dict[str, str]:
+    parameters: dict[str, str] = {}
+    for name, value in items:
+        if name in parameters:
+            raise OAuthProtocolError(
+                "invalid_request",
+                "duplicate parameters are not allowed",
+            )
+        parameters[name] = value
+    return parameters
+
+
 def create_oauth_router(
     settings: Settings,
     registry: OAuthClientRegistry,
+    authorization_service: OAuthAuthorizationService,
 ) -> APIRouter:
     """Create the feature-flagged OAuth discovery interface."""
 
@@ -60,7 +90,8 @@ def create_oauth_router(
 
     @router.post("/oauth/register")
     async def register_client(request: Request) -> JSONResponse:
-        if request.headers.get("content-type", "").split(";", 1)[0].strip().casefold() != "application/json":
+        content_type = request.headers.get("content-type", "")
+        if content_type.split(";", 1)[0].strip().casefold() != "application/json":
             return _oauth_error("registration body must be application/json")
         try:
             payload: Any = await request.json()
@@ -71,16 +102,111 @@ def create_oauth_router(
         try:
             registration = OAuthClientRegistration.model_validate(payload)
             client = await registry.register(registration)
-        except (ValidationError, ValueError) as exc:
-            return _oauth_error(str(exc))
+        except (ValidationError, ValueError):
+            return _oauth_error("client metadata is invalid")
         except OAuthRegistrationUnavailableError:
             return JSONResponse(
                 status_code=503,
                 content={
                     "error": "temporarily_unavailable",
-                    "error_description": "client registration is temporarily unavailable",
+                    "error_description": (
+                        "client registration is temporarily unavailable"
+                    ),
                 },
             )
         return JSONResponse(status_code=201, content=client.registration_response())
+
+    @router.get("/oauth/authorize", response_model=None)
+    async def authorize(request: Request) -> JSONResponse | RedirectResponse:
+        try:
+            parameters = _single_value_parameters(
+                list(request.query_params.multi_items())
+            )
+            authorization_request = OAuthAuthorizationRequest.model_validate(parameters)
+            authorization_uri = await authorization_service.authorize(
+                authorization_request
+            )
+        except ValidationError:
+            return _protocol_error(
+                OAuthProtocolError(
+                    "invalid_request",
+                    "authorization request is invalid",
+                )
+            )
+        except OAuthProtocolError as exc:
+            return _protocol_error(exc)
+        return RedirectResponse(
+            authorization_uri,
+            status_code=302,
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+
+    @router.get("/oauth/callback/entra", response_model=None)
+    async def entra_callback(request: Request) -> JSONResponse | RedirectResponse:
+        try:
+            parameters = _single_value_parameters(
+                list(request.query_params.multi_items())
+            )
+            redirect_uri = await authorization_service.complete(parameters)
+        except OAuthProtocolError as exc:
+            return _protocol_error(exc)
+        return RedirectResponse(
+            redirect_uri,
+            status_code=302,
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+
+    @router.post("/oauth/token")
+    async def token(request: Request) -> JSONResponse:
+        content_type = request.headers.get("content-type", "").split(";", 1)[0]
+        if content_type.strip().casefold() != "application/x-www-form-urlencoded":
+            return _protocol_error(
+                OAuthProtocolError(
+                    "invalid_request",
+                    "token request must be application/x-www-form-urlencoded",
+                )
+            )
+        content_length = request.headers.get("content-length")
+        if content_length is not None:
+            try:
+                parsed_content_length = int(content_length)
+                if parsed_content_length < 0 or parsed_content_length > 16_384:
+                    raise OAuthProtocolError(
+                        "invalid_request", "token request is too large"
+                    )
+            except ValueError:
+                return _protocol_error(
+                    OAuthProtocolError("invalid_request", "content length is invalid")
+                )
+            except OAuthProtocolError as exc:
+                return _protocol_error(exc)
+        body = bytearray()
+        async for chunk in request.stream():
+            body.extend(chunk)
+            if len(body) > 16_384:
+                return _protocol_error(
+                    OAuthProtocolError("invalid_request", "token request is too large")
+                )
+        try:
+            items = parse_qsl(
+                body.decode("utf-8"),
+                keep_blank_values=True,
+                strict_parsing=True,
+                max_num_fields=10,
+            )
+            parameters = _single_value_parameters(items)
+            token_request = OAuthTokenRequest.model_validate(parameters)
+            response = await authorization_service.exchange(token_request)
+        except (UnicodeDecodeError, ValueError, ValidationError):
+            return _protocol_error(
+                OAuthProtocolError("invalid_request", "token request is invalid")
+            )
+        except OAuthProtocolError as exc:
+            return _protocol_error(exc)
+        return JSONResponse(
+            status_code=200,
+            content=response.as_dict(),
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
 
     return router
