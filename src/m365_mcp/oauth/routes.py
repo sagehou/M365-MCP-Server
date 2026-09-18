@@ -11,11 +11,13 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
 from ..auth.settings import Settings
-from .authorization import OAuthAuthorizationService, OAuthProtocolError
+from .authorization import OAuthAuthorizationService
+from .errors import OAuthProtocolError
 from .models import (
+    OAuthAuthorizationCodeTokenRequest,
     OAuthAuthorizationRequest,
     OAuthClientRegistration,
-    OAuthTokenRequest,
+    OAuthRefreshTokenRequest,
 )
 from .registry import OAuthClientRegistry, OAuthRegistrationUnavailableError
 
@@ -195,8 +197,25 @@ def create_oauth_router(
                 max_num_fields=10,
             )
             parameters = _single_value_parameters(items)
-            token_request = OAuthTokenRequest.model_validate(parameters)
-            response = await authorization_service.exchange(token_request)
+            grant_type = parameters.get("grant_type")
+            if not grant_type:
+                raise OAuthProtocolError(
+                    "invalid_request",
+                    "grant_type is required",
+                )
+            if grant_type == "authorization_code":
+                token_request = OAuthAuthorizationCodeTokenRequest.model_validate(
+                    parameters
+                )
+                response = await authorization_service.exchange(token_request)
+            elif grant_type == "refresh_token":
+                refresh_request = OAuthRefreshTokenRequest.model_validate(parameters)
+                response = await authorization_service.refresh(refresh_request)
+            else:
+                raise OAuthProtocolError(
+                    "unsupported_grant_type",
+                    "grant_type is not supported",
+                )
         except (UnicodeDecodeError, ValueError, ValidationError):
             return _protocol_error(
                 OAuthProtocolError("invalid_request", "token request is invalid")

@@ -4,6 +4,7 @@ from .context import get_auth_context
 from .errors import (
     AuthenticationError,
     ConfigurationError,
+    IdentityProviderUnavailableError,
     InsufficientScopeError,
     OboTokenError,
     TokenValidationError,
@@ -19,6 +20,7 @@ __all__ = [
     "AuthenticationError",
     "BearerAuthMiddleware",
     "ConfigurationError",
+    "IdentityProviderUnavailableError",
     "InsufficientScopeError",
     "JwtValidator",
     "MsalOboService",

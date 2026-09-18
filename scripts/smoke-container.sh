@@ -56,6 +56,8 @@ docker run --detach --name "$oauth_container" --publish "127.0.0.1:18001:$port" 
   --env "OAUTH_ENABLED=true" \
   --env "MCP_PUBLIC_URL=https://mcp.example.com/mcp/" \
   --env "OAUTH_ISSUER_URL=https://mcp.example.com" \
+  --env "OAUTH_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" \
+  --env "OAUTH_REFRESH_TOKEN_TTL_DAYS=30" \
   --env "CLIENT_ID=22222222-2222-2222-2222-222222222222" \
   --env "CLIENT_SECRET=ci-api-secret" \
   --env "ALLOWED_TENANTS=11111111-1111-1111-1111-111111111111" \

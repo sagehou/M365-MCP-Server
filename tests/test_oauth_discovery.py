@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 from pathlib import Path
 import sqlite3
@@ -40,6 +41,7 @@ def make_settings(database_path: Path, **overrides: Any) -> Settings:
         "allowed_tenants": {TENANT_ID},
         "entra_broker_client_id": "33333333-3333-3333-3333-333333333333",
         "entra_broker_client_secret": "test-broker-secret",
+        "oauth_encryption_key": base64.b64encode(b"k" * 32).decode("ascii"),
     }
     values.update(overrides)
     return Settings(**values)
@@ -166,6 +168,7 @@ def test_dcr_accepts_supported_redirects_and_persists_exact_values(
         "oauth_transactions",
         "oauth_codes",
         "oauth_sessions",
+        "oauth_refresh_token_history",
     } <= tables
     persisted = asyncio.run(restarted.get(body["client_id"]))
     assert persisted is not None
