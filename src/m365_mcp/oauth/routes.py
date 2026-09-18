@@ -178,7 +178,33 @@ def create_oauth_router(
             )
             redirect_uri = await authorization_service.complete(parameters)
         except OAuthProtocolError as exc:
+            logger.warning(
+                "OAuth callback rejected",
+                extra={
+                    "event": "oauth_callback_failed",
+                    "error_type": type(exc).__name__,
+                    "oauth_error": exc.error,
+                    "status_code": exc.status_code,
+                },
+            )
             return _protocol_error(exc)
+        except Exception as exc:
+            logger.exception(
+                "OAuth callback failed unexpectedly",
+                extra={
+                    "event": "oauth_callback_failed",
+                    "error_type": type(exc).__name__,
+                    "status_code": 500,
+                },
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "server_error",
+                    "error_description": "OAuth callback failed",
+                },
+                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+            )
         return RedirectResponse(
             redirect_uri,
             status_code=302,
