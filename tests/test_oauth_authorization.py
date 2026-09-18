@@ -248,6 +248,10 @@ def test_authorization_code_flow_uses_separate_state_and_one_time_code(
             "state"
         ][0]
         assert upstream_state != "workbuddy-state"
+        with sqlite3.connect(database_path) as connection:
+            protected_flow = connection.execute(
+                "SELECT protected_upstream_flow FROM oauth_transactions"
+            ).fetchone()[0]
         callback = complete_authorization(client, upstream_state)
         assert callback.status_code == 302
         local_code = local_code_from_redirect(callback.headers["location"])
@@ -269,9 +273,6 @@ def test_authorization_code_flow_uses_separate_state_and_one_time_code(
     with sqlite3.connect(database_path) as connection:
         protected = connection.execute(
             "SELECT encrypted_msal_cache FROM oauth_codes"
-        ).fetchone()[0]
-        protected_flow = connection.execute(
-            "SELECT protected_upstream_flow FROM oauth_transactions"
         ).fetchone()[0]
     assert b"validated-token-a" not in protected
     assert b"sensitive-msal-cache" not in protected
