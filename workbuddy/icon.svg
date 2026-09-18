@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Microsoft 365 Mail</title>
+  <rect width="64" height="64" rx="14" fill="#0f6cbd"/>
+  <path d="M12 18h40a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H12a4 4 0 0 1-4-4V22a4 4 0 0 1 4-4Z" fill="#fff"/>
+  <path d="m11 22 21 16 21-16" fill="none" stroke="#0f6cbd" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="m10 49 15-14m29 14L39 35" fill="none" stroke="#8dc8f4" stroke-linecap="round" stroke-width="3"/>
+</svg>

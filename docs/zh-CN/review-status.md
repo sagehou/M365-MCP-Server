@@ -14,7 +14,7 @@
 
 ## CI 能证明什么
 
-Unit Tests 和 Integration Tests 使用 Mocked Entra Metadata、OBO 和 Graph Transport，对真实 ASGI/FastMCP Stack 进行测试。Docker Smoke Test 使用安装后的 Non-root Production Image。构建和测试全部在 GitHub Actions 执行。
+Unit Tests 和 Integration Tests 使用 Mocked Entra Metadata、OBO 和 Graph Transport，对真实 ASGI/FastMCP Stack 进行测试。Mock WorkBuddy Client Flow 会从 401 Discovery Challenge 开始，依次覆盖 DCR、S256 Authorization、Entra Callback、Local Token Exchange、Authenticated MCP Initialization、Refresh-token Rotation 以及刷新后的再次认证调用。Connector Package Tests 还会检查官方目录结构、无嵌入凭据的 OAuth 模式和三个最小权限 Skills。Docker Smoke Test 使用安装后的 Non-root Production Image。构建和测试全部在 GitHub Actions 执行。
 
 这些测试不会读取或修改生产邮箱数据。
 
@@ -22,7 +22,7 @@ Unit Tests 和 Integration Tests 使用 Mocked Entra Metadata、OBO 和 Graph Tr
 
 - 选择并发布第一个批准的 Release Version；验证 GHCR Visibility 与 Pull Access。Docker Build 成功不等于已经发布镜像。
 - 配置 Entra Applications/Consent，并使用两个真实用户、受支持 MCP Clients、Certificate 或 Secret Credential 以及代表性附件做验证。
-- OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现。WorkBuddy Connector、CI Client-flow Coverage 与真实 Automatic Sign-in/Refresh 验收仍是兼容 WorkBuddy 的 v0.1 Release Blocker。
+- OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。真实 WorkBuddy Automatic Sign-in/Refresh、Restart、真实邮箱与跨租户验收仍是兼容 WorkBuddy 的 v0.1 Release Blocker。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
 - OCR、Drafts、Shared Mailboxes、Enterprise RBAC / Rate Limiting / Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
 
