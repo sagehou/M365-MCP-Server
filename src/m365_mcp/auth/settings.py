@@ -2,6 +2,8 @@
 
 from pathlib import Path
 from typing import Any
+from ipaddress import ip_address
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -55,6 +57,11 @@ class Settings(BaseSettings):
     attachment_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0, le=50 * 1024 * 1024)
     attachment_max_text_chars: int = Field(default=100_000, gt=0, le=1_000_000)
 
+    oauth_enabled: bool = False
+    mcp_public_url: str | None = None
+    oauth_issuer_url: str | None = None
+    oauth_database_path: Path = Path("/data/oauth.db")
+
     @field_validator("allowed_tenants", "required_scopes", mode="before")
     @classmethod
     def normalize_sets(cls, value: Any) -> frozenset[str]:
@@ -76,6 +83,52 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_authority_host(cls, value: str) -> str:
         return value.rstrip("/")
+
+    @field_validator("mcp_public_url", "oauth_issuer_url")
+    @classmethod
+    def validate_oauth_public_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.isascii():
+            raise ValueError("OAuth public URLs must use their ASCII representation")
+        if any(ord(character) < 0x21 for character in value) or any(
+            character in value for character in ('"', "\\")
+        ):
+            raise ValueError("OAuth public URLs contain unsafe characters")
+        parsed = urlsplit(value)
+        if not parsed.scheme or not parsed.hostname:
+            raise ValueError("OAuth public URLs must be absolute")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("OAuth public URLs must not contain user information")
+        if parsed.query or parsed.fragment:
+            raise ValueError("OAuth public URLs must not contain query or fragment parts")
+        host = parsed.hostname.casefold()
+        try:
+            loopback = ip_address(host).is_loopback
+        except ValueError:
+            loopback = host == "localhost"
+        if parsed.scheme.casefold() != "https" and not (
+            parsed.scheme.casefold() == "http" and loopback
+        ):
+            raise ValueError("OAuth public URLs require HTTPS except on loopback")
+        return value
+
+    @field_validator("oauth_issuer_url")
+    @classmethod
+    def validate_oauth_issuer_origin(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if parsed.path not in {"", "/"}:
+            raise ValueError("OAUTH_ISSUER_URL must be an origin without a path")
+        return value.rstrip("/")
+
+    @field_validator("mcp_public_url")
+    @classmethod
+    def validate_mcp_resource_path(cls, value: str | None) -> str | None:
+        if value is not None and not urlsplit(value).path.endswith("/mcp/"):
+            raise ValueError("MCP_PUBLIC_URL must identify the public /mcp/ endpoint")
+        return value
 
     @property
     def expected_audiences(self) -> frozenset[str]:
@@ -104,6 +157,36 @@ class Settings(BaseSettings):
         if not self.is_allowed_tenant(tenant_id):
             raise ConfigurationError("The token tenant is not allowlisted")
         return f"{self.authority_host}/{tenant_id}"
+
+    @property
+    def normalized_oauth_issuer_url(self) -> str:
+        if not self.oauth_issuer_url:
+            raise ConfigurationError("OAUTH_ISSUER_URL is not configured")
+        return self.oauth_issuer_url.rstrip("/")
+
+    @property
+    def protected_resource_metadata_url(self) -> str:
+        return (
+            f"{self.normalized_oauth_issuer_url}/"
+            ".well-known/oauth-protected-resource"
+        )
+
+    def validate_oauth_discovery_configuration(self) -> None:
+        """Fail closed when the optional OAuth discovery surface is enabled."""
+
+        if not self.oauth_enabled:
+            return
+        missing: list[str] = []
+        if not self.mcp_public_url:
+            missing.append("MCP_PUBLIC_URL")
+        if not self.oauth_issuer_url:
+            missing.append("OAUTH_ISSUER_URL")
+        if not self.required_scopes:
+            missing.append("REQUIRED_SCOPES")
+        if missing:
+            raise ConfigurationError(
+                "OAuth discovery configuration is incomplete: " + ", ".join(missing)
+            )
 
     def validate_auth_configuration(self) -> None:
         """Fail closed when the authentication boundary is not configured."""

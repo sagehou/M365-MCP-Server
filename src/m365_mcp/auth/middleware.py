@@ -27,10 +27,12 @@ class BearerAuthMiddleware:
         app: Callable[..., Awaitable[None]],
         validator: TokenValidator,
         protected_prefix: str = "/mcp",
+        resource_metadata_url: str | None = None,
     ) -> None:
         self.app = app
         self.validator = validator
         self.protected_prefix = protected_prefix.rstrip("/") or "/"
+        self.resource_metadata_url = resource_metadata_url
 
     async def __call__(self, scope: Mapping[str, Any], receive: Any, send: Any) -> None:
         if scope.get("type") != "http" or not self._is_protected(scope):
@@ -43,7 +45,7 @@ class BearerAuthMiddleware:
                 send,
                 401,
                 {"detail": "Authentication required"},
-                ((b"www-authenticate", b"Bearer"),),
+                ((b"www-authenticate", self._challenge()),),
             )
             return
 
@@ -66,7 +68,7 @@ class BearerAuthMiddleware:
                 send,
                 401,
                 {"detail": "Invalid access token"},
-                ((b"www-authenticate", b"Bearer"),),
+                ((b"www-authenticate", self._challenge(error="invalid_token")),),
             )
             return
 
@@ -94,6 +96,19 @@ class BearerAuthMiddleware:
         if len(parts) != 2 or parts[0].casefold() != "bearer":
             return None
         return parts[1]
+
+    def _challenge(self, *, error: str | None = None) -> bytes:
+        parameters: list[str] = []
+        if error is not None:
+            parameters.append(f'error="{error}"')
+        if self.resource_metadata_url is not None:
+            parameters.append(
+                f'resource_metadata="{self.resource_metadata_url}"'
+            )
+        value = "Bearer"
+        if parameters:
+            value += " " + ", ".join(parameters)
+        return value.encode("ascii")
 
     @staticmethod
     async def _json_response(

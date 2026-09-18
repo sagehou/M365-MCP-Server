@@ -108,3 +108,18 @@ files.
 The HTTP security middleware adds no-store, anti-framing, content-type, referrer,
 content-security, and permissions-policy response headers. It does not replace
 TLS termination, token validation, or downstream authorization.
+
+## OAuth discovery and client registration
+
+OAuth issuer and resource metadata are generated only from explicit validated
+configuration. Host, `X-Forwarded-Host`, prefix matches and wildcard redirect
+matching are not trusted. Public HTTP redirects are rejected; HTTP is accepted
+only for loopback callbacks. The WorkBuddy private scheme is shape-validated,
+and every later authorization request must match the registered redirect string
+exactly for the same client and issuer.
+
+Dynamic registration creates public clients only and never issues a client
+secret. Client records are stored in SQLite under an issuer-qualified key.
+Registration audit events contain the generated client ID and result, but not
+redirect URIs or request bodies. The discovery phase is guarded by a default-off
+feature flag until authorization, refresh and end-to-end security gates exist.

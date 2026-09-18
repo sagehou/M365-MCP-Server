@@ -51,3 +51,19 @@ The HTTP transport is stateless: every call carries and validates its own token,
 and no MCP session stores a caller identity. MSAL runs off the ASGI event loop.
 Attachment parsing runs in short-lived Linux workers, with resource limits.
 Graph transport, mailbox policy and HTTP integration have separate tests.
+
+## OAuth discovery foundation
+
+OAuth discovery is a separate module in front of the existing resource server.
+Its interface exposes protected-resource metadata, authorization-server metadata
+and dynamic public-client registration. `DynamicClientRegistry` owns redirect
+validation and issuer binding; routes do not know the SQLite schema.
+
+`SQLiteOAuthStore` is the persistence adapter at the internal store seam. It
+persists registered clients and prepares transaction, authorization-code and
+session tables for the later authorization and refresh phases. The public
+resource and issuer URLs come only from `MCP_PUBLIC_URL` and `OAUTH_ISSUER_URL`;
+request Host and forwarded-host headers never define this security metadata.
+
+The module is disabled by default. Discovery and registration alone do not make
+the server an operational OAuth authorization server.

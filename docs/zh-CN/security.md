@@ -82,3 +82,9 @@ Graph Response Bytes 在 JSON Parsing 前进行限制。Attachment Base64 长度
 Email Preview、Message Body 和 Extracted Attachment Text 都会带明确的 Untrusted-content Marker。它们只是 Agent 要分析的数据，不是 System、Developer、User 或 Tool Instructions。Tool Description 也重复这一边界，因此 Client 不应执行邮件或附件中嵌入的指令。
 
 HTTP Security Middleware 会添加 `no-store`、Anti-framing、Content-type、Referrer、Content-security 和 Permissions-policy Response Headers。它不能替代 TLS Termination、Token Validation 或 Downstream Authorization。
+
+## OAuth Discovery 与 Client Registration
+
+OAuth Issuer 和 Resource Metadata 只能由显式、经过验证的配置生成。Host、`X-Forwarded-Host`、Prefix Match 和 Wildcard Redirect Match 均不受信任。Public HTTP Redirect 会被拒绝；HTTP 只允许 Loopback Callback。WorkBuddy Private Scheme 必须通过结构校验，后续 Authorization Request 还必须在相同 Client 与 Issuer 下精确匹配 Registered Redirect String。
+
+Dynamic Registration 只创建 Public Client，绝不签发 Client Secret。Client Record 使用带 Issuer Qualification 的 Key 存入 SQLite。Registration Audit Event 只包含生成的 Client ID 和 Result，不记录 Redirect URI 或 Request Body。在 Authorization、Refresh 和 E2E Security Gate 完成前，Discovery 阶段由默认关闭的 Feature Flag 保护。
