@@ -118,7 +118,7 @@ def create_oauth_router(
             )
         return JSONResponse(status_code=201, content=client.registration_response())
 
-    @router.get("/oauth/authorize")
+    @router.get("/oauth/authorize", response_model=None)
     async def authorize(request: Request) -> JSONResponse | RedirectResponse:
         try:
             parameters = _single_value_parameters(
@@ -143,7 +143,7 @@ def create_oauth_router(
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         )
 
-    @router.get("/oauth/callback/entra")
+    @router.get("/oauth/callback/entra", response_model=None)
     async def entra_callback(request: Request) -> JSONResponse | RedirectResponse:
         try:
             parameters = _single_value_parameters(
