@@ -22,7 +22,7 @@ Before deploying, complete the portal configuration in:
 That guide covers the exact application model used by this server, including
 multitenant cross-tenant testing, the `access_as_user` API scope, delegated
 Microsoft Graph permissions, OBO credentials, target-tenant consent and an
-optional test client registration.
+interactive Web callback on the same App Registration.
 
 ## Compose deployment
 
@@ -63,9 +63,9 @@ Configure the external HTTPS endpoint URL in the MCP client and reverse proxy.
 Do not expose the container directly to the internet without TLS and the
 required Entra configuration.
 
-## OAuth authorization broker
+## OAuth authorization
 
-The OAuth broker provides discovery metadata, dynamic public-client registration,
+The OAuth module provides discovery metadata, dynamic public-client registration,
 MSAL-backed interactive authorization, S256 PKCE, one-time authorization-code
 exchange and persistent local refresh sessions. OAuth remains disabled by default
 until live WorkBuddy acceptance is complete:
@@ -77,9 +77,11 @@ until live WorkBuddy acceptance is complete:
     OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
     OAUTH_REFRESH_TOKEN_TTL_DAYS=30
     OAUTH_REFRESH_MAX_ROTATIONS=10000
-    ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
-    ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
-    ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+
+`CLIENT_ID` and the configured `CLIENT_SECRET` or certificate belong to the one
+`M365-MCP-Server` App Registration. The same registration exposes
+`api://<CLIENT_ID>/access_as_user`, owns the Web callback and authenticates the
+server for both the interactive code exchange and Graph OBO.
 
 When explicitly enabled for integration development, both public URLs are
 validated configuration; they are never inferred from Host or forwarded headers.
@@ -91,7 +93,9 @@ image, repository or logs. Restores and replacement processes must use the same
 database and key. v0.1 does not provide distributed or multi-host session storage.
 
 Route `/.well-known/*`, `/oauth/*` and `/mcp/` through the same fixed public
-origin. Register `https://mcp.example.com/oauth/callback/entra` only on App B.
+origin. Register `https://mcp.example.com/oauth/callback` as a Web redirect URI
+on the `M365-MCP-Server` App Registration. For loopback development, register
+`http://localhost:8000/oauth/callback` separately.
 Apply reverse-proxy request-size and rate limits to `/oauth/register`, and rate
 plus concurrency limits to `/oauth/token`;
 the application deliberately does not add Redis or an enterprise rate limiter.
@@ -144,7 +148,8 @@ and `api://<CLIENT_ID>` audience forms.
 
 ## Entra/client prerequisites and acceptance
 
-1. Register the API application, expose the access_as_user delegated scope and
+1. Register one application named `M365-MCP-Server`, expose the `access_as_user`
+   delegated scope and
    configure v2 access tokens. Set CLIENT_ID, ALLOWED_TENANTS and REQUIRED_SCOPES
    to the actual API registration. Use a comma-separated tenant allowlist or `*`
    intentionally. Leave AUDIENCE empty unless an explicit audience override is
@@ -156,12 +161,12 @@ and `api://<CLIENT_ID>` audience forms.
    read-only into the container, set CLIENT_CERT_PATH to that container path and
    set CLIENT_CERT_THUMBPRINT. Merely setting a host path does not mount the file.
    A Compose override can add ./secrets/client.pem:/run/secrets/client.pem:ro.
-4. Register a separate confidential App B with the broker callback, configure the
-   three `ENTRA_BROKER_*` values and grant App B delegated access to App A's
-   `api://<CLIENT_ID>/access_as_user` scope. Do not grant App B Graph permission.
-   Interactive sign-in, local authorization-code exchange and encrypted refresh
-   sessions are present behind the disabled feature flag; live acceptance remains
-   a release blocker.
+4. On the same App Registration, add the Web callback
+   `https://<your-host>/oauth/callback`. The existing `CLIENT_ID` and client
+   credential are reused for interactive sign-in; no second registration or
+   second credential set exists. Interactive sign-in, local
+   authorization-code exchange and encrypted refresh sessions remain behind the
+   disabled feature flag; live acceptance remains a release blocker.
 5. Confirm /healthz returns 200 and /mcp/ without a bearer token returns 401.
    These checks do not validate tenant credentials, Graph consent or OBO.
 6. With two test users, initialize MCP, list the eight tools and read a known

@@ -63,7 +63,7 @@ Microsoft 365
 
 ## 部署
 
-部署前先配置 Microsoft Entra。仓库提供了逐步操作手册，覆盖单租户/跨租户注册、`access_as_user`、Graph 委托权限、OBO 凭据、目标租户授权以及可选测试客户端：
+部署前先配置 Microsoft Entra。仓库提供了逐步操作手册，覆盖同一个 App Registration 同时作为 Resource 与 OAuth Client、单租户/跨租户账户范围、`access_as_user`、Graph 委托权限、唯一的 OAuth/OBO 凭据以及目标租户授权：
 
 - [Microsoft Entra 应用注册操作手册](docs/zh-CN/entra-app-registration.md)
 
@@ -78,6 +78,6 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 - `GET /health`（同时支持 `/healthz`），仅用于进程存活检查
 - `/mcp/`，受保护的 FastMCP Streamable HTTP Endpoint
 
-使用 `/mcp/` 前必须配置 `CLIENT_ID`、且只配置一种客户端凭据、`ALLOWED_TENANTS` 和 `REQUIRED_SCOPES`。`ALLOWED_TENANTS` 可以填写逗号分隔的 Tenant ID 列表，也可以填写 `*` 表示接受任意有效 Microsoft Tenant；留空仍然按 fail closed 处理。`AUDIENCE` 可留空，此时 Server 会自动接受 API Client ID 和 `api://<client-id>` 两种形式。受保护端点只允许当前登录用户访问其委托 Outlook 邮箱。
+使用 `/mcp/` 前必须配置 `CLIENT_ID`、且只配置一种由 Interactive OAuth 与 OBO 共用的 Client Credential、`ALLOWED_TENANTS` 和 `REQUIRED_SCOPES`。`ALLOWED_TENANTS` 可以填写逗号分隔的 Tenant ID 列表，也可以填写 `*` 表示接受任意有效 Microsoft Tenant；留空仍然按 fail closed 处理。`AUDIENCE` 可留空，此时 Server 会自动接受 API Client ID 和 `api://<client-id>` 两种形式。受保护端点只允许当前登录用户访问其委托 Outlook 邮箱。
 
 测试和 Docker 构建均在 GitHub Actions 中执行。

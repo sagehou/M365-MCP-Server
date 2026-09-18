@@ -12,7 +12,7 @@ authorization-code flow:
 - `GET /.well-known/oauth-authorization-server`
 - `POST /oauth/register` for public clients without a client secret
 - `GET /oauth/authorize` with exact client/redirect/resource binding and S256 PKCE
-- `GET /oauth/callback/entra` backed by MSAL Python and a separate upstream state
+- `GET /oauth/callback` backed by MSAL Python and a separate upstream state
 - one-time local authorization codes with a maximum ten-minute lifetime
 - `POST /oauth/token` for `grant_type=authorization_code` and `refresh_token`
 - opaque local refresh tokens stored only as SHA-256 hashes
@@ -20,7 +20,8 @@ authorization-code flow:
 - restart-safe sessions in the configured SQLite database
 - issuer-bound SQLite persistence at `OAUTH_DATABASE_PATH`
 
-The token endpoint returns the validated Entra access token for App A so the
+The token endpoint returns the validated Entra access token for the single
+`M365-MCP-Server` App Registration so the
 existing JWT validator and OBO path remain authoritative. It does not mint a new
 MCP JWT. The Entra authorization-flow object, Token A and MSAL cache are encrypted
 with AES-256-GCM under `OAUTH_ENCRYPTION_KEY`; record-specific authenticated
@@ -68,7 +69,7 @@ root.
    response type and S256 challenge.
 3. The server stores WorkBuddy state and generates a different cryptographically
    random Entra state before starting MSAL authorization.
-4. `/oauth/callback/entra` atomically consumes the transaction, lets MSAL exchange
+4. `/oauth/callback` atomically consumes the transaction, lets MSAL exchange
    the Microsoft code, then re-validates Token A through the existing
    `JwtValidator`.
 5. The browser receives only `code=<local-code>&state=<original-state>` at the
@@ -132,24 +133,27 @@ Public HTTP redirects, malformed private schemes, fragments, wildcard matching,
 prefix matching and unregistered redirects are rejected. Registration state is
 bound to the configured issuer and persists in the `/data` Compose volume.
 
-## Entra application separation
+## Single Entra application
 
-The existing App A remains the protected resource/OBO application. App B is the
-separate confidential interactive OAuth broker:
+Create only one App Registration named `M365-MCP-Server`. It serves both as the
+protected resource/OBO middle tier and as the confidential interactive OAuth
+client:
 
-    ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
-    ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
-    ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+    CLIENT_ID=<m365-mcp-server-client-id>
+    CLIENT_SECRET=<m365-mcp-server-secret>
 
-Register exactly this App B redirect URI:
+Register this production Web redirect URI on that app:
 
-    https://mcp.example.com/oauth/callback/entra
+    https://mcp.example.com/oauth/callback
 
-App B requests App A's `api://<CLIENT_ID>/access_as_user` scope. MSAL adds its
-reserved OpenID scopes as required. The broker does not request a Graph token;
-the MCP API performs the existing OBO exchange after accepting Token A. Do not
-reuse App A's client credential for App B and do not add the broker callback to
-App A.
+For local development, register this separate loopback Web redirect URI:
+
+    http://localhost:8000/oauth/callback
+
+MSAL requests the same app's `api://<CLIENT_ID>/access_as_user` scope and adds
+its reserved OpenID scopes as required. The interactive client does not request
+a Graph token directly; after Token A is accepted, the MCP API performs the
+existing OBO exchange. There is no second Entra app or second credential set.
 
 ## Automated and live acceptance boundary
 

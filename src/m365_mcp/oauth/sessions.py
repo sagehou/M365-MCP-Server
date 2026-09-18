@@ -14,8 +14,8 @@ from ..auth.settings import Settings
 from .audit import OAuthAuditLogger
 from .crypto import TokenProtectionError, TokenProtector
 from .entra import (
-    EntraAuthorizationBroker,
-    EntraBrokerError,
+    EntraAuthorizationClient,
+    EntraAuthorizationError,
     EntraRefreshRejectedError,
 )
 from .errors import OAuthProtocolError
@@ -38,14 +38,14 @@ class OAuthSessionService:
         self,
         settings: Settings,
         store: OAuthStore,
-        broker: EntraAuthorizationBroker,
+        entra_client: EntraAuthorizationClient,
         token_validator: TokenValidator,
         token_protector: TokenProtector,
         audit_logger: OAuthAuditLogger | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
-        self.broker = broker
+        self.entra_client = entra_client
         self.token_validator = token_validator
         self.token_protector = token_protector
         self.audit_logger = audit_logger or OAuthAuditLogger()
@@ -156,11 +156,11 @@ class OAuthSessionService:
             raise self._invalid_grant()
 
         try:
-            token_result = await self.broker.refresh(serialized_cache)
+            token_result = await self.entra_client.refresh(serialized_cache)
         except EntraRefreshRejectedError:
             await self._revoke(session, current_hash, now, "MicrosoftRevocation")
             raise self._invalid_grant()
-        except EntraBrokerError as exc:
+        except EntraAuthorizationError as exc:
             self.audit_logger.refresh_failed(
                 request.client_id,
                 type(exc).__name__,

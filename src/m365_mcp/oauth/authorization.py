@@ -16,7 +16,7 @@ from ..auth.middleware import TokenValidator
 from ..auth.settings import Settings
 from .audit import OAuthAuditLogger
 from .crypto import TokenProtectionError, TokenProtector
-from .entra import EntraAuthorizationBroker, EntraBrokerError
+from .entra import EntraAuthorizationClient, EntraAuthorizationError
 from .errors import OAuthProtocolError
 from .models import (
     OAuthAuthorizationCode,
@@ -45,7 +45,7 @@ class OAuthAuthorizationService:
         settings: Settings,
         registry: OAuthClientRegistry,
         store: OAuthStore,
-        broker: EntraAuthorizationBroker,
+        entra_client: EntraAuthorizationClient,
         token_validator: TokenValidator,
         token_protector: TokenProtector,
         session_service: OAuthSessionService,
@@ -54,7 +54,7 @@ class OAuthAuthorizationService:
         self.settings = settings
         self.registry = registry
         self.store = store
-        self.broker = broker
+        self.entra_client = entra_client
         self.token_validator = token_validator
         self.token_protector = token_protector
         self.session_service = session_service
@@ -95,8 +95,8 @@ class OAuthAuthorizationService:
         upstream_state = secrets.token_urlsafe(32)
         transaction_id = secrets.token_urlsafe(32)
         try:
-            upstream = await self.broker.begin(upstream_state)
-        except EntraBrokerError as exc:
+            upstream = await self.entra_client.begin(upstream_state)
+        except EntraAuthorizationError as exc:
             raise self._unavailable() from exc
         self._validate_upstream_authorization_uri(
             upstream.authorization_uri,
@@ -190,13 +190,17 @@ class OAuthAuthorizationService:
             )
             return self._callback_error_redirect(transaction, "server_error")
         try:
-            token_result = await self.broker.complete(
+            token_result = await self.entra_client.complete(
                 upstream_flow,
                 authorization_response,
             )
             access_token_expires_at = int(time()) + token_result.expires_in
             identity = await self.token_validator.validate(token_result.access_token)
-        except (EntraBrokerError, AuthenticationError, ConfigurationError) as exc:
+        except (
+            EntraAuthorizationError,
+            AuthenticationError,
+            ConfigurationError,
+        ) as exc:
             self.audit_logger.entra_authorization_failed(
                 transaction.client_id,
                 transaction.transaction_id_hash,
@@ -438,7 +442,7 @@ class OAuthAuthorizationService:
         upstream_state: str,
     ) -> None:
         parsed = urlsplit(value)
-        configured_authority = urlsplit(self.settings.entra_broker_authority)
+        configured_authority = urlsplit(self.settings.entra_authority)
         try:
             parsed_port = parsed.port
             configured_port = configured_authority.port

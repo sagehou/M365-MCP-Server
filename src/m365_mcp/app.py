@@ -16,7 +16,7 @@ from .mail import MailToolService, register_mail_tools
 from .oauth import (
     AesGcmTokenProtector,
     DynamicClientRegistry,
-    MsalEntraAuthorizationBroker,
+    MsalEntraAuthorizationClient,
     OAuthAuthorizationService,
     OAuthClientRegistry,
     OAuthSessionService,
@@ -90,14 +90,14 @@ def create_app(
             configured_settings.normalized_oauth_issuer_url,
         )
         if authorization_service is None:
-            broker = MsalEntraAuthorizationBroker(configured_settings)
+            entra_client = MsalEntraAuthorizationClient(configured_settings)
             token_protector = AesGcmTokenProtector(
                 configured_settings.oauth_encryption_key_bytes
             )
             session_service = OAuthSessionService(
                 configured_settings,
                 store,
-                broker,
+                entra_client,
                 validator,
                 token_protector,
             )
@@ -105,7 +105,7 @@ def create_app(
                 configured_settings,
                 registry,
                 store,
-                broker,
+                entra_client,
                 validator,
                 token_protector,
                 session_service,

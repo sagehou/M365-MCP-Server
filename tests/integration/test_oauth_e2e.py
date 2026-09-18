@@ -38,7 +38,7 @@ def _local_path(url: str) -> str:
     return parsed.path
 
 
-class MockEntraBroker:
+class MockEntraClient:
     def __init__(self) -> None:
         self.upstream_state: str | None = None
         self.refresh_count = 0
@@ -105,19 +105,17 @@ def _make_app(database_path: Path):
         client_id=API_CLIENT_ID,
         client_secret="test-api-secret",
         allowed_tenants={TENANT_ID},
-        entra_broker_client_id="33333333-3333-3333-3333-333333333333",
-        entra_broker_client_secret="test-broker-secret",
         oauth_encryption_key=base64.b64encode(b"k" * 32).decode("ascii"),
     )
     store = SQLiteOAuthStore(database_path)
     registry = DynamicClientRegistry(store, ISSUER)
-    broker = MockEntraBroker()
+    entra_client = MockEntraClient()
     validator = MockTokenValidator()
     protector = AesGcmTokenProtector(settings.oauth_encryption_key_bytes)
     sessions = OAuthSessionService(
         settings,
         store,
-        broker,
+        entra_client,
         validator,
         protector,
     )
@@ -125,7 +123,7 @@ def _make_app(database_path: Path):
         settings,
         registry,
         store,
-        broker,
+        entra_client,
         validator,
         protector,
         sessions,
@@ -138,7 +136,7 @@ def _make_app(database_path: Path):
         oauth_store=store,
         oauth_authorization_service=authorization,
     )
-    return app, broker, validator
+    return app, entra_client, validator
 
 
 def _mcp_rpc(
@@ -163,7 +161,7 @@ def _mcp_rpc(
 def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
     tmp_path: Path,
 ) -> None:
-    app, broker, validator = _make_app(tmp_path / "oauth.db")
+    app, entra_client, validator = _make_app(tmp_path / "oauth.db")
     with TestClient(app, base_url=ISSUER) as client:
         challenge = client.get("/mcp/")
         assert challenge.status_code == 401
@@ -225,11 +223,11 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
         entra_state = parse_qs(urlsplit(authorization.headers["location"]).query)[
             "state"
         ][0]
-        assert entra_state == broker.upstream_state
+        assert entra_state == entra_client.upstream_state
         assert entra_state != workbuddy_state
 
         callback = client.get(
-            "/oauth/callback/entra",
+            "/oauth/callback",
             params={"code": "mock-entra-code", "state": entra_state},
             follow_redirects=False,
         )
@@ -299,6 +297,6 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
             "mail_set_category",
         }
 
-    assert broker.refresh_count == 1
+    assert entra_client.refresh_count == 1
     assert "mock-token-a-1" in validator.validated_tokens
     assert "mock-token-a-2" in validator.validated_tokens

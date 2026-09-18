@@ -39,8 +39,6 @@ def make_settings(database_path: Path, **overrides: Any) -> Settings:
         "client_id": API_CLIENT_ID,
         "client_secret": "test-api-secret",
         "allowed_tenants": {TENANT_ID},
-        "entra_broker_client_id": "33333333-3333-3333-3333-333333333333",
-        "entra_broker_client_secret": "test-broker-secret",
         "oauth_encryption_key": base64.b64encode(b"k" * 32).decode("ascii"),
     }
     values.update(overrides)

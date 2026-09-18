@@ -68,11 +68,6 @@ class Settings(BaseSettings):
     oauth_refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
     oauth_refresh_max_rotations: int = Field(default=10_000, ge=1, le=10_000)
     oauth_encryption_key: SecretStr | None = None
-    entra_broker_client_id: str | None = None
-    entra_broker_client_secret: SecretStr | None = None
-    entra_broker_authority: str = (
-        "https://login.microsoftonline.com/organizations"
-    )
 
     @field_validator("allowed_tenants", "required_scopes", mode="before")
     @classmethod
@@ -91,36 +86,10 @@ class Settings(BaseSettings):
     def normalize_scopes(cls, value: Any) -> tuple[str, ...]:
         return tuple(_split_values(value) or ())
 
-    @field_validator("authority_host", "entra_broker_authority")
+    @field_validator("authority_host")
     @classmethod
     def normalize_authority_host(cls, value: str) -> str:
         return value.rstrip("/")
-
-    @field_validator("entra_broker_authority")
-    @classmethod
-    def validate_entra_broker_authority(cls, value: str) -> str:
-        if (
-            not value.isascii()
-            or any(ord(character) < 0x21 for character in value)
-            or any(character in value for character in ('"', "\\"))
-        ):
-            raise ValueError("ENTRA_BROKER_AUTHORITY contains unsafe characters")
-        parsed = urlsplit(value)
-        if parsed.scheme.casefold() != "https" or not parsed.hostname:
-            raise ValueError("ENTRA_BROKER_AUTHORITY must be an absolute HTTPS URL")
-        if parsed.username is not None or parsed.password is not None:
-            raise ValueError("ENTRA_BROKER_AUTHORITY must not contain user information")
-        if parsed.query or parsed.fragment:
-            raise ValueError(
-                "ENTRA_BROKER_AUTHORITY must not contain query or fragment parts"
-            )
-        try:
-            parsed.port
-        except ValueError as exc:
-            raise ValueError("ENTRA_BROKER_AUTHORITY port is invalid") from exc
-        if parsed.path in {"", "/"}:
-            raise ValueError("ENTRA_BROKER_AUTHORITY must select an account audience")
-        return value
 
     @field_validator("mcp_public_url", "oauth_issuer_url")
     @classmethod
@@ -210,11 +179,11 @@ class Settings(BaseSettings):
         )
 
     @property
-    def entra_broker_redirect_uri(self) -> str:
-        return f"{self.normalized_oauth_issuer_url}/oauth/callback/entra"
+    def oauth_callback_uri(self) -> str:
+        return f"{self.normalized_oauth_issuer_url}/oauth/callback"
 
     @property
-    def entra_broker_scopes(self) -> tuple[str, ...]:
+    def entra_authorization_scopes(self) -> tuple[str, ...]:
         if not self.client_id:
             raise ConfigurationError("CLIENT_ID is not configured")
         return tuple(
@@ -222,10 +191,11 @@ class Settings(BaseSettings):
             for scope in sorted(self.required_scopes)
         )
 
-    def entra_broker_client_credential(self) -> str:
-        if self.entra_broker_client_secret is None:
-            raise ConfigurationError("ENTRA_BROKER_CLIENT_SECRET is not configured")
-        return self.entra_broker_client_secret.get_secret_value()
+    @property
+    def entra_authority(self) -> str:
+        """Use one upstream authority that supports every configured account type."""
+
+        return f"{self.authority_host}/common"
 
     @property
     def oauth_encryption_key_bytes(self) -> bytes:
@@ -267,17 +237,13 @@ class Settings(BaseSettings):
             )
 
     def validate_oauth_authorization_configuration(self) -> None:
-        """Fail closed before exposing the interactive OAuth broker."""
+        """Fail closed before exposing interactive OAuth authorization."""
 
         self.validate_oauth_discovery_configuration()
         if not self.oauth_enabled:
             return
         self.validate_auth_configuration()
         missing: list[str] = []
-        if not self.entra_broker_client_id:
-            missing.append("ENTRA_BROKER_CLIENT_ID")
-        if self.entra_broker_client_secret is None:
-            missing.append("ENTRA_BROKER_CLIENT_SECRET")
         if self.oauth_encryption_key is None:
             missing.append("OAUTH_ENCRYPTION_KEY")
         if missing:
