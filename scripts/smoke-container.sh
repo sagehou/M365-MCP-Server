@@ -61,8 +61,6 @@ docker run --detach --name "$oauth_container" --publish "127.0.0.1:18001:$port" 
   --env "CLIENT_ID=22222222-2222-2222-2222-222222222222" \
   --env "CLIENT_SECRET=ci-api-secret" \
   --env "ALLOWED_TENANTS=11111111-1111-1111-1111-111111111111" \
-  --env "ENTRA_BROKER_CLIENT_ID=33333333-3333-3333-3333-333333333333" \
-  --env "ENTRA_BROKER_CLIENT_SECRET=ci-broker-secret" \
   --health-interval=1s --health-start-period=1s "$image"
 oauth_ready=false
 for attempt in $(seq 1 45); do
@@ -113,7 +111,7 @@ test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --get \
   --data-urlencode 'code=ci-sensitive-entra-code' \
   --data-urlencode 'state=ci-sensitive-upstream-state' \
-  http://127.0.0.1:18001/oauth/callback/entra)" = 400
+  http://127.0.0.1:18001/oauth/callback)" = 400
 oauth_startup_logs="$(docker logs "$oauth_container" 2>&1)"
 for forbidden in \
   'AuthlibDeprecationWarning' \

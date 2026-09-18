@@ -16,7 +16,7 @@
 
 - [Microsoft Entra 应用注册操作手册](entra-app-registration.md)
 
-该手册覆盖服务器当前使用的应用模型，包括跨租户测试、`access_as_user` API Scope、Microsoft Graph 委托权限、OBO 凭据、目标租户授权以及可选测试客户端注册。
+该手册覆盖服务器当前使用的单 App 模型，包括跨租户测试、`access_as_user` API Scope、Microsoft Graph 委托权限、Interactive OAuth/OBO 共用凭据、同一 Registration 上的 Web Callback 与目标租户授权。
 
 ## Docker Compose 部署
 
@@ -54,9 +54,9 @@ Compose 默认只绑定 `127.0.0.1`。如果反向代理运行在其他主机或
 
 没有 TLS 和完整 Entra 配置时，不要把容器直接暴露到 Internet。
 
-## OAuth Authorization Broker
+## OAuth Authorization
 
-OAuth Broker 已提供 Discovery Metadata、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Authorization-code Exchange 与 Persistent Local Refresh Session。在真实 WorkBuddy 验收完成前仍默认关闭：
+OAuth Module 已提供 Discovery Metadata、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Authorization-code Exchange 与 Persistent Local Refresh Session。在真实 WorkBuddy 验收完成前仍默认关闭：
 
     OAUTH_ENABLED=false
     MCP_PUBLIC_URL=https://mcp.example.com/mcp/
@@ -65,13 +65,12 @@ OAuth Broker 已提供 Discovery Metadata、Dynamic Public-client Registration�
     OAUTH_ENCRYPTION_KEY=<32-random-bytes-base64>
     OAUTH_REFRESH_TOKEN_TTL_DAYS=30
     OAUTH_REFRESH_MAX_ROTATIONS=10000
-    ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
-    ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
-    ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+
+`CLIENT_ID` 以及配置的 `CLIENT_SECRET` 或 Certificate 都属于唯一的 `M365-MCP-Server` App Registration。该 Registration 同时暴露 `api://<CLIENT_ID>/access_as_user`、持有 Web Callback，并用于 Interactive Code Exchange 与 Graph OBO 时的 Server Authentication。
 
 在集成开发中显式开启后，两个 Public URL 都来自经过验证的配置，绝不从 Host 或 Forwarded Header 推导。除 Loopback 开发外必须使用 HTTPS。Compose 把 Named Volume `oauth-data` 挂载到 `/data`，使 Registered Client 与加密 Session 在 Container Recreate 后仍然存在。该 Volume 属于敏感认证状态，必须纳入备份保护。`OAUTH_ENCRYPTION_KEY` 必须存入部署 Secret Manager，不得进入 Database、Image、Repository 或 Log；恢复与替换进程必须使用同一 Database 和 Key。v0.1 不提供 Distributed 或 Multi-host Session Storage。
 
-反向代理必须把 `/.well-known/*`、`/oauth/*` 和 `/mcp/` 路由到同一固定 Public Origin，并且只在 App B 注册 `https://mcp.example.com/oauth/callback/entra`。对 `/oauth/register` 配置 Request-size 与 Rate Limit，并对 `/oauth/token` 配置 Rate/Concurrency Limit；应用不会为此增加 Redis 或 Enterprise Rate Limiter。生产入口已关闭 Uvicorn Request-line Access Log，因为 OAuth Authorization 和 Callback Query String 包含敏感的短期值；所有反向代理与日志采集器也必须对 `/oauth/*` 省略 Query String。在 WorkBuddy E2E Gate 完成前，不要在生产设置 `OAUTH_ENABLED=true`。详见 [WorkBuddy OAuth](workbuddy-oauth.md)。
+反向代理必须把 `/.well-known/*`、`/oauth/*` 和 `/mcp/` 路由到同一固定 Public Origin，并在 `M365-MCP-Server` App Registration 中把 `https://mcp.example.com/oauth/callback` 注册为 Web Redirect URI；Loopback 开发另行注册 `http://localhost:8000/oauth/callback`。对 `/oauth/register` 配置 Request-size 与 Rate Limit，并对 `/oauth/token` 配置 Rate/Concurrency Limit；应用不会为此增加 Redis 或 Enterprise Rate Limiter。生产入口已关闭 Uvicorn Request-line Access Log，因为 OAuth Authorization 和 Callback Query String 包含敏感的短期值；所有反向代理与日志采集器也必须对 `/oauth/*` 省略 Query String。在 WorkBuddy E2E Gate 完成前，不要在生产设置 `OAUTH_ENABLED=true`。详见 [WorkBuddy OAuth](workbuddy-oauth.md)。
 
 ## 容器发布
 
@@ -107,10 +106,10 @@ OAuth Broker 已提供 Discovery Metadata、Dynamic Public-client Registration�
 
 ## Entra / Client 前置条件与验收
 
-1. 注册 API Application，暴露 `access_as_user` Delegated Scope，并使用 v2 Access Token。`CLIENT_ID`、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 必须对应真实 API Registration。`ALLOWED_TENANTS` 要么填写逗号分隔的 Tenant Allowlist，要么明确填写 `*`。除非确实需要覆盖默认 Audience 行为，否则 `AUDIENCE` 留空即可。
+1. 只注册一个名为 `M365-MCP-Server` 的 Application，暴露 `access_as_user` Delegated Scope，并使用 v2 Access Token。`CLIENT_ID`、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 必须对应这个 Registration。`ALLOWED_TENANTS` 要么填写逗号分隔的 Tenant Allowlist，要么明确填写 `*`。除非确实需要覆盖默认 Audience 行为，否则 `AUDIENCE` 留空即可。
 2. 授予 Graph Delegated `User.Read` 和 `Mail.ReadWrite`，并在目标租户完成所需 Consent。不要授予 Application Mailbox Permissions 或 `Mail.Send`；当前没有发信工具。
 3. 只配置一种 Credential。使用证书时，将 PEM Private Key 以只读方式挂载进容器，把 `CLIENT_CERT_PATH` 设置为容器内路径，并设置 `CLIENT_CERT_THUMBPRINT`。只填写宿主机路径并不会自动挂载文件。Compose Override 可使用：`./secrets/client.pem:/run/secrets/client.pem:ro`。
-4. 注册独立 Confidential App B，配置 Broker Callback 与三个 `ENTRA_BROKER_*` 值，并向 App B 授予 App A 的 `api://<CLIENT_ID>/access_as_user` Delegated Scope。不要向 App B 授予 Graph Permission。Interactive Sign-in、Local Authorization-code Exchange 与 Persistent Refresh 已位于默认关闭的 Feature Flag 后；真实 WorkBuddy 验收仍是 Release Blocker。
+4. 在同一 App Registration 中增加 `https://<your-host>/oauth/callback` Web Callback。Interactive Sign-in 复用现有 `CLIENT_ID` 和 Client Credential，不存在第二个 Registration 或第二套 Credential 配置。Interactive Sign-in、Local Authorization-code Exchange 与 Persistent Refresh 仍位于默认关闭的 Feature Flag 后；真实 WorkBuddy 验收仍是 Release Blocker。
 5. 确认 `/healthz` 返回 200，未带 Bearer Token 的 `/mcp/` 返回 401。这两个检查不能证明 Tenant Credential、Graph Consent 或 OBO 已正确工作。
 6. 使用两个测试用户分别初始化 MCP、列出 8 个工具并读取各自邮箱中的已知消息，确认无法跨用户访问消息。写操作只对可丢弃测试消息执行，并检查 Move 后的新 ID。
 7. 读取代表性附件；确认 JSON Audit Event 包含 Identity、Tool、Outcome 和 Timestamp，但不包含邮件正文、文件名或 Token。若 OBO/Tool 调用失败，应查看 Audit Error Type 与 Entra Sign-in Diagnostics，禁止开启 Payload/Token Logging。

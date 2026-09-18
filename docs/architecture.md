@@ -52,7 +52,7 @@ and no MCP session stores a caller identity. MSAL runs off the ASGI event loop.
 Attachment parsing runs in short-lived Linux workers, with resource limits.
 Graph transport, mailbox policy and HTTP integration have separate tests.
 
-## OAuth authorization broker
+## OAuth authorization module
 
 OAuth is a separate deep module in front of the existing resource server. Its
 interface exposes discovery, public-client registration and authorization-code
@@ -68,8 +68,10 @@ Spent handle hashes remain linked to each rotation family so replay atomically
 revokes the active successor instead of only rejecting the stale request. Unknown
 handles take a read-only rejection path, while an atomically enforced per-session
 rotation counter bounds retained replay history.
-`MsalEntraAuthorizationBroker` is the true-external adapter for App B, while the
-existing `JwtValidator` revalidates Token A for App A before any local code is
+`MsalEntraAuthorizationClient` is the true-external adapter for the same
+`M365-MCP-Server` App Registration that protects the API. The app therefore acts
+as both the OAuth resource and the confidential interactive client. The existing
+`JwtValidator` revalidates Token A for that single app before any local code is
 created. `OAuthSessionService` hides opaque-token hashing, encrypted MSAL cache
 persistence, silent refresh, identity rebinding checks, revocation and one-time
 rotation behind a small interface. The authorization-flow object, Token A and

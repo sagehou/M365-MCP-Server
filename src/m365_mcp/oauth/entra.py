@@ -12,15 +12,15 @@ from ..auth.settings import Settings
 from .models import UpstreamAuthorization, UpstreamTokenResult
 
 
-class EntraBrokerError(Exception):
+class EntraAuthorizationError(Exception):
     """Raised when Entra authorization cannot be completed safely."""
 
 
-class EntraRefreshRejectedError(EntraBrokerError):
+class EntraRefreshRejectedError(EntraAuthorizationError):
     """Raised when Microsoft requires a new interactive authorization."""
 
 
-class EntraAuthorizationBroker(Protocol):
+class EntraAuthorizationClient(Protocol):
     async def begin(self, upstream_state: str) -> UpstreamAuthorization: ...
 
     async def complete(
@@ -59,7 +59,7 @@ class MsalAuthorizationApplication(Protocol):
     ) -> dict[str, Any] | None: ...
 
 
-class MsalEntraAuthorizationBroker:
+class MsalEntraAuthorizationClient:
     """Hide MSAL flow construction and token exchange behind one small interface."""
 
     def __init__(
@@ -96,17 +96,19 @@ class MsalEntraAuthorizationBroker:
             cache = self._cache_factory()
             application = self._new_application(cache)
             flow = application.initiate_auth_code_flow(
-                scopes=list(self.settings.entra_broker_scopes),
-                redirect_uri=self.settings.entra_broker_redirect_uri,
+                scopes=list(self.settings.entra_authorization_scopes),
+                redirect_uri=self.settings.oauth_callback_uri,
                 state=upstream_state,
             )
         except Exception as exc:
-            raise EntraBrokerError("Microsoft authorization is unavailable") from exc
+            raise EntraAuthorizationError(
+                "Microsoft authorization is unavailable"
+            ) from exc
         authorization_uri = flow.get("auth_uri") if isinstance(flow, dict) else None
         if not isinstance(authorization_uri, str) or not authorization_uri:
-            raise EntraBrokerError("Microsoft authorization is unavailable")
+            raise EntraAuthorizationError("Microsoft authorization is unavailable")
         if flow.get("state") != upstream_state:
-            raise EntraBrokerError("Microsoft authorization state is invalid")
+            raise EntraAuthorizationError("Microsoft authorization state is invalid")
         return UpstreamAuthorization(authorization_uri=authorization_uri, flow=flow)
 
     def _complete_sync(
@@ -120,11 +122,11 @@ class MsalEntraAuthorizationBroker:
             result = application.acquire_token_by_auth_code_flow(
                 auth_code_flow=flow,
                 auth_response=authorization_response,
-                scopes=list(self.settings.entra_broker_scopes),
+                scopes=list(self.settings.entra_authorization_scopes),
             )
             serialized_cache = cache.serialize()
         except Exception as exc:
-            raise EntraBrokerError(
+            raise EntraAuthorizationError(
                 "Microsoft authorization response is invalid"
             ) from exc
         return self._token_result(result, serialized_cache)
@@ -147,7 +149,7 @@ class MsalEntraAuthorizationBroker:
                     "Microsoft session requires interactive authorization"
                 )
             result = application.acquire_token_silent_with_error(
-                scopes=list(self.settings.entra_broker_scopes),
+                scopes=list(self.settings.entra_authorization_scopes),
                 account=accounts[0],
                 force_refresh=True,
             )
@@ -155,7 +157,9 @@ class MsalEntraAuthorizationBroker:
         except EntraRefreshRejectedError:
             raise
         except Exception as exc:
-            raise EntraBrokerError("Microsoft token refresh is unavailable") from exc
+            raise EntraAuthorizationError(
+                "Microsoft token refresh is unavailable"
+            ) from exc
         if not isinstance(result, dict) or not result.get("access_token"):
             error = result.get("error") if isinstance(result, dict) else None
             if error in {
@@ -166,7 +170,7 @@ class MsalEntraAuthorizationBroker:
                 raise EntraRefreshRejectedError(
                     "Microsoft session requires interactive authorization"
                 )
-            raise EntraBrokerError("Microsoft token refresh is unavailable")
+            raise EntraAuthorizationError("Microsoft token refresh is unavailable")
         return self._token_result(result, refreshed_cache)
 
     @staticmethod
@@ -175,17 +179,21 @@ class MsalEntraAuthorizationBroker:
         serialized_cache: str,
     ) -> UpstreamTokenResult:
         if not isinstance(serialized_cache, str) or not serialized_cache:
-            raise EntraBrokerError("Microsoft token cache is invalid")
+            raise EntraAuthorizationError("Microsoft token cache is invalid")
         access_token = result.get("access_token")
         expires_in = result.get("expires_in")
         if not isinstance(access_token, str) or not access_token:
-            raise EntraBrokerError("Microsoft authorization did not return a token")
+            raise EntraAuthorizationError(
+                "Microsoft authorization did not return a token"
+            )
         try:
             normalized_expires_in = int(expires_in)
         except (TypeError, ValueError) as exc:
-            raise EntraBrokerError("Microsoft token lifetime is invalid") from exc
+            raise EntraAuthorizationError(
+                "Microsoft token lifetime is invalid"
+            ) from exc
         if normalized_expires_in <= 0:
-            raise EntraBrokerError("Microsoft token lifetime is invalid")
+            raise EntraAuthorizationError("Microsoft token lifetime is invalid")
         return UpstreamTokenResult(
             access_token=access_token,
             expires_in=normalized_expires_in,
@@ -197,9 +205,9 @@ class MsalEntraAuthorizationBroker:
         cache: msal.SerializableTokenCache,
     ) -> MsalAuthorizationApplication:
         return self._application_factory(
-            client_id=self.settings.entra_broker_client_id,
-            client_credential=self.settings.entra_broker_client_credential(),
-            authority=self.settings.entra_broker_authority,
+            client_id=self.settings.client_id,
+            client_credential=self.settings.client_credential(),
+            authority=self.settings.entra_authority,
             token_cache=cache,
             timeout=self.settings.http_timeout_seconds,
         )

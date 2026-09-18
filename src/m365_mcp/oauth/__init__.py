@@ -8,10 +8,10 @@ from .crypto import (
     TokenProtector,
 )
 from .entra import (
-    EntraAuthorizationBroker,
-    EntraBrokerError,
+    EntraAuthorizationClient,
+    EntraAuthorizationError,
     EntraRefreshRejectedError,
-    MsalEntraAuthorizationBroker,
+    MsalEntraAuthorizationClient,
 )
 from .errors import OAuthProtocolError
 from .models import OAuthClient, OAuthClientRegistration
@@ -33,11 +33,11 @@ from .store import (
 __all__ = [
     "AesGcmTokenProtector",
     "DynamicClientRegistry",
-    "EntraAuthorizationBroker",
-    "EntraBrokerError",
+    "EntraAuthorizationClient",
+    "EntraAuthorizationError",
     "EntraRefreshRejectedError",
     "EphemeralTokenProtector",
-    "MsalEntraAuthorizationBroker",
+    "MsalEntraAuthorizationClient",
     "OAuthAuthorizationService",
     "OAuthClient",
     "OAuthClientAlreadyExistsError",

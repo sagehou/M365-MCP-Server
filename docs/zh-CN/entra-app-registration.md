@@ -26,7 +26,7 @@
 - 可选跨租户：App Registration 位于 Tenant A，邮箱用户位于其他 Microsoft Entra Tenant
 - App Registration 明确支持时，可选支持 Personal Microsoft Accounts
 
-> MCP Server 是受保护的 Web API，不是交互式 Web Application。不要因为普通 OAuth Client 需要 Redirect URI，就给 MCP API Registration 随意添加 Redirect URI。Redirect URI 属于执行交互式登录的 Client Application。
+> v0.1 明确使用一个紧耦合 App Registration 同时承担两个角色：Protected MCP API 与 Confidential Interactive OAuth Client。必须在同一个 Registration 上添加 Server Callback 作为 Web Redirect URI；不要为 WorkBuddy Flow 创建第二个 Entra App。
 
 ## 1. 目标身份模型
 
@@ -78,7 +78,7 @@ GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 
 如果要让多个组织使用，选择 Multitenant。若还要支持个人 Outlook.com 类账户，必须选择明确包含 Personal Microsoft Accounts 的账户类型。
 
-## 4. 创建 MCP API Application
+## 4. 创建唯一的 MCP Application
 
 1. 打开 https://entra.microsoft.com/ 并登录 Microsoft Entra Admin Center。
 2. 切换到用于拥有 App Registration 的 Tenant。
@@ -103,7 +103,13 @@ GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
    and personal Microsoft accounts
    ```
 
-6. MCP API Registration 的 **Redirect URI 保持为空**。
+6. 在 **Redirect URI** 中选择 **Web**，并填写当前环境的 Callback：
+
+   ```text
+   https://mcp.example.com/oauth/callback
+   ```
+
+   本地 Loopback 开发使用 `http://localhost:8000/oauth/callback`。如果两个环境都需要，在注册完成后到 **Authentication > Web** 中分别添加两个精确值。
 7. 点击 **Register**。
 
 在 **Overview** 记录：
@@ -167,7 +173,7 @@ Microsoft Graph 当前明确支持个人 Microsoft 账户对 Delegated `Mail.Rea
 
 ## 7. 创建 Confidential Client Credential
 
-OBO Middle Tier 必须向 Microsoft Entra 证明自身身份。
+同一个 Application 必须在 Interactive Authorization-code Exchange 与 OBO Middle-tier Exchange 中向 Microsoft Entra 证明自身身份。
 
 仓库要求二选一：
 
@@ -285,9 +291,9 @@ Microsoft Consumer Tenant ID 固定为：
 
 App Registration 的 Home Tenant ID 不用于其他 Tenant User 的 OBO Authority。Server 会读取并验证入站 Token 的 `tid`，然后对该 Tenant-specific Authority 执行 OBO。
 
-## 10. Client Application 与 MCP API 是两个角色
+## 10. 一个 App Registration，两个角色
 
-上述 MCP API Registration 是 **App A**，即 Resource / Middle-tier API；它验证 Token A，并通过 OBO 访问 Graph。Interactive Sign-in 由独立 Confidential **App B** Broker 负责。
+`M365-MCP-Server` Registration 同时作为 Resource/OBO Middle-tier API 与 Confidential Interactive OAuth Client。它请求自己暴露的 Scope：
 
 Client 必须先取得 Token A：
 
@@ -295,7 +301,7 @@ Client 必须先取得 Token A：
 api://<MCP_API_CLIENT_ID>/access_as_user
 ```
 
-再以 Bearer Token 形式发送给 `/mcp/`。
+MSAL 为该 Scope 获取 Token A，WorkBuddy 再把 Token A 作为 Bearer Token 发送给 `/mcp/`。Server 在执行 Graph OBO 前验证 Token A。
 
 当前仓库状态：
 
@@ -306,73 +312,35 @@ api://<MCP_API_CLIENT_ID>/access_as_user
 - Persistent Encrypted Local Refresh Session 与 Rotation：已在 `OAUTH_ENABLED` 后实现
 - 真实 WorkBuddy 验收：尚未完成
 
-### 10.1 创建 Confidential App B Broker
+### 10.1 核对 Web Authentication 配置
 
-1. 新建第二个 App Registration，名称为 `M365-MCP-OAuth-Broker`。
-2. 组织账户场景选择 **Accounts in any organizational directory**。只有在明确要求并完成测试时，才选择同时包含 Personal Microsoft Accounts 的账户类型。
-3. 在 **Authentication > Web** 中只注册：
+1. 打开现有 `M365-MCP-Server` Registration。
+2. 在 **Authentication > Web** 中注册精确的生产 Callback：
 
    ```text
-   https://mcp.example.com/oauth/callback/entra
+   https://mcp.example.com/oauth/callback
    ```
 
-4. 单独创建 App B Client Secret，保存为 `ENTRA_BROKER_CLIENT_SECRET`。不得复用 App A 的 OBO Credential。
-5. 在 **API permissions** 中添加 App A 的 Delegated `access_as_user` Permission。不要向 App B 授予 Microsoft Graph Permission；Server 通过 App A 的 OBO 链路取得 Graph Access。
-6. 配置：
+3. 只有需要本地 Loopback 测试时，才另加 `http://localhost:8000/oauth/callback` Web Redirect URI。
+4. 确认 **Expose an API** 包含 `api://<MCP_API_CLIENT_ID>/access_as_user`。
+5. 确认 **API permissions** 只包含必需的 Microsoft Graph Delegated Permissions（`User.Read` 和 `Mail.ReadWrite`），不存在 Mailbox Application Permission。
+6. 配置唯一 Registration 和唯一 Credential：
 
    ```env
-   ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
-   ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
-   ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+   CLIENT_ID=<MCP_API_CLIENT_ID>
+   CLIENT_SECRET=<secret-value>
+   MCP_PUBLIC_URL=https://mcp.example.com/mcp/
+   OAUTH_ISSUER_URL=https://mcp.example.com
+   OAUTH_ENABLED=true
+   OAUTH_DATABASE_PATH=/data/oauth.db
+   OAUTH_ENCRYPTION_KEY=<32-random-bytes-base64>
    ```
 
-MSAL 会自动管理 Reserved OpenID Scopes。Broker 显式请求 `api://<MCP_API_CLIENT_ID>/access_as_user`，返回的 Token A 仍必须通过现有 JWT Validator 复验。
+MSAL 会自动管理 Reserved OpenID Scopes。返回的 Token A 仍必须通过现有 JWT Validator 复验。系统不再使用第二个 App Registration、Client ID、Secret 或 Authority Setting。
 
-如需隔离诊断 Bearer Token，可继续使用下面的独立 Test Client App Registration；它不是正式 WorkBuddy OAuth 路径。
+### 10.2 Token A 验收条件
 
-## 11. 可选：创建测试 Client App
-
-如果暂时没有 MCP Client 可以正确获取 Token A，创建独立 Public Client Registration 做验证。
-
-### 11.1 创建 Registration
-
-1. 打开 **App registrations > New registration**。
-2. 名称：
-
-   ```text
-   M365-MCP-Test-Client
-   ```
-
-3. Supported account types 要与准备测试的身份范围一致。只测试组织账户时选择 **Accounts in any organizational directory**；如果还要测试 Outlook.com / Hotmail / Live 等个人账户，则选择同时包含 Personal Microsoft Accounts 的选项。
-4. 注册。
-5. 记录 Application (client) ID 为 `TEST_CLIENT_ID`。
-
-### 11.2 允许 Public Client Authentication
-
-进入 **Authentication**，按照所选测试方式启用对应 Public-client Flow。
-
-使用 Device Code Flow 测试时，启用 Public Client Flows。
-
-不要把 MCP Server 的 Client Secret 放入这个 Test Client。
-
-### 11.3 给 Test Client 授予 MCP API 权限
-
-打开 `M365-MCP-Test-Client`：
-
-1. 进入 **API permissions > Add a permission**。
-2. 选择 **My APIs**。
-3. 选择 `M365-MCP-Server`。
-4. 选择 Delegated Permission：
-
-   ```text
-   access_as_user
-   ```
-
-也可以在 API Registration 的 **Expose an API > Authorized client applications** 中显式 Pre-authorize 已知 Test Client。
-
-### 11.4 Token A 验收条件
-
-发送给 MCP Server 的 Token 至少需要包含：
+发送给 MCP Server 的 Token A 至少需要包含：
 
 ```text
 aud = <MCP_API_CLIENT_ID> 或其他已配置接受的 Audience
@@ -383,7 +351,7 @@ oid/sub = 当前登录用户 Identity
 
 对于个人 Microsoft 账户，`tid` 就是上面给出的 Microsoft Consumer Tenant ID。App-only Token 不适用于此架构，因为 OBO 必须有 User Principal。
 
-## 12. 第一次真实环境验证顺序
+## 11. 第一次真实环境验证顺序
 
 不要一开始就把全部 Tools 都测一遍，先验证 Identity Chain。
 
@@ -400,7 +368,7 @@ oid/sub = 当前登录用户 Identity
 
 如果启用了 Personal Microsoft Accounts，正式声称支持该账户类型之前，应额外用一个 Outlook.com / Hotmail 类账户完成独立验证。
 
-## 13. 预期安全边界
+## 12. 预期安全边界
 
 Server 绝不能接受以下 Mailbox Identity 参数：
 
@@ -416,21 +384,21 @@ Graph Layer 使用 `/me` 和 OBO Delegated Token。实际访问权限同时受�
 
 `ALLOWED_TENANTS=*` 只改变哪些已经通过验证的 Microsoft Tenant 可以访问 API，不会改变每个用户的 `/me` 安全边界。
 
-## 14. 常见问题
+## 13. 常见问题
 
 ### AADSTS50011 - Redirect URI mismatch
 
-原因：Interactive Client 使用了未在该 **Client Application** 中注册的 Redirect URI。
+原因：MCP Server 使用了未在 `M365-MCP-Server` Application 中注册的 Redirect URI。
 
-处理：把完全一致的 Redirect URI 添加到 Interactive Client App Registration。不要把任意 WorkBuddy Callback 填到 MCP API Registration，除非 MCP API 自己正在充当该 Interactive Client。
+处理：在 **Authentication > Web** 中添加精确的 Server Callback（`https://<your-host>/oauth/callback` 或文档规定的 localhost 值）。WorkBuddy Private Callback 由 WorkBuddy 向 MCP Server 动态注册，不应填入 Entra。
 
 ### AADSTS65001 / consent_required
 
-原因：Client-to-MCP Scope 或 MCP-to-Graph Delegated Permissions 没有在目标 Identity Context 中完成 Consent。
+原因：单 App 自请求的 MCP Scope 或 MCP-to-Graph Delegated Permissions 没有在目标 Identity Context 中完成 Consent。
 
 组织 Tenant 场景检查：
 
-- Test/Client App 是否拥有 `M365-MCP-Server` 的 `access_as_user`
+- **Expose an API** 中的 `access_as_user` 是否已启用
 - 目标 Tenant 中是否存在 `M365-MCP-Server` Enterprise Application
 - 目标 Tenant 是否已 Consent `User.Read` 和 `Mail.ReadWrite`
 
@@ -448,7 +416,7 @@ https://graph.microsoft.com/.default
 
 ### 组织账户正常，但个人账户无法登录
 
-确认 MCP API Registration 和 Interactive Client Registration 的 Supported account types 都明确包含 Personal Microsoft Accounts。`ALLOWED_TENANTS=*` 无法扩大 Entra 中已经配置的账户类型范围。
+确认唯一的 `M365-MCP-Server` Registration 的 Supported account types 明确包含 Personal Microsoft Accounts。`ALLOWED_TENANTS=*` 无法扩大 Entra 中已经配置的账户类型范围。
 
 ### 只有外部组织 Tenant 的 OBO 失败
 
@@ -473,7 +441,7 @@ OBO Authority 根据已经验证的 Token Tenant 动态确定。
 - 登录了错误用户/租户
 - Exchange / Microsoft 365 Mailbox Availability 不允许该操作
 
-## 15. 生产加固清单
+## 14. 生产加固清单
 
 生产前：
 
@@ -488,8 +456,9 @@ OBO Authority 根据已经验证的 Token Tenant 动态确定。
 - 如果支持 Personal Microsoft Accounts，单独验证该登录路径
 - 使用真实 Sign-in 行为验证支持的 MCP Clients
 - 在 Credential 到期前完成轮换
+- 把单一 Credential 作为共享 Trust Boundary 保护：泄露会同时影响 Interactive Code Exchange 与 Graph OBO
 
-## 16. Microsoft 官方参考
+## 15. Microsoft 官方参考
 
 - Register an application with the Microsoft identity platform:
   https://learn.microsoft.com/en-us/graph/auth-register-app-v2

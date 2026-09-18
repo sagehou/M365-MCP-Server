@@ -22,9 +22,9 @@ from m365_mcp.oauth.authorization import OAuthAuthorizationService
 from m365_mcp.oauth.audit import OAuthAuditLogger
 from m365_mcp.oauth.crypto import AesGcmTokenProtector
 from m365_mcp.oauth.entra import (
-    EntraBrokerError,
+    EntraAuthorizationError,
     EntraRefreshRejectedError,
-    MsalEntraAuthorizationBroker,
+    MsalEntraAuthorizationClient,
 )
 from m365_mcp.oauth.models import UpstreamAuthorization, UpstreamTokenResult
 from m365_mcp.oauth.registry import DynamicClientRegistry
@@ -56,15 +56,13 @@ def make_settings(database_path: Path, **overrides: Any) -> Settings:
         "client_id": API_CLIENT_ID,
         "client_secret": "test-api-secret",
         "allowed_tenants": {TENANT_ID},
-        "entra_broker_client_id": "33333333-3333-3333-3333-333333333333",
-        "entra_broker_client_secret": "test-broker-secret",
         "oauth_encryption_key": base64.b64encode(b"k" * 32).decode("ascii"),
     }
     values.update(overrides)
     return Settings(**values)
 
 
-class FakeBroker:
+class FakeEntraClient:
     def __init__(self) -> None:
         self.states: list[str] = []
         self.completed_flows: list[dict[str, Any]] = []
@@ -119,32 +117,32 @@ class FakeValidator:
         )
 
 
-class FailingBroker(FakeBroker):
+class FailingEntraClient(FakeEntraClient):
     async def complete(
         self,
         flow: dict[str, Any],
         authorization_response: dict[str, str],
     ) -> UpstreamTokenResult:
-        raise EntraBrokerError("simulated upstream failure")
+        raise EntraAuthorizationError("simulated upstream failure")
 
 
-class RefreshFailingBroker(FakeBroker):
+class RefreshFailingEntraClient(FakeEntraClient):
     def __init__(self) -> None:
         super().__init__()
         self.fail_refresh = True
 
     async def refresh(self, serialized_cache: str) -> UpstreamTokenResult:
         if self.fail_refresh:
-            raise EntraBrokerError("simulated refresh outage")
+            raise EntraAuthorizationError("simulated refresh outage")
         return await super().refresh(serialized_cache)
 
 
-class RevokedRefreshBroker(FakeBroker):
+class RevokedRefreshEntraClient(FakeEntraClient):
     async def refresh(self, serialized_cache: str) -> UpstreamTokenResult:
         raise EntraRefreshRejectedError("simulated Microsoft revocation")
 
 
-class WrongStateRedirectBroker(FakeBroker):
+class WrongStateRedirectEntraClient(FakeEntraClient):
     async def begin(self, upstream_state: str) -> UpstreamAuthorization:
         self.states.append(upstream_state)
         return UpstreamAuthorization(
@@ -193,20 +191,20 @@ def make_app(
     database_path: Path,
     *,
     audit_logger: OAuthAuditLogger | None = None,
-    broker: Any | None = None,
+    entra_client: Any | None = None,
     settings_overrides: dict[str, Any] | None = None,
     validator: Any | None = None,
 ):
     settings = make_settings(database_path, **(settings_overrides or {}))
     store = SQLiteOAuthStore(database_path)
     registry = DynamicClientRegistry(store, ISSUER, audit_logger=audit_logger)
-    selected_broker = broker if broker is not None else FakeBroker()
+    selected_entra_client = entra_client if entra_client is not None else FakeEntraClient()
     selected_validator = validator if validator is not None else FakeValidator()
     token_protector = AesGcmTokenProtector(settings.oauth_encryption_key_bytes)
     session_service = OAuthSessionService(
         settings,
         store,
-        selected_broker,
+        selected_entra_client,
         selected_validator,
         token_protector,
         audit_logger=audit_logger,
@@ -215,7 +213,7 @@ def make_app(
         settings,
         registry,
         store,
-        selected_broker,
+        selected_entra_client,
         selected_validator,
         token_protector,
         session_service,
@@ -229,7 +227,7 @@ def make_app(
         oauth_store=store,
         oauth_authorization_service=service,
     )
-    return app, selected_broker, selected_validator
+    return app, selected_entra_client, selected_validator
 
 
 def register_client(
@@ -276,7 +274,7 @@ def begin_authorization(client: TestClient, client_id: str, **overrides: str):
 
 def complete_authorization(client: TestClient, upstream_state: str):
     return client.get(
-        "/oauth/callback/entra",
+        "/oauth/callback",
         params={"code": "entra-code", "state": upstream_state},
         follow_redirects=False,
     )
@@ -350,7 +348,7 @@ def test_authorization_code_flow_uses_separate_state_and_one_time_code(
     tmp_path: Path,
 ) -> None:
     database_path = tmp_path / "oauth.db"
-    app, broker, validator = make_app(database_path)
+    app, entra_client, validator = make_app(database_path)
     with TestClient(app) as client:
         client_id = register_client(client)
         authorization = begin_authorization(client, client_id)
@@ -382,7 +380,7 @@ def test_authorization_code_flow_uses_separate_state_and_one_time_code(
     assert token.json()["refresh_token"]
     assert replay.status_code == 400
     assert replay.json()["error"] == "invalid_grant"
-    assert broker.states == [upstream_state]
+    assert entra_client.states == [upstream_state]
     assert validator.tokens == ["validated-token-a"]
 
     with sqlite3.connect(database_path) as connection:
@@ -419,7 +417,7 @@ def test_authorization_code_only_client_does_not_receive_refresh_token(
 
 
 def test_wrong_pkce_or_client_does_not_consume_valid_code(tmp_path: Path) -> None:
-    app, broker, _ = make_app(tmp_path / "oauth.db")
+    app, entra_client, _ = make_app(tmp_path / "oauth.db")
     with TestClient(app) as client:
         client_id = register_client(client)
         authorization = begin_authorization(client, client_id)
@@ -446,7 +444,7 @@ def test_wrong_pkce_or_client_does_not_consume_valid_code(tmp_path: Path) -> Non
     assert wrong_redirect.status_code == 400
     assert wrong_redirect.json()["error"] == "invalid_grant"
     assert valid.status_code == 200
-    assert len(broker.completed_flows) == 1
+    assert len(entra_client.completed_flows) == 1
 
 
 def test_new_authorization_reclaims_terminal_transaction_and_code_rows(
@@ -484,7 +482,7 @@ def test_new_authorization_reclaims_terminal_transaction_and_code_rows(
 def test_authorize_rejects_unsafe_parameters_before_upstream_redirect(
     tmp_path: Path,
 ) -> None:
-    app, broker, _ = make_app(tmp_path / "oauth.db")
+    app, entra_client, _ = make_app(tmp_path / "oauth.db")
     with TestClient(app) as client:
         client_id = register_client(client)
         responses = [
@@ -524,7 +522,7 @@ def test_authorize_rejects_unsafe_parameters_before_upstream_redirect(
         ]
 
     assert all(response.status_code == 400 for response in responses)
-    assert broker.states == []
+    assert entra_client.states == []
 
 
 def test_upstream_state_is_single_use(tmp_path: Path) -> None:
@@ -565,7 +563,7 @@ def test_upstream_denial_returns_safe_error_to_registered_redirect(
     caplog: Any,
 ) -> None:
     logger = logging.getLogger("test.oauth.denial.audit")
-    app, broker, validator = make_app(
+    app, entra_client, validator = make_app(
         tmp_path / "oauth.db",
         audit_logger=OAuthAuditLogger(logger),
     )
@@ -577,7 +575,7 @@ def test_upstream_denial_returns_safe_error_to_registered_redirect(
                 urlsplit(authorization.headers["location"]).query
             )["state"][0]
             callback = client.get(
-                "/oauth/callback/entra",
+                "/oauth/callback",
                 params={
                     "error": "access_denied",
                     "error_description": "untrusted upstream text",
@@ -589,7 +587,7 @@ def test_upstream_denial_returns_safe_error_to_registered_redirect(
     assert callback.status_code == 302
     query = parse_qs(urlsplit(callback.headers["location"]).query)
     assert query == {"error": ["access_denied"], "state": ["workbuddy-state"]}
-    assert broker.completed_flows == []
+    assert entra_client.completed_flows == []
     assert validator.tokens == []
     records = [record for record in caplog.records if record.name == logger.name]
     failure = records[-1]
@@ -603,13 +601,13 @@ def test_upstream_or_token_validation_failure_returns_safe_error(
     tmp_path: Path,
 ) -> None:
     cases = (
-        (FailingBroker(), FakeValidator()),
-        (FakeBroker(), RejectingValidator()),
+        (FailingEntraClient(), FakeValidator()),
+        (FakeEntraClient(), RejectingValidator()),
     )
-    for index, (broker, validator) in enumerate(cases):
+    for index, (entra_client, validator) in enumerate(cases):
         app, _, _ = make_app(
             tmp_path / f"oauth-{index}.db",
-            broker=broker,
+            entra_client=entra_client,
             validator=validator,
         )
         with TestClient(app) as client:
@@ -676,7 +674,7 @@ def test_authorization_code_ciphertext_is_bound_to_its_record(
     tmp_path: Path,
 ) -> None:
     database_path = tmp_path / "oauth.db"
-    app, broker, _ = make_app(database_path)
+    app, entra_client, _ = make_app(database_path)
     with TestClient(app) as client:
         client_id = register_client(client)
         codes: list[str] = []
@@ -704,14 +702,14 @@ def test_authorization_code_ciphertext_is_bound_to_its_record(
 
     assert relocated.status_code == 400
     assert relocated.json()["error"] == "invalid_grant"
-    assert len(broker.completed_flows) == 2
+    assert len(entra_client.completed_flows) == 2
 
 
 def test_authorize_rejects_upstream_redirect_with_wrong_state(
     tmp_path: Path,
 ) -> None:
-    broker = WrongStateRedirectBroker()
-    app, _, _ = make_app(tmp_path / "oauth.db", broker=broker)
+    entra_client = WrongStateRedirectEntraClient()
+    app, _, _ = make_app(tmp_path / "oauth.db", entra_client=entra_client)
     with TestClient(app) as client:
         client_id = register_client(client)
         response = begin_authorization(client, client_id)
@@ -741,7 +739,7 @@ def test_token_endpoint_requires_form_encoding_and_rejects_duplicates(
     assert duplicate_response.json()["error"] == "invalid_request"
 
 
-def test_msal_broker_uses_separate_app_b_and_app_a_scope(tmp_path: Path) -> None:
+def test_msal_entra_client_reuses_single_app_and_api_scope(tmp_path: Path) -> None:
     settings = make_settings(tmp_path / "oauth.db")
     created: list[dict[str, Any]] = []
 
@@ -761,7 +759,7 @@ def test_msal_broker_uses_separate_app_b_and_app_a_scope(tmp_path: Path) -> None
             **kwargs: Any,
         ) -> dict[str, Any]:
             assert scopes == [f"api://{API_CLIENT_ID}/access_as_user"]
-            assert redirect_uri == f"{ISSUER}/oauth/callback/entra"
+            assert redirect_uri == f"{ISSUER}/oauth/callback"
             return {
                 "auth_uri": f"https://login.microsoftonline.com/auth?state={state}",
                 "state": state,
@@ -779,14 +777,14 @@ def test_msal_broker_uses_separate_app_b_and_app_a_scope(tmp_path: Path) -> None
             assert scopes == [f"api://{API_CLIENT_ID}/access_as_user"]
             return {"access_token": "token-a", "expires_in": 3210}
 
-    broker = MsalEntraAuthorizationBroker(
+    entra_client = MsalEntraAuthorizationClient(
         settings,
         application_factory=FakeApplication,
         cache_factory=FakeCache,
     )
-    authorization = asyncio.run(broker.begin("upstream-state"))
+    authorization = asyncio.run(entra_client.begin("upstream-state"))
     token = asyncio.run(
-        broker.complete(
+        entra_client.complete(
             authorization.flow,
             {"code": "entra-code", "state": "upstream-state"},
         )
@@ -796,37 +794,30 @@ def test_msal_broker_uses_separate_app_b_and_app_a_scope(tmp_path: Path) -> None
     assert token.expires_in == 3210
     assert token.serialized_cache == "serialized-cache"
     assert len(created) == 2
+    assert all(values["client_id"] == API_CLIENT_ID for values in created)
     assert all(
-        values["client_id"]
-        == "33333333-3333-3333-3333-333333333333"
+        values["client_credential"] == "test-api-secret"
         for values in created
     )
     assert all(
-        values["client_credential"] == "test-broker-secret"
-        for values in created
-    )
-    assert all(
-        values["authority"]
-        == "https://login.microsoftonline.com/organizations"
+        values["authority"] == "https://login.microsoftonline.com/common"
         for values in created
     )
 
 
-def test_oauth_enabled_fails_closed_without_broker_configuration(
+def test_oauth_enabled_fails_closed_without_single_app_credential(
     tmp_path: Path,
 ) -> None:
     settings = make_settings(
         tmp_path / "oauth.db",
-        entra_broker_client_id=None,
-        entra_broker_client_secret=None,
+        client_secret=None,
     )
     try:
         create_app(settings=settings, mail_service=object())
     except ConfigurationError as exc:
-        assert "ENTRA_BROKER_CLIENT_ID" in str(exc)
-        assert "ENTRA_BROKER_CLIENT_SECRET" in str(exc)
+        assert "exactly one of CLIENT_SECRET or CLIENT_CERT_PATH" in str(exc)
     else:
-        raise AssertionError("OAuth must fail closed without App B configuration")
+        raise AssertionError("OAuth must fail closed without the single app credential")
 
 
 def test_sqlite_store_migrates_pr2_transaction_schema(tmp_path: Path) -> None:
@@ -926,7 +917,7 @@ def test_refresh_succeeds_rotates_and_rejects_old_token_replay(
     tmp_path: Path,
 ) -> None:
     database_path = tmp_path / "oauth.db"
-    app, broker, validator = make_app(database_path)
+    app, entra_client, validator = make_app(database_path)
     with TestClient(app) as client:
         client_id = register_client(client)
         initial = authorize_and_redeem(client, client_id)
@@ -949,7 +940,7 @@ def test_refresh_succeeds_rotates_and_rejects_old_token_replay(
     assert replay.json()["error"] == "invalid_grant"
     assert compromised_successor.status_code == 400
     assert compromised_successor.json()["error"] == "invalid_grant"
-    assert broker.refreshed_caches == ["sensitive-msal-cache"]
+    assert entra_client.refreshed_caches == ["sensitive-msal-cache"]
     assert validator.tokens == [
         "validated-token-a",
         "refreshed-token-1",
@@ -978,7 +969,7 @@ def test_refresh_succeeds_rotates_and_rejects_old_token_replay(
 
 
 def test_refresh_allows_multiple_rotations_without_replay(tmp_path: Path) -> None:
-    app, broker, _ = make_app(tmp_path / "oauth.db")
+    app, entra_client, _ = make_app(tmp_path / "oauth.db")
     with TestClient(app) as client:
         client_id = register_client(client)
         initial = authorize_and_redeem(client, client_id)
@@ -987,7 +978,7 @@ def test_refresh_allows_multiple_rotations_without_replay(tmp_path: Path) -> Non
 
     assert first.status_code == 200
     assert second.status_code == 200
-    assert broker.refreshed_caches == [
+    assert entra_client.refreshed_caches == [
         "sensitive-msal-cache",
         "refreshed-cache-1",
     ]
@@ -995,7 +986,7 @@ def test_refresh_allows_multiple_rotations_without_replay(tmp_path: Path) -> Non
 
 def test_refresh_rotation_limit_revokes_the_session(tmp_path: Path) -> None:
     database_path = tmp_path / "oauth.db"
-    app, broker, _ = make_app(
+    app, entra_client, _ = make_app(
         database_path,
         settings_overrides={"oauth_refresh_max_rotations": 2},
     )
@@ -1012,7 +1003,7 @@ def test_refresh_rotation_limit_revokes_the_session(tmp_path: Path) -> None:
     assert rejected.status_code == 400
     assert rejected.json()["error"] == "invalid_grant"
     assert retried.status_code == 400
-    assert broker.refreshed_caches == [
+    assert entra_client.refreshed_caches == [
         "sensitive-msal-cache",
         "refreshed-cache-1",
     ]
@@ -1112,7 +1103,7 @@ def test_expired_and_revoked_refresh_sessions_are_rejected(tmp_path: Path) -> No
 
 def test_refresh_token_hash_substitution_is_rejected(tmp_path: Path) -> None:
     database_path = tmp_path / "oauth.db"
-    app, broker, _ = make_app(database_path)
+    app, entra_client, _ = make_app(database_path)
     attacker_token = "a" * 43
     with TestClient(app) as client:
         client_id = register_client(client)
@@ -1126,7 +1117,7 @@ def test_refresh_token_hash_substitution_is_rejected(tmp_path: Path) -> None:
 
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_grant"
-    assert broker.refreshed_caches == []
+    assert entra_client.refreshed_caches == []
     with sqlite3.connect(database_path) as connection:
         revoked_at = connection.execute(
             "SELECT revoked_at FROM oauth_sessions"
@@ -1161,15 +1152,15 @@ def test_corrupt_encrypted_cache_revokes_session(tmp_path: Path) -> None:
 def test_transient_msal_refresh_failure_keeps_current_token_retryable(
     tmp_path: Path,
 ) -> None:
-    broker = RefreshFailingBroker()
-    app, _, _ = make_app(tmp_path / "oauth.db", broker=broker)
+    entra_client = RefreshFailingEntraClient()
+    app, _, _ = make_app(tmp_path / "oauth.db", entra_client=entra_client)
     with TestClient(app) as client:
         client_id = register_client(client)
         local_refresh_token = authorize_and_redeem(client, client_id)[
             "refresh_token"
         ]
         unavailable = refresh_token(client, client_id, local_refresh_token)
-        broker.fail_refresh = False
+        entra_client.fail_refresh = False
         retried = refresh_token(client, client_id, local_refresh_token)
 
     assert unavailable.status_code == 503
@@ -1198,7 +1189,7 @@ def test_transient_identity_metadata_failure_keeps_current_token_retryable(
 
 def test_microsoft_revocation_revokes_local_session(tmp_path: Path) -> None:
     database_path = tmp_path / "oauth.db"
-    app, _, _ = make_app(database_path, broker=RevokedRefreshBroker())
+    app, _, _ = make_app(database_path, entra_client=RevokedRefreshEntraClient())
     with TestClient(app) as client:
         client_id = register_client(client)
         local_refresh_token = authorize_and_redeem(client, client_id)[
@@ -1284,7 +1275,7 @@ def test_refresh_session_survives_application_restart(tmp_path: Path) -> None:
             "refresh_token"
         ]
 
-    restarted_app, restarted_broker, _ = make_app(database_path)
+    restarted_app, restarted_entra_client, _ = make_app(database_path)
     with TestClient(restarted_app) as restarted_client:
         response = refresh_token(
             restarted_client,
@@ -1293,11 +1284,11 @@ def test_refresh_session_survives_application_restart(tmp_path: Path) -> None:
         )
 
     assert response.status_code == 200
-    assert restarted_broker.refreshed_caches == ["sensitive-msal-cache"]
+    assert restarted_entra_client.refreshed_caches == ["sensitive-msal-cache"]
 
 
 def test_concurrent_refresh_allows_only_one_rotation(tmp_path: Path) -> None:
-    class ConcurrentBroker(FakeBroker):
+    class ConcurrentEntraClient(FakeEntraClient):
         def __init__(self) -> None:
             super().__init__()
             self.barrier = Barrier(2)
@@ -1307,9 +1298,9 @@ def test_concurrent_refresh_allows_only_one_rotation(tmp_path: Path) -> None:
             return await super().refresh(serialized_cache)
 
     database_path = tmp_path / "oauth.db"
-    broker = ConcurrentBroker()
-    first_app, _, _ = make_app(database_path, broker=broker)
-    second_app, _, _ = make_app(database_path, broker=broker)
+    entra_client = ConcurrentEntraClient()
+    first_app, _, _ = make_app(database_path, entra_client=entra_client)
+    second_app, _, _ = make_app(database_path, entra_client=entra_client)
     with TestClient(first_app) as first_client, TestClient(second_app) as second_client:
         client_id = register_client(first_client)
         local_refresh_token = authorize_and_redeem(first_client, client_id)[
@@ -1364,7 +1355,7 @@ def test_oauth_enabled_requires_valid_persistent_encryption_key(
             raise AssertionError("OAuth must fail closed without a valid AEAD key")
 
 
-def test_msal_broker_restores_cache_and_forces_silent_refresh(
+def test_msal_entra_client_restores_cache_and_forces_silent_refresh(
     tmp_path: Path,
 ) -> None:
     settings = make_settings(tmp_path / "oauth.db")
@@ -1398,12 +1389,12 @@ def test_msal_broker_restores_cache_and_forces_silent_refresh(
             assert kwargs["force_refresh"] is True
             return {"access_token": "refreshed-token", "expires_in": 2700}
 
-    broker = MsalEntraAuthorizationBroker(
+    entra_client = MsalEntraAuthorizationClient(
         settings,
         application_factory=RefreshApplication,
         cache_factory=RefreshCache,
     )
-    result = asyncio.run(broker.refresh("persisted-cache"))
+    result = asyncio.run(entra_client.refresh("persisted-cache"))
 
     assert result.access_token == "refreshed-token"
     assert result.expires_in == 2700
@@ -1411,26 +1402,26 @@ def test_msal_broker_restores_cache_and_forces_silent_refresh(
     assert len(calls) == 1
 
 
-def test_msal_broker_rejects_corrupt_serialized_cache(tmp_path: Path) -> None:
+def test_msal_entra_client_rejects_corrupt_serialized_cache(tmp_path: Path) -> None:
     settings = make_settings(tmp_path / "oauth.db")
 
     class CorruptCache:
         def deserialize(self, value: str) -> None:
             raise ValueError("corrupt cache")
 
-    broker = MsalEntraAuthorizationBroker(
+    entra_client = MsalEntraAuthorizationClient(
         settings,
         cache_factory=CorruptCache,
     )
     try:
-        asyncio.run(broker.refresh("corrupt-cache"))
+        asyncio.run(entra_client.refresh("corrupt-cache"))
     except EntraRefreshRejectedError:
         pass
     else:
         raise AssertionError("corrupt MSAL cache must require reauthorization")
 
 
-def test_msal_broker_distinguishes_reauth_from_transient_refresh_error(
+def test_msal_entra_client_distinguishes_reauth_from_transient_refresh_error(
     tmp_path: Path,
 ) -> None:
     settings = make_settings(tmp_path / "oauth.db")
@@ -1459,13 +1450,13 @@ def test_msal_broker_distinguishes_reauth_from_transient_refresh_error(
         ) -> dict[str, Any]:
             return {"error": self.next_error}
 
-    broker = MsalEntraAuthorizationBroker(
+    entra_client = MsalEntraAuthorizationClient(
         settings,
         application_factory=ErrorApplication,
         cache_factory=ErrorCache,
     )
     try:
-        asyncio.run(broker.refresh("persisted-cache"))
+        asyncio.run(entra_client.refresh("persisted-cache"))
     except EntraRefreshRejectedError:
         pass
     else:
@@ -1473,8 +1464,8 @@ def test_msal_broker_distinguishes_reauth_from_transient_refresh_error(
 
     ErrorApplication.next_error = "temporarily_unavailable"
     try:
-        asyncio.run(broker.refresh("persisted-cache"))
-    except EntraBrokerError as exc:
+        asyncio.run(entra_client.refresh("persisted-cache"))
+    except EntraAuthorizationError as exc:
         assert not isinstance(exc, EntraRefreshRejectedError)
     else:
         raise AssertionError("transient errors must remain retryable")

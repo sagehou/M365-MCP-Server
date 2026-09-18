@@ -11,7 +11,7 @@ Server 当前实现 Discovery、Registration 与 Interactive Authorization-code 
 - `GET /.well-known/oauth-authorization-server`
 - 面向无 Client Secret Public Client 的 `POST /oauth/register`
 - 使用 Exact Client/Redirect/Resource Binding 与 S256 PKCE 的 `GET /oauth/authorize`
-- 由 MSAL Python 驱动、使用独立 Upstream State 的 `GET /oauth/callback/entra`
+- 由 MSAL Python 驱动、使用独立 Upstream State 的 `GET /oauth/callback`
 - TTL 不超过 10 分钟、只能使用一次的 Local Authorization Code
 - 支持 `grant_type=authorization_code` 与 `refresh_token` 的 `POST /oauth/token`
 - 仅以 SHA-256 Hash 保存的 Opaque Local Refresh Token
@@ -19,7 +19,7 @@ Server 当前实现 Discovery、Registration 与 Interactive Authorization-code 
 - 存储在配置 SQLite Database 中的 Restart-safe Session
 - 由 `OAUTH_DATABASE_PATH` 指定、带 Issuer Binding 的 SQLite Persistence
 
-Token Endpoint 返回发给 App A、并已通过现有 `JwtValidator` 复验的 Entra Access Token，因此现有 JWT Validation 与 OBO 链路仍是权威安全边界，不会另外签发 MCP JWT。Entra Authorization-flow Object、Token A 与 MSAL Cache 使用 `OAUTH_ENCRYPTION_KEY` 执行 AES-256-GCM 加密，并通过 Record-specific Authenticated Context 绑定不可变 OAuth Metadata；敏感 Token Material 不会进入 Browser Redirect 或 SQLite Plaintext Column。
+Token Endpoint 返回发给唯一 `M365-MCP-Server` App Registration、并已通过现有 `JwtValidator` 复验的 Entra Access Token，因此现有 JWT Validation 与 OBO 链路仍是权威安全边界，不会另外签发 MCP JWT。Entra Authorization-flow Object、Token A 与 MSAL Cache 使用 `OAUTH_ENCRYPTION_KEY` 执行 AES-256-GCM 加密，并通过 Record-specific Authenticated Context 绑定不可变 OAuth Metadata；敏感 Token Material 不会进入 Browser Redirect 或 SQLite Plaintext Column。
 
 在真实 WorkBuddy Acceptance Gate 完成前，受控集成开发以外应保持 `OAUTH_ENABLED=false`。Restarted 或 Replacement Process 必须使用同一 SQLite Database 与 Encryption Key。Distributed 或 Multi-host Session Storage 不属于 v0.1 Scope。
 
@@ -45,7 +45,7 @@ Package 明确不包含 `auth_mode`、Request Header、Token 字段或 `token-sc
 1. WorkBuddy 通过 DCR 注册 Exact Redirect URI。
 2. `/oauth/authorize` 校验 Client、Redirect、Scope、Resource、Response Type 与 S256 Challenge。
 3. Server 保存 WorkBuddy State，并生成不同的 Cryptographically Random Entra State，再启动 MSAL Authorization。
-4. `/oauth/callback/entra` 原子消费 Transaction，由 MSAL 兑换 Microsoft Code，再通过现有 `JwtValidator` 复验 Token A。
+4. `/oauth/callback` 原子消费 Transaction，由 MSAL 兑换 Microsoft Code，再通过现有 `JwtValidator` 复验 Token A。
 5. Browser 只会把 `code=<local-code>&state=<original-state>` 发送到 Exact Registered Redirect。
 6. `/oauth/token` 在 Exact Client、Redirect 与 PKCE 校验通过后原子兑换 Local Code，返回 Token A 与 Random Local Refresh Token；第二次兑换返回 `invalid_grant`。
 
@@ -84,19 +84,22 @@ Registration 接受 RFC 7591 风格的 Public-client Metadata，返回生成的 
 
 Public HTTP Redirect、Malformed Private Scheme、Fragment、Wildcard Match、Prefix Match 和 Unregistered Redirect 均被拒绝。Registration State 绑定到配置的 Issuer，并持久化在 Compose `/data` Volume。
 
-## Entra Application 隔离
+## 单 Entra Application
 
-现有 App A 继续作为 Protected Resource/OBO Application。App B 是独立的 Confidential Interactive OAuth Broker：
+只创建一个名为 `M365-MCP-Server` 的 App Registration。它同时作为 Protected Resource/OBO Middle Tier 与 Confidential Interactive OAuth Client：
 
-    ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
-    ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
-    ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+    CLIENT_ID=<m365-mcp-server-client-id>
+    CLIENT_SECRET=<m365-mcp-server-secret>
 
-只在 App B 注册以下 Redirect URI：
+在该 App 上注册生产 Web Redirect URI：
 
-    https://mcp.example.com/oauth/callback/entra
+    https://mcp.example.com/oauth/callback
 
-App B 请求 App A 的 `api://<CLIENT_ID>/access_as_user` Scope；MSAL 会按需要加入其 Reserved OpenID Scopes。Broker 不直接请求 Graph Token；MCP API 接收 Token A 后仍通过现有 OBO 链路访问 Graph。不要复用 App A 的 Client Credential，也不要把 Broker Callback 配到 App A。
+本地开发另行注册 Loopback Web Redirect URI：
+
+    http://localhost:8000/oauth/callback
+
+MSAL 请求同一个 App 的 `api://<CLIENT_ID>/access_as_user` Scope，并按需要加入 Reserved OpenID Scopes。Interactive Client 不直接请求 Graph Token；MCP API 接收 Token A 后仍通过现有 OBO 链路访问 Graph。不存在第二个 Entra App，也不存在第二套 Client Credential 配置。
 
 ## 自动测试与真实验收边界
 

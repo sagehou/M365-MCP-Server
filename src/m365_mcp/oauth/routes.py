@@ -143,7 +143,7 @@ def create_oauth_router(
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         )
 
-    @router.get("/oauth/callback/entra", response_model=None)
+    @router.get("/oauth/callback", response_model=None)
     async def entra_callback(request: Request) -> JSONResponse | RedirectResponse:
         try:
             parameters = _single_value_parameters(

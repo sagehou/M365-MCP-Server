@@ -179,7 +179,7 @@ class OAuthSession:
 
 @dataclass(frozen=True, slots=True)
 class UpstreamAuthorization:
-    """Authorization URI and opaque MSAL flow state returned by the broker."""
+    """Authorization URI and opaque MSAL flow state returned by Entra."""
 
     authorization_uri: str
     flow: dict[str, Any]

@@ -26,7 +26,7 @@ It is written for the current implementation in this repository:
 - optional cross-tenant use where the app is registered in Tenant A and mailbox users are in other Microsoft Entra tenants
 - optional personal Microsoft accounts when the App Registration explicitly supports them
 
-> The MCP server is a protected web API, not an interactive web application. Do not add a redirect URI to the MCP API registration just because an OAuth client normally has one. Redirect URIs belong to the interactive client application.
+> v0.1 deliberately uses one tightly coupled App Registration for two roles: the protected MCP API and the confidential interactive OAuth client. Add the server callback as a Web redirect URI on this same registration. Do not create a second Entra app for the WorkBuddy flow.
 
 ## 1. Target identity model
 
@@ -78,7 +78,7 @@ For an internal deployment where all users belong to one organization, single-te
 
 For a service intended for multiple organizations, use a multitenant registration. If personal Outlook.com-style accounts are also required, select the account type that explicitly includes personal Microsoft accounts.
 
-## 4. Create the MCP API application
+## 4. Create the single MCP application
 
 1. Open https://entra.microsoft.com/ and sign in to the Microsoft Entra admin center.
 2. Switch to the tenant that will own the App Registration.
@@ -103,7 +103,15 @@ For a service intended for multiple organizations, use a multitenant registratio
    and personal Microsoft accounts
    ```
 
-6. Leave **Redirect URI** empty for the MCP API registration.
+6. Under **Redirect URI**, select **Web** and enter the callback for the environment being configured:
+
+   ```text
+   https://mcp.example.com/oauth/callback
+   ```
+
+   For local loopback development, use `http://localhost:8000/oauth/callback`.
+   Add both exact values later under **Authentication > Web** if both environments
+   are required.
 7. Select **Register**.
 
 Record the following values from **Overview**:
@@ -167,7 +175,8 @@ Microsoft Graph currently supports the delegated `Mail.ReadWrite` permission for
 
 ## 7. Create the confidential client credential
 
-The OBO middle tier must authenticate itself to Microsoft Entra.
+The same application must authenticate itself to Microsoft Entra for both the
+interactive authorization-code exchange and the OBO middle-tier exchange.
 
 The repository supports exactly one of:
 
@@ -285,9 +294,10 @@ Do not combine `*` with explicit tenant IDs. Leaving `ALLOWED_TENANTS` empty rem
 
 The App Registration home tenant ID is not used as the OBO authority for another tenant's user. The server uses the validated inbound token's `tid` and performs OBO against that tenant-specific authority.
 
-## 10. The client application is separate from the MCP API
+## 10. One App Registration, two roles
 
-The MCP API registration above is **App A**, the resource / middle-tier API. It validates Token A and performs OBO to Graph. Interactive sign-in is owned by a separate confidential **App B** broker.
+The `M365-MCP-Server` registration is both the resource / OBO middle-tier API and
+the confidential interactive OAuth client. It requests its own exposed scope:
 
 A client must first obtain token A for:
 
@@ -295,7 +305,8 @@ A client must first obtain token A for:
 api://<MCP_API_CLIENT_ID>/access_as_user
 ```
 
-and send it to `/mcp/` as a bearer token.
+MSAL obtains Token A for that scope, and WorkBuddy sends Token A to `/mcp/` as a
+bearer token. The server validates Token A before performing OBO to Graph.
 
 Current repository status:
 
@@ -306,73 +317,41 @@ Current repository status:
 - persistent encrypted local refresh sessions and rotation: implemented behind `OAUTH_ENABLED`
 - live WorkBuddy acceptance: not yet complete
 
-### 10.1 Create the confidential App B broker
+### 10.1 Verify the Web authentication configuration
 
-1. Create a second app registration named `M365-MCP-OAuth-Broker`.
-2. Choose **Accounts in any organizational directory** for organization accounts. Use the account option that also includes personal Microsoft accounts only if that scenario is explicitly required and tested.
-3. Under **Authentication > Web**, register exactly:
+1. Open the existing `M365-MCP-Server` registration.
+2. Under **Authentication > Web**, register the exact production callback:
 
    ```text
-   https://mcp.example.com/oauth/callback/entra
+   https://mcp.example.com/oauth/callback
    ```
 
-4. Create a separate App B client secret and store it as `ENTRA_BROKER_CLIENT_SECRET`. Never reuse App A's OBO credential.
-5. Under **API permissions**, add App A's delegated `access_as_user` permission. Do not grant App B Microsoft Graph permissions; the server obtains Graph access through App A's OBO path.
-6. Configure:
+3. Add `http://localhost:8000/oauth/callback` as a separate Web redirect URI only
+   when local loopback testing is required.
+4. Confirm **Expose an API** contains
+   `api://<MCP_API_CLIENT_ID>/access_as_user`.
+5. Confirm **API permissions** contains only the required Microsoft Graph
+   delegated permissions (`User.Read` and `Mail.ReadWrite`), with no mailbox
+   application permissions.
+6. Configure the one registration and one credential:
 
    ```env
-   ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
-   ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
-   ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
+   CLIENT_ID=<MCP_API_CLIENT_ID>
+   CLIENT_SECRET=<secret-value>
+   MCP_PUBLIC_URL=https://mcp.example.com/mcp/
+   OAUTH_ISSUER_URL=https://mcp.example.com
+   OAUTH_ENABLED=true
+   OAUTH_DATABASE_PATH=/data/oauth.db
+   OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
    ```
 
-MSAL automatically manages its reserved OpenID scopes. The broker explicitly asks for `api://<MCP_API_CLIENT_ID>/access_as_user`, and the returned Token A is still revalidated by the existing JWT validator.
+MSAL automatically manages its reserved OpenID scopes. The returned Token A is
+still revalidated by the existing JWT validator. No second App Registration,
+client ID, secret or authority setting is used.
 
-For isolated bearer-token diagnostics, a small dedicated test client app registration may still be used as described below. It is not the production WorkBuddy OAuth path.
+### 10.2 Token A acceptance criteria
 
-## 11. Optional: create a test client app
-
-If a suitable MCP client cannot yet acquire token A, create a separate public-client registration for validation.
-
-### 11.1 Create the registration
-
-1. Go to **App registrations > New registration**.
-2. Name it:
-
-   ```text
-   M365-MCP-Test-Client
-   ```
-
-3. Select an account type that matches the identities you intend to test. For organization-only testing use **Accounts in any organizational directory**. To test Outlook.com/Hotmail/Live accounts too, select the option that also includes personal Microsoft accounts.
-4. Register it.
-5. Record its Application (client) ID as `TEST_CLIENT_ID`.
-
-### 11.2 Allow public-client authentication
-
-Open **Authentication** and enable the appropriate public-client flow for the chosen test method.
-
-For device-code testing, enable public client flows.
-
-Do not put the MCP server client secret into this test client.
-
-### 11.3 Grant the client access to the MCP API
-
-Open the **M365-MCP-Test-Client** registration:
-
-1. Go to **API permissions > Add a permission**.
-2. Select **My APIs**.
-3. Select `M365-MCP-Server`.
-4. Select the delegated permission:
-
-   ```text
-   access_as_user
-   ```
-
-Alternatively, the API registration can explicitly preauthorize a known test client under **Expose an API > Authorized client applications**.
-
-### 11.4 Token A acceptance criteria
-
-A token sent to the MCP server must contain, at minimum:
+Token A sent to the MCP server must contain, at minimum:
 
 ```text
 aud = <MCP_API_CLIENT_ID> or another configured accepted audience
@@ -383,7 +362,7 @@ oid/sub = the signed-in user identity
 
 For a personal Microsoft account, `tid` is the Microsoft consumer tenant ID shown above. An app-only token is invalid for this architecture because OBO requires a user principal.
 
-## 12. First live validation sequence
+## 11. First live validation sequence
 
 Do not start with all tools. Validate the identity chain first.
 
@@ -400,7 +379,7 @@ Do not start with all tools. Validate the identity chain first.
 
 If personal Microsoft accounts are enabled, include one Outlook.com/Hotmail-style account in a separate validation pass before claiming support for that account type.
 
-## 13. Expected security boundary
+## 12. Expected security boundary
 
 The server must never accept a mailbox identity such as:
 
@@ -416,21 +395,26 @@ The Graph layer uses `/me` and the OBO delegated token. Effective access is cons
 
 `ALLOWED_TENANTS=*` changes which validated Microsoft tenants may call the API; it does not change this per-user `/me` boundary.
 
-## 14. Common problems
+## 13. Common problems
 
 ### AADSTS50011 - redirect URI mismatch
 
-Cause: an interactive client is using a redirect URI that is not registered on that **client application**.
+Cause: the MCP server is using a redirect URI that is not registered on the
+`M365-MCP-Server` application.
 
-Fix: add the exact redirect URI to the interactive client app registration. Do not add an arbitrary WorkBuddy callback to the MCP API registration unless the MCP API itself is acting as that interactive client.
+Fix: add the exact server callback (`https://<your-host>/oauth/callback`, or the
+documented localhost value) under **Authentication > Web**. The WorkBuddy private
+callback is registered dynamically with the MCP server and must not be added to
+Entra.
 
 ### AADSTS65001 / consent_required
 
-Cause: the client-to-MCP scope or the MCP-to-Graph delegated permissions have not been consented in the target identity context.
+Cause: the single app's self-requested MCP scope or MCP-to-Graph delegated
+permissions have not been consented in the target identity context.
 
 For organizational tenants check:
 
-- test/client app has `access_as_user` permission to M365-MCP-Server
+- `access_as_user` is enabled under **Expose an API**
 - M365-MCP-Server enterprise application exists in the target tenant
 - target tenant has consented `User.Read` and `Mail.ReadWrite`
 
@@ -448,7 +432,9 @@ The actual Graph delegated permissions come from the app registration and consen
 
 ### Organization account works but personal account does not
 
-Verify that both the MCP API registration and the interactive client registration use a Supported account type that includes personal Microsoft accounts. `ALLOWED_TENANTS=*` cannot widen the account types configured in Entra.
+Verify that the single `M365-MCP-Server` registration uses a Supported account
+type that includes personal Microsoft accounts. `ALLOWED_TENANTS=*` cannot widen
+the account types configured in Entra.
 
 ### OBO fails only for an external organizational tenant
 
@@ -473,7 +459,7 @@ Common causes:
 - the wrong user/tenant is signed in
 - Exchange/Microsoft 365 mailbox availability does not permit the requested operation
 
-## 15. Production hardening checklist
+## 14. Production hardening checklist
 
 Before production:
 
@@ -488,8 +474,10 @@ Before production:
 - If personal Microsoft accounts are supported, test that path separately.
 - Validate supported MCP clients with real sign-in behavior.
 - Rotate credentials before their expiration date.
+- Protect the single credential as a shared trust boundary: compromise affects
+  both interactive code exchange and Graph OBO.
 
-## 16. Official Microsoft references
+## 15. Official Microsoft references
 
 - Register an application with the Microsoft identity platform:
   https://learn.microsoft.com/en-us/graph/auth-register-app-v2

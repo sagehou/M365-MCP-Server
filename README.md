@@ -81,8 +81,9 @@ See [review status](docs/review-status.md), the
 ## Deploy
 
 Configure Microsoft Entra before deploying. The step-by-step portal guide covers
-single-tenant and cross-tenant registration, `access_as_user`, Graph delegated
-permissions, OBO credentials, target-tenant consent and an optional test client:
+the single App Registration used as both resource and OAuth client,
+single-tenant and cross-tenant account reach, `access_as_user`, Graph delegated
+permissions, its one OBO/OAuth credential and target-tenant consent:
 
 - [Microsoft Entra app registration guide](docs/entra-app-registration.md)
 
@@ -97,7 +98,8 @@ The application exposes:
 - `GET /health` (also available as `/healthz`) for process liveness only
 - `/mcp/` for the protected FastMCP Streamable HTTP endpoint
 
-Configure `CLIENT_ID`, exactly one client credential, `ALLOWED_TENANTS`, and
+Configure `CLIENT_ID`, exactly one shared OAuth/OBO client credential,
+`ALLOWED_TENANTS`, and
 `REQUIRED_SCOPES` before using `/mcp/`. `ALLOWED_TENANTS` accepts a comma-separated
 list of tenant IDs or `*` for any valid Microsoft tenant; an empty value fails
 closed. `AUDIENCE` is optional and, when omitted, the server accepts the API
