@@ -123,15 +123,18 @@ secret. Authorization-code clients receive a refresh token only when
 `refresh_token` is present in their registered `grant_types`; refresh requests
 from other clients return `unauthorized_client`. Supported redirect forms are:
 
-- `workbuddy://workbuddy/mcp/connector%3A<source>/oauth/callback`
-- `http://localhost:<port>/oauth/callback`
-- `http://127.0.0.1:<port>/oauth/callback`
-- `http://[::1]:<port>/oauth/callback`
+- `workbuddy://workbuddy/<non-empty-path>` such as
+  `workbuddy://workbuddy/mcp/test/oauth/callback`
+- `http://localhost:<port>/<non-empty-path>`
+- `http://127.0.0.1:<port>/<non-empty-path>`
+- `http://[::1]:<port>/<non-empty-path>`
 - explicitly registered HTTPS redirects
 
 Public HTTP redirects, malformed private schemes, fragments, wildcard matching,
-prefix matching and unregistered redirects are rejected. Registration state is
-bound to the configured issuer and persists in the `/data` Compose volume.
+prefix matching and unregistered redirects are rejected. Loopback HTTP redirects
+must include an explicit port. Every authorization request must exactly match a
+stored redirect URI. Registration state is bound to the configured issuer and
+persists in the `/data` Compose volume.
 
 ## Single Entra application
 

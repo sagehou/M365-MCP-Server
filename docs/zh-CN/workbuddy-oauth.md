@@ -76,13 +76,13 @@ Public URL 必须与 Reverse-proxy Route 精确一致。应用不会从 Request 
 
 Registration 接受 RFC 7591 风格的 Public-client Metadata，返回生成的 Client ID 和原样 Registered Redirect List，绝不返回 Client Secret。只有 Registered `grant_types` 包含 `refresh_token` 的 Authorization-code Client 才会获得 Refresh Token；其他 Client 的 Refresh Request 返回 `unauthorized_client`。支持的 Redirect 形式：
 
-- `workbuddy://workbuddy/mcp/connector%3A<source>/oauth/callback`
-- `http://localhost:<port>/oauth/callback`
-- `http://127.0.0.1:<port>/oauth/callback`
-- `http://[::1]:<port>/oauth/callback`
+- `workbuddy://workbuddy/<非空路径>`，例如 `workbuddy://workbuddy/mcp/test/oauth/callback`
+- `http://localhost:<port>/<非空路径>`
+- `http://127.0.0.1:<port>/<非空路径>`
+- `http://[::1]:<port>/<非空路径>`
 - 显式注册的 HTTPS Redirect
 
-Public HTTP Redirect、Malformed Private Scheme、Fragment、Wildcard Match、Prefix Match 和 Unregistered Redirect 均被拒绝。Registration State 绑定到配置的 Issuer，并持久化在 Compose `/data` Volume。
+Public HTTP Redirect、Malformed Private Scheme、Fragment、Wildcard Match、Prefix Match 和 Unregistered Redirect 均被拒绝。Loopback HTTP Redirect 必须包含显式 Port；每次 Authorization Request 都必须与已保存的 Redirect URI 精确匹配。Registration State 绑定到配置的 Issuer，并持久化在 Compose `/data` Volume。
 
 ## 单 Entra Application
 

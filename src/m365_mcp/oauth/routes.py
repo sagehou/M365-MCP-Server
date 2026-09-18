@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import logging
 from typing import Any
 from urllib.parse import parse_qsl
 
@@ -20,6 +21,9 @@ from .models import (
     OAuthRefreshTokenRequest,
 )
 from .registry import OAuthClientRegistry, OAuthRegistrationUnavailableError
+
+
+logger = logging.getLogger(__name__)
 
 
 def _oauth_error(description: str, *, status_code: int = 400) -> JSONResponse:
@@ -53,6 +57,18 @@ def _single_value_parameters(items: list[tuple[str, str]]) -> dict[str, str]:
             )
         parameters[name] = value
     return parameters
+
+
+def _registration_error_summary(error: ValidationError | ValueError) -> str:
+    """Return useful registration diagnostics without echoing client metadata."""
+
+    if isinstance(error, ValidationError):
+        summaries = []
+        for detail in error.errors(include_input=False, include_url=False):
+            location = ".".join(str(item) for item in detail["loc"])
+            summaries.append(f"{location}: {detail['msg']}")
+        return "; ".join(summaries)[:1000]
+    return str(error)[:1000]
 
 
 def create_oauth_router(
@@ -104,7 +120,18 @@ def create_oauth_router(
         try:
             registration = OAuthClientRegistration.model_validate(payload)
             client = await registry.register(registration)
-        except (ValidationError, ValueError):
+        except (ValidationError, ValueError) as exc:
+            redirect_uris = payload.get("redirect_uris")
+            logger.warning(
+                "OAuth client registration rejected",
+                extra={
+                    "error_type": type(exc).__name__,
+                    "error": _registration_error_summary(exc),
+                    "redirect_uri_count": (
+                        len(redirect_uris) if isinstance(redirect_uris, list) else 0
+                    ),
+                },
+            )
             return _oauth_error("client metadata is invalid")
         except OAuthRegistrationUnavailableError:
             return JSONResponse(
