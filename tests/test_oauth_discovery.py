@@ -177,12 +177,61 @@ def test_dcr_accepts_supported_redirects_and_persists_exact_values(
     )
 
 
+def test_dcr_accepts_workbuddy_private_scheme_registration(tmp_path: Path) -> None:
+    redirect_uri = "workbuddy://workbuddy/mcp/test/oauth/callback"
+    with TestClient(make_app(make_settings(tmp_path / "oauth.db"))) as client:
+        response = client.post(
+            "/oauth/register",
+            json={
+                "client_name": "WorkBuddy",
+                "redirect_uris": [redirect_uri],
+                "grant_types": ["authorization_code", "refresh_token"],
+                "response_types": ["code"],
+                "token_endpoint_auth_method": "none",
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["client_id"].startswith("mcp_")
+    assert response.json()["client_name"] == "WorkBuddy"
+    assert response.json()["redirect_uris"] == [redirect_uri]
+    assert response.json()["token_endpoint_auth_method"] == "none"
+
+
+@pytest.mark.parametrize(
+    "redirect_uri",
+    [
+        "http://localhost:12345/callback",
+        "http://127.0.0.1:52341/oauth/callback",
+        "http://[::1]:43123/workbuddy/return",
+    ],
+)
+def test_dcr_accepts_loopback_redirect_with_arbitrary_path(
+    tmp_path: Path,
+    redirect_uri: str,
+) -> None:
+    with TestClient(make_app(make_settings(tmp_path / "oauth.db"))) as client:
+        response = client.post(
+            "/oauth/register",
+            json={
+                "client_name": "WorkBuddy",
+                "redirect_uris": [redirect_uri],
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json()["redirect_uris"] == [redirect_uri]
+    assert response.json()["token_endpoint_auth_method"] == "none"
+
+
 @pytest.mark.parametrize(
     ("payload", "raw_body"),
     [
         (registration(redirect_uris=["http://public.example.com/oauth/callback"]), None),
+        (registration(redirect_uris=["http://8.8.8.8/callback"]), None),
         (registration(redirect_uris=["workbuddy://evil/oauth/callback"]), None),
         (registration(redirect_uris=["https://client.example/callback?code=chosen"]), None),
+        (registration(redirect_uris=["*"]), None),
         (registration(redirect_uris=[]), None),
         ({"client_name": "Missing redirect"}, None),
         (registration(application_type="desktop"), None),
@@ -207,6 +256,30 @@ def test_dcr_rejects_invalid_or_malformed_client_metadata(
 
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_client_metadata"
+
+
+def test_dcr_rejection_logs_safe_structured_reason(
+    tmp_path: Path,
+    caplog: Any,
+) -> None:
+    redirect_uri = "workbuddy://evil/private/oauth/callback"
+    logger_name = "m365_mcp.oauth.routes"
+    with caplog.at_level(logging.WARNING, logger=logger_name):
+        with TestClient(make_app(make_settings(tmp_path / "oauth.db"))) as client:
+            response = client.post(
+                "/oauth/register",
+                json=registration(redirect_uris=[redirect_uri]),
+            )
+
+    assert response.status_code == 400
+    records = [record for record in caplog.records if record.name == logger_name]
+    assert len(records) == 1
+    record = records[0]
+    assert record.message == "OAuth client registration rejected"
+    assert record.error_type == "ValueError"
+    assert record.error == "invalid WorkBuddy redirect_uri"
+    assert record.redirect_uri_count == 1
+    assert redirect_uri not in caplog.text
 
 
 def test_registry_binds_clients_to_issuer_and_emits_safe_audit(

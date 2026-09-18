@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from ipaddress import ip_address
-import re
 from urllib.parse import parse_qsl, urlsplit
 
 
-_WORKBUDDY_PATH = re.compile(
-    r"^/mcp/connector%3a[A-Za-z0-9._~-]+/oauth/callback$",
-    re.IGNORECASE,
-)
 _RESERVED_QUERY_PARAMETERS = frozenset({"code", "state", "error"})
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 def validate_redirect_uri(value: str) -> str:
@@ -32,26 +27,24 @@ def validate_redirect_uri(value: str) -> str:
     scheme = parsed.scheme.casefold()
     if scheme == "workbuddy":
         if (
-            parsed.hostname != "workbuddy"
+            parsed.hostname is None
+            or parsed.hostname.casefold() != "workbuddy"
             or parsed.port is not None
             or parsed.query
-            or not _WORKBUDDY_PATH.fullmatch(parsed.path)
+            or not parsed.path
+            or parsed.path == "/"
         ):
             raise ValueError("invalid WorkBuddy redirect_uri")
         return value
 
     if scheme == "http":
-        if parsed.path != "/oauth/callback" or parsed.query:
-            raise ValueError("loopback redirect_uri must use /oauth/callback")
         host = parsed.hostname
-        if host is None:
-            raise ValueError("loopback redirect_uri requires a host")
-        try:
-            loopback = ip_address(host).is_loopback
-        except ValueError:
-            loopback = host.casefold() == "localhost"
-        if not loopback:
+        if host is None or host.casefold() not in _LOOPBACK_HOSTS:
             raise ValueError("public HTTP redirect_uri is not allowed")
+        if parsed.port is None:
+            raise ValueError("loopback redirect_uri requires an explicit port")
+        if parsed.query or not parsed.path or parsed.path == "/":
+            raise ValueError("loopback redirect_uri requires a callback path")
         return value
 
     if scheme == "https" and parsed.hostname:
