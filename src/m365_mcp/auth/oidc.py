@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from .errors import TokenValidationError
+from .errors import IdentityProviderUnavailableError
 from .settings import Settings
 
 JsonFetcher = Callable[[str], Awaitable[Mapping[str, Any]]]
@@ -26,9 +26,13 @@ class HttpJsonFetcher:
                 response.raise_for_status()
                 payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            raise TokenValidationError("Identity metadata is unavailable") from exc
+            raise IdentityProviderUnavailableError(
+                "Identity metadata is unavailable"
+            ) from exc
         if not isinstance(payload, Mapping):
-            raise TokenValidationError("Identity metadata has an invalid shape")
+            raise IdentityProviderUnavailableError(
+                "Identity metadata has an invalid shape"
+            )
         return payload
 
 
@@ -68,7 +72,9 @@ class OidcDocumentProvider:
         configuration = await self.configuration()
         jwks_url = configuration.get("jwks_uri")
         if not isinstance(jwks_url, str) or not jwks_url:
-            raise TokenValidationError("Identity metadata has no signing-key URL")
+            raise IdentityProviderUnavailableError(
+                "Identity metadata has no signing-key URL"
+            )
         async with self._lock:
             refresh_allowed = force_refresh and self._clock() - self._last_forced_refresh >= 60
             if self._jwks_is_fresh() and not refresh_allowed:

@@ -11,8 +11,8 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
-_AAD = b"m365-mcp-oauth-code-v1"
-_VERSION = b"\x01"
+_AAD_PREFIX = b"m365-mcp-oauth-v2\x00"
+_VERSION = b"\x02"
 
 
 class TokenProtectionError(Exception):
@@ -20,9 +20,19 @@ class TokenProtectionError(Exception):
 
 
 class TokenProtector(Protocol):
-    def seal(self, payload: Mapping[str, object]) -> bytes: ...
+    def seal(
+        self,
+        payload: Mapping[str, object],
+        *,
+        context: Mapping[str, object],
+    ) -> bytes: ...
 
-    def open(self, protected: bytes) -> dict[str, Any]: ...
+    def open(
+        self,
+        protected: bytes,
+        *,
+        context: Mapping[str, object],
+    ) -> dict[str, Any]: ...
 
 
 class AesGcmTokenProtector:
@@ -34,7 +44,12 @@ class AesGcmTokenProtector:
             raise ValueError("OAuth token protection key must be 256 bits")
         self._cipher = AESGCM(selected_key)
 
-    def seal(self, payload: Mapping[str, object]) -> bytes:
+    def seal(
+        self,
+        payload: Mapping[str, object],
+        *,
+        context: Mapping[str, object],
+    ) -> bytes:
         try:
             plaintext = json.dumps(
                 dict(payload),
@@ -43,19 +58,33 @@ class AesGcmTokenProtector:
                 sort_keys=True,
             ).encode("utf-8")
             nonce = os.urandom(12)
-            return _VERSION + nonce + self._cipher.encrypt(nonce, plaintext, _AAD)
+            return _VERSION + nonce + self._cipher.encrypt(
+                nonce,
+                plaintext,
+                self._aad(context),
+            )
         except Exception as exc:
             raise TokenProtectionError("OAuth token material is invalid") from exc
 
-    def open(self, protected: bytes) -> dict[str, Any]:
+    def open(
+        self,
+        protected: bytes,
+        *,
+        context: Mapping[str, object],
+    ) -> dict[str, Any]:
         if len(protected) < 30 or protected[:1] != _VERSION:
             raise TokenProtectionError("OAuth token material is invalid")
         nonce = protected[1:13]
         try:
-            plaintext = self._cipher.decrypt(nonce, protected[13:], _AAD)
+            plaintext = self._cipher.decrypt(
+                nonce,
+                protected[13:],
+                self._aad(context),
+            )
             payload = json.loads(plaintext)
         except (
             InvalidTag,
+            TypeError,
             ValueError,
             json.JSONDecodeError,
             UnicodeDecodeError,
@@ -64,6 +93,15 @@ class AesGcmTokenProtector:
         if not isinstance(payload, dict):
             raise TokenProtectionError("OAuth token material is invalid")
         return payload
+
+    @staticmethod
+    def _aad(context: Mapping[str, object]) -> bytes:
+        return _AAD_PREFIX + json.dumps(
+            dict(context),
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
 
 
 class EphemeralTokenProtector(AesGcmTokenProtector):

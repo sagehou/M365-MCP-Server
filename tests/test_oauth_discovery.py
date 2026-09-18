@@ -168,6 +168,7 @@ def test_dcr_accepts_supported_redirects_and_persists_exact_values(
         "oauth_transactions",
         "oauth_codes",
         "oauth_sessions",
+        "oauth_refresh_token_history",
     } <= tables
     persisted = asyncio.run(restarted.get(body["client_id"]))
     assert persisted is not None

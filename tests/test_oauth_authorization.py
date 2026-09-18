@@ -177,6 +177,18 @@ class MismatchedRefreshValidator(FakeValidator):
         )
 
 
+class UnavailableRefreshValidator(FakeValidator):
+    def __init__(self) -> None:
+        super().__init__()
+        self.unavailable = True
+
+    async def validate(self, token: str) -> UserIdentity:
+        if self.tokens and self.unavailable:
+            self.tokens.append(token)
+            raise ConfigurationError("simulated identity metadata outage")
+        return await super().validate(token)
+
+
 def make_app(
     database_path: Path,
     *,
@@ -219,14 +231,20 @@ def make_app(
     return app, selected_broker, selected_validator
 
 
-def register_client(client: TestClient) -> str:
+def register_client(
+    client: TestClient,
+    *,
+    grant_types: list[str] | None = None,
+) -> str:
     response = client.post(
         "/oauth/register",
         json={
             "client_name": "WorkBuddy",
             "redirect_uris": [REDIRECT_URI],
             "application_type": "native",
-            "grant_types": ["authorization_code", "refresh_token"],
+            "grant_types": grant_types
+            if grant_types is not None
+            else ["authorization_code", "refresh_token"],
             "response_types": ["code"],
             "token_endpoint_auth_method": "none",
         },
@@ -374,6 +392,29 @@ def test_authorization_code_flow_uses_separate_state_and_one_time_code(
     assert b"sensitive-msal-cache" not in protected
     assert b"sensitive-msal-cache" not in protected_session
     assert b"upstream-pkce" not in protected_flow
+
+
+def test_authorization_code_only_client_does_not_receive_refresh_token(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "oauth.db"
+    app, _, _ = make_app(database_path)
+    with TestClient(app) as client:
+        client_id = register_client(
+            client,
+            grant_types=["authorization_code"],
+        )
+        token = authorize_and_redeem(client, client_id)
+        refresh = refresh_token(client, client_id, "r" * 43)
+
+    assert "refresh_token" not in token
+    assert refresh.status_code == 400
+    assert refresh.json()["error"] == "unauthorized_client"
+    with sqlite3.connect(database_path) as connection:
+        session_count = connection.execute(
+            "SELECT COUNT(*) FROM oauth_sessions"
+        ).fetchone()[0]
+    assert session_count == 0
 
 
 def test_wrong_pkce_or_client_does_not_consume_valid_code(tmp_path: Path) -> None:
@@ -630,6 +671,41 @@ def test_corrupt_authorization_code_bundle_is_rejected(tmp_path: Path) -> None:
     assert response.json()["error"] == "invalid_grant"
 
 
+def test_authorization_code_ciphertext_is_bound_to_its_record(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "oauth.db"
+    app, broker, _ = make_app(database_path)
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        codes: list[str] = []
+        for _ in range(2):
+            authorization = begin_authorization(client, client_id)
+            upstream_state = parse_qs(
+                urlsplit(authorization.headers["location"]).query
+            )["state"][0]
+            callback = complete_authorization(client, upstream_state)
+            codes.append(local_code_from_redirect(callback.headers["location"]))
+
+        first_hash = hashlib.sha256(codes[0].encode("utf-8")).hexdigest()
+        second_hash = hashlib.sha256(codes[1].encode("utf-8")).hexdigest()
+        with sqlite3.connect(database_path) as connection:
+            first_ciphertext = connection.execute(
+                "SELECT encrypted_msal_cache FROM oauth_codes WHERE code_hash = ?",
+                (first_hash,),
+            ).fetchone()[0]
+            connection.execute(
+                "UPDATE oauth_codes SET encrypted_msal_cache = ? "
+                "WHERE code_hash = ?",
+                (first_ciphertext, second_hash),
+            )
+        relocated = redeem_code(client, client_id, codes[1])
+
+    assert relocated.status_code == 400
+    assert relocated.json()["error"] == "invalid_grant"
+    assert len(broker.completed_flows) == 2
+
+
 def test_authorize_rejects_upstream_redirect_with_wrong_state(
     tmp_path: Path,
 ) -> None:
@@ -782,9 +858,16 @@ def test_sqlite_store_migrates_pr2_transaction_schema(tmp_path: Path) -> None:
             row[1]
             for row in connection.execute("PRAGMA table_info(oauth_transactions)")
         }
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
     assert "protected_upstream_flow" in columns
-    assert user_version == 3
+    assert "oauth_refresh_token_history" in tables
+    assert user_version == 4
 
 
 def test_authorization_flow_emits_safe_audit_metadata(
@@ -845,7 +928,7 @@ def test_refresh_succeeds_rotates_and_rejects_old_token_replay(
 
         refreshed = refresh_token(client, client_id, old_refresh_token)
         replay = refresh_token(client, client_id, old_refresh_token)
-        second_refresh = refresh_token(
+        compromised_successor = refresh_token(
             client,
             client_id,
             refreshed.json()["refresh_token"],
@@ -858,29 +941,68 @@ def test_refresh_succeeds_rotates_and_rejects_old_token_replay(
     assert refreshed.json()["refresh_token"] != old_refresh_token
     assert replay.status_code == 400
     assert replay.json()["error"] == "invalid_grant"
-    assert second_refresh.status_code == 200
-    assert broker.refreshed_caches == [
-        "sensitive-msal-cache",
-        "refreshed-cache-1",
-    ]
+    assert compromised_successor.status_code == 400
+    assert compromised_successor.json()["error"] == "invalid_grant"
+    assert broker.refreshed_caches == ["sensitive-msal-cache"]
     assert validator.tokens == [
         "validated-token-a",
         "refreshed-token-1",
-        "refreshed-token-2",
     ]
 
     with sqlite3.connect(database_path) as connection:
         row = connection.execute(
-            "SELECT refresh_token_hash, encrypted_msal_cache, rotation_family "
+            "SELECT refresh_token_hash, encrypted_msal_cache, rotation_family, "
+            "revoked_at "
             "FROM oauth_sessions"
         ).fetchone()
+        history = connection.execute(
+            "SELECT refresh_token_hash FROM oauth_refresh_token_history"
+        ).fetchall()
     assert row is not None
     assert row[0] == hashlib.sha256(
-        second_refresh.json()["refresh_token"].encode("utf-8")
+        refreshed.json()["refresh_token"].encode("utf-8")
     ).hexdigest()
     assert old_refresh_token.encode("utf-8") not in row[1]
     assert b"refreshed-cache" not in row[1]
     assert row[2]
+    assert row[3] is not None
+    assert history == [
+        (hashlib.sha256(old_refresh_token.encode("utf-8")).hexdigest(),)
+    ]
+
+
+def test_refresh_allows_multiple_rotations_without_replay(tmp_path: Path) -> None:
+    app, broker, _ = make_app(tmp_path / "oauth.db")
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        initial = authorize_and_redeem(client, client_id)
+        first = refresh_token(client, client_id, initial["refresh_token"])
+        second = refresh_token(client, client_id, first.json()["refresh_token"])
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert broker.refreshed_caches == [
+        "sensitive-msal-cache",
+        "refreshed-cache-1",
+    ]
+
+
+def test_older_generation_replay_revokes_latest_successor(tmp_path: Path) -> None:
+    app, _, _ = make_app(tmp_path / "oauth.db")
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        initial = authorize_and_redeem(client, client_id)
+        first = refresh_token(client, client_id, initial["refresh_token"])
+        second = refresh_token(client, client_id, first.json()["refresh_token"])
+        replay = refresh_token(client, client_id, initial["refresh_token"])
+        latest = refresh_token(client, client_id, second.json()["refresh_token"])
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert replay.status_code == 400
+    assert replay.json()["error"] == "invalid_grant"
+    assert latest.status_code == 400
+    assert latest.json()["error"] == "invalid_grant"
 
 
 def test_wrong_client_or_scope_does_not_consume_refresh_token(
@@ -969,6 +1091,25 @@ def test_transient_msal_refresh_failure_keeps_current_token_retryable(
         ]
         unavailable = refresh_token(client, client_id, local_refresh_token)
         broker.fail_refresh = False
+        retried = refresh_token(client, client_id, local_refresh_token)
+
+    assert unavailable.status_code == 503
+    assert unavailable.json()["error"] == "temporarily_unavailable"
+    assert retried.status_code == 200
+
+
+def test_transient_identity_metadata_failure_keeps_current_token_retryable(
+    tmp_path: Path,
+) -> None:
+    validator = UnavailableRefreshValidator()
+    app, _, _ = make_app(tmp_path / "oauth.db", validator=validator)
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        local_refresh_token = authorize_and_redeem(client, client_id)[
+            "refresh_token"
+        ]
+        unavailable = refresh_token(client, client_id, local_refresh_token)
+        validator.unavailable = False
         retried = refresh_token(client, client_id, local_refresh_token)
 
     assert unavailable.status_code == 503
@@ -1109,6 +1250,14 @@ def test_concurrent_refresh_allows_only_one_rotation(tmp_path: Path) -> None:
                 local_refresh_token,
             )
             responses = [first.result(timeout=20), second.result(timeout=20)]
+        successful = next(
+            response for response in responses if response.status_code == 200
+        )
+        successor = refresh_token(
+            first_client,
+            client_id,
+            successful.json()["refresh_token"],
+        )
 
     assert sorted(response.status_code for response in responses) == [200, 400]
     assert [
@@ -1116,6 +1265,8 @@ def test_concurrent_refresh_allows_only_one_rotation(tmp_path: Path) -> None:
         for response in responses
         if response.status_code == 400
     ] == ["invalid_grant"]
+    assert successor.status_code == 400
+    assert successor.json()["error"] == "invalid_grant"
 
 
 def test_oauth_enabled_requires_valid_persistent_encryption_key(
@@ -1179,6 +1330,25 @@ def test_msal_broker_restores_cache_and_forces_silent_refresh(
     assert result.expires_in == 2700
     assert result.serialized_cache == "updated-cache"
     assert len(calls) == 1
+
+
+def test_msal_broker_rejects_corrupt_serialized_cache(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path / "oauth.db")
+
+    class CorruptCache:
+        def deserialize(self, value: str) -> None:
+            raise ValueError("corrupt cache")
+
+    broker = MsalEntraAuthorizationBroker(
+        settings,
+        cache_factory=CorruptCache,
+    )
+    try:
+        asyncio.run(broker.refresh("corrupt-cache"))
+    except EntraRefreshRejectedError:
+        pass
+    else:
+        raise AssertionError("corrupt MSAL cache must require reauthorization")
 
 
 def test_msal_broker_distinguishes_reauth_from_transient_refresh_error(

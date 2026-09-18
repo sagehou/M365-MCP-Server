@@ -15,11 +15,11 @@ Server 当前实现 Discovery、Registration 与 Interactive Authorization-code 
 - TTL 不超过 10 分钟、只能使用一次的 Local Authorization Code
 - 支持 `grant_type=authorization_code` 与 `refresh_token` 的 `POST /oauth/token`
 - 仅以 SHA-256 Hash 保存的 Opaque Local Refresh Token
-- 带 One-time Rotation 与 Replay Rejection 的 Encrypted Persistent MSAL Cache
+- 带 One-time Rotation 与 Family Replay Revocation 的 Encrypted Persistent MSAL Cache
 - 存储在配置 SQLite Database 中的 Restart-safe Session
 - 由 `OAUTH_DATABASE_PATH` 指定、带 Issuer Binding 的 SQLite Persistence
 
-Token Endpoint 返回发给 App A、并已通过现有 `JwtValidator` 复验的 Entra Access Token，因此现有 JWT Validation 与 OBO 链路仍是权威安全边界，不会另外签发 MCP JWT。Entra Authorization-flow Object、Token A 与 MSAL Cache 使用 `OAUTH_ENCRYPTION_KEY` 执行 AES-256-GCM 加密；敏感 Token Material 不会进入 Browser Redirect 或 SQLite Plaintext Column。
+Token Endpoint 返回发给 App A、并已通过现有 `JwtValidator` 复验的 Entra Access Token，因此现有 JWT Validation 与 OBO 链路仍是权威安全边界，不会另外签发 MCP JWT。Entra Authorization-flow Object、Token A 与 MSAL Cache 使用 `OAUTH_ENCRYPTION_KEY` 执行 AES-256-GCM 加密，并通过 Record-specific Authenticated Context 绑定不可变 OAuth Metadata；敏感 Token Material 不会进入 Browser Redirect 或 SQLite Plaintext Column。
 
 在真实 WorkBuddy Acceptance Gate 完成前，受控集成开发以外应保持 `OAUTH_ENABLED=false`。Restarted 或 Replacement Process 必须使用同一 SQLite Database 与 Encryption Key。Distributed 或 Multi-host Session Storage 不属于 v0.1 Scope。
 
@@ -37,10 +37,10 @@ Token Endpoint 返回发给 App A、并已通过现有 `JwtValidator` 复验的 
 1. WorkBuddy 发送 `grant_type=refresh_token`、Public `client_id` 与当前 Opaque Local Refresh Token。
 2. Server 对 Handle 做 Hash，并查找绑定到 Configured Issuer 和 Client、尚未过期且未吊销的 Session。
 3. 打开 Encrypted MSAL Cache，强制执行 MSAL Silent Token Acquisition；结果 Token A 再次通过 Validator，并且必须与原 Session 的 Tenant/User 一致。
-4. SQLite 使用 Compare-and-swap 把旧 Handle Hash 与 Encrypted Cache 替换为新值；只有匹配预期旧 Hash 的请求能够完成轮换。
-5. WorkBuddy 获得 Token A 与新的 Opaque Refresh Token；旧值 Replay 返回 `invalid_grant`。
+4. SQLite 使用 Compare-and-swap 把旧 Handle Hash 与 Encrypted Cache 替换为新值；已消费 Hash 会继续绑定 Rotation Family。
+5. WorkBuddy 获得 Token A 与新的 Opaque Refresh Token；任意已消费值 Replay 都返回 `invalid_grant` 并吊销当前 Family，包括 Attacker-first 取得的 Successor。
 
-Microsoft Revocation、Unusable Cache 或 Identity Mismatch 会吊销 Local Session。Transient Upstream Outage 返回 `temporarily_unavailable`，不会消费当前 Local Refresh Token。
+Microsoft Revocation、Unusable Cache 或 Identity Mismatch 会吊销 Local Session。Transient Upstream 或 Identity-metadata Outage 返回 `temporarily_unavailable`，不会消费当前 Local Refresh Token。
 
 ## Public URL 配置
 
@@ -56,7 +56,7 @@ Public URL 必须与 Reverse-proxy Route 精确一致。应用不会从 Request 
 
 ## Dynamic Registration Policy
 
-Registration 接受 RFC 7591 风格的 Public-client Metadata，返回生成的 Client ID 和原样 Registered Redirect List，绝不返回 Client Secret。支持的 Redirect 形式：
+Registration 接受 RFC 7591 风格的 Public-client Metadata，返回生成的 Client ID 和原样 Registered Redirect List，绝不返回 Client Secret。只有 Registered `grant_types` 包含 `refresh_token` 的 Authorization-code Client 才会获得 Refresh Token；其他 Client 的 Refresh Request 返回 `unauthorized_client`。支持的 Redirect 形式：
 
 - `workbuddy://workbuddy/mcp/connector%3A<source>/oauth/callback`
 - `http://localhost:<port>/oauth/callback`

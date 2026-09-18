@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+from dataclasses import replace
 from time import time
 
 from ..auth.errors import AuthenticationError, ConfigurationError
@@ -63,29 +64,29 @@ class OAuthSessionService:
         refresh_token = secrets.token_urlsafe(32)
         session_id = secrets.token_urlsafe(24)
         rotation_family = secrets.token_urlsafe(24)
+        session = OAuthSession(
+            id=session_id,
+            issuer=self.issuer,
+            client_id=authorization_code.client_id,
+            tenant_id=authorization_code.tenant_id,
+            user_id=authorization_code.user_id,
+            scope=authorization_code.scope,
+            resource=authorization_code.resource,
+            refresh_token_hash=self._hash_secret(refresh_token),
+            encrypted_msal_cache=b"",
+            created_at=now,
+            updated_at=now,
+            expires_at=(now + self.settings.oauth_refresh_token_ttl_days * 86_400),
+            revoked_at=None,
+            rotation_family=rotation_family,
+        )
         try:
             encrypted_cache = self.token_protector.seal(
-                {"serialized_cache": serialized_cache}
+                {"serialized_cache": serialized_cache},
+                context=self._session_protection_context(session),
             )
             await self.store.create_session(
-                OAuthSession(
-                    id=session_id,
-                    issuer=self.issuer,
-                    client_id=authorization_code.client_id,
-                    tenant_id=authorization_code.tenant_id,
-                    user_id=authorization_code.user_id,
-                    scope=authorization_code.scope,
-                    resource=authorization_code.resource,
-                    refresh_token_hash=self._hash_secret(refresh_token),
-                    encrypted_msal_cache=encrypted_cache,
-                    created_at=now,
-                    updated_at=now,
-                    expires_at=(
-                        now + self.settings.oauth_refresh_token_ttl_days * 86_400
-                    ),
-                    revoked_at=None,
-                    rotation_family=rotation_family,
-                )
+                replace(session, encrypted_msal_cache=encrypted_cache)
             )
         except (TokenProtectionError, OAuthStoreError) as exc:
             raise self._unavailable() from exc
@@ -112,7 +113,13 @@ class OAuthSessionService:
         except OAuthStoreError as exc:
             raise self._unavailable() from exc
         if session is None:
-            self.audit_logger.refresh_failed(request.client_id, "InvalidGrant")
+            replayed = await self._revoke_replayed_session(
+                request.client_id,
+                current_hash,
+                now,
+            )
+            if not replayed:
+                self.audit_logger.refresh_failed(request.client_id, "InvalidGrant")
             raise self._invalid_grant()
         if not self._session_binding_is_valid(session):
             await self._revoke(session, current_hash, now, "InvalidSessionBinding")
@@ -132,7 +139,10 @@ class OAuthSessionService:
                 )
 
         try:
-            protected_cache = self.token_protector.open(session.encrypted_msal_cache)
+            protected_cache = self.token_protector.open(
+                session.encrypted_msal_cache,
+                context=self._session_protection_context(session),
+            )
         except TokenProtectionError:
             await self._revoke(session, current_hash, now, "TokenProtectionError")
             raise self._invalid_grant()
@@ -156,7 +166,14 @@ class OAuthSessionService:
 
         try:
             identity = await self.token_validator.validate(token_result.access_token)
-        except (AuthenticationError, ConfigurationError) as exc:
+        except ConfigurationError as exc:
+            self.audit_logger.refresh_failed(
+                request.client_id,
+                type(exc).__name__,
+                session.id,
+            )
+            raise self._unavailable() from exc
+        except AuthenticationError as exc:
             await self._revoke(session, current_hash, now, type(exc).__name__)
             raise self._invalid_grant() from exc
         if (
@@ -169,7 +186,8 @@ class OAuthSessionService:
         new_refresh_token = secrets.token_urlsafe(32)
         try:
             encrypted_cache = self.token_protector.seal(
-                {"serialized_cache": token_result.serialized_cache}
+                {"serialized_cache": token_result.serialized_cache},
+                context=self._session_protection_context(session),
             )
             rotated = await self.store.rotate_refresh_session(
                 self.issuer,
@@ -183,11 +201,17 @@ class OAuthSessionService:
         except (TokenProtectionError, OAuthStoreError) as exc:
             raise self._unavailable() from exc
         if not rotated:
-            self.audit_logger.refresh_failed(
+            replayed = await self._revoke_replayed_session(
                 request.client_id,
-                "RefreshReplay",
-                session.id,
+                current_hash,
+                now,
             )
+            if not replayed:
+                self.audit_logger.refresh_failed(
+                    request.client_id,
+                    "RefreshReplay",
+                    session.id,
+                )
             raise self._invalid_grant()
 
         self.audit_logger.refresh_succeeded(
@@ -220,6 +244,14 @@ class OAuthSessionService:
             )
         except OAuthStoreError as exc:
             raise self._unavailable() from exc
+        if not revoked:
+            replayed = await self._revoke_replayed_session(
+                session.client_id,
+                current_hash,
+                now,
+            )
+            if replayed:
+                return
         self.audit_logger.refresh_failed(
             session.client_id,
             error_type,
@@ -234,12 +266,59 @@ class OAuthSessionService:
                 error_type,
             )
 
+    async def _revoke_replayed_session(
+        self,
+        client_id: str,
+        refresh_token_hash: str,
+        now: int,
+    ) -> bool:
+        try:
+            session = await self.store.revoke_refresh_session_by_replay(
+                self.issuer,
+                refresh_token_hash,
+                client_id,
+                now,
+            )
+        except OAuthStoreError as exc:
+            raise self._unavailable() from exc
+        if session is None:
+            return False
+        self.audit_logger.refresh_failed(
+            session.client_id,
+            "RefreshReplay",
+            session.id,
+        )
+        self.audit_logger.session_revoked(
+            session.client_id,
+            session.tenant_id,
+            session.user_id,
+            session.id,
+            "RefreshReplay",
+        )
+        return True
+
     def _session_binding_is_valid(self, session: OAuthSession) -> bool:
         return (
             session.issuer == self.issuer
             and session.resource == self.settings.mcp_public_url
             and frozenset(session.scope.split()) == self.settings.required_scopes
         )
+
+    @staticmethod
+    def _session_protection_context(session: OAuthSession) -> dict[str, object]:
+        return {
+            "artifact": "oauth_session",
+            "id": session.id,
+            "issuer": session.issuer,
+            "client_id": session.client_id,
+            "tenant_id": session.tenant_id,
+            "user_id": session.user_id,
+            "scope": session.scope,
+            "resource": session.resource,
+            "created_at": session.created_at,
+            "expires_at": session.expires_at,
+            "rotation_family": session.rotation_family,
+        }
 
     @staticmethod
     def _hash_secret(value: str) -> str:

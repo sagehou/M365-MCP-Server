@@ -134,7 +134,12 @@ class MsalEntraAuthorizationBroker:
             raise EntraRefreshRejectedError("Microsoft session is unavailable")
         try:
             cache = self._cache_factory()
-            cache.deserialize(serialized_cache)
+            try:
+                cache.deserialize(serialized_cache)
+            except Exception as exc:
+                raise EntraRefreshRejectedError(
+                    "Microsoft session cache is invalid"
+                ) from exc
             application = self._new_application(cache)
             accounts = application.get_accounts()
             if len(accounts) != 1:

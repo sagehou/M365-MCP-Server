@@ -21,5 +21,9 @@ class ConfigurationError(Exception):
     """Authentication cannot run because server configuration is incomplete."""
 
 
+class IdentityProviderUnavailableError(ConfigurationError):
+    """Identity-provider metadata or signing keys are temporarily unavailable."""
+
+
 class OboTokenError(Exception):
     """Microsoft Entra rejected an on-behalf-of token request."""

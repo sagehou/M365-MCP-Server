@@ -16,15 +16,16 @@ authorization-code flow:
 - one-time local authorization codes with a maximum ten-minute lifetime
 - `POST /oauth/token` for `grant_type=authorization_code` and `refresh_token`
 - opaque local refresh tokens stored only as SHA-256 hashes
-- encrypted persistent MSAL cache with one-time token rotation and replay rejection
+- encrypted persistent MSAL cache with one-time token rotation and family replay revocation
 - restart-safe sessions in the configured SQLite database
 - issuer-bound SQLite persistence at `OAUTH_DATABASE_PATH`
 
 The token endpoint returns the validated Entra access token for App A so the
 existing JWT validator and OBO path remain authoritative. It does not mint a new
 MCP JWT. The Entra authorization-flow object, Token A and MSAL cache are encrypted
-with AES-256-GCM under `OAUTH_ENCRYPTION_KEY`; sensitive token material never
-appears in the browser redirect or plaintext SQLite columns.
+with AES-256-GCM under `OAUTH_ENCRYPTION_KEY`; record-specific authenticated
+context binds each ciphertext to immutable OAuth metadata. Sensitive token
+material never appears in the browser redirect or plaintext SQLite columns.
 
 Keep `OAUTH_ENABLED=false` outside controlled integration development until the
 real WorkBuddy acceptance gate is complete. Restarted or replacement processes
@@ -57,13 +58,14 @@ session storage is outside the v0.1 scope.
    acquisition. The resulting Token A is revalidated and must identify the same
    tenant and user as the original session.
 4. SQLite compare-and-swap replaces the old handle hash and encrypted cache with
-   the new values. Only the request that rotates the expected old hash succeeds.
-5. WorkBuddy receives Token A and a new opaque refresh token. Reuse of the old
-   value returns `invalid_grant`.
+   the new values. The consumed hash remains linked to the rotation family.
+5. WorkBuddy receives Token A and a new opaque refresh token. Reuse of any
+   consumed value returns `invalid_grant` and revokes the active family, including
+   an attacker-first successor.
 
 Microsoft revocation, an unusable cache or identity mismatch revokes the local
-session. A transient upstream outage returns `temporarily_unavailable` without
-consuming the current local refresh token.
+session. A transient upstream or identity-metadata outage returns
+`temporarily_unavailable` without consuming the current local refresh token.
 
 ## Public URL configuration
 
@@ -84,7 +86,9 @@ the database, image, repository and logs; losing it invalidates stored sessions.
 
 Registration accepts RFC 7591-style public-client metadata and returns a generated
 client ID plus the exact registered redirect list. It never returns a client
-secret. Supported redirect forms are:
+secret. Authorization-code clients receive a refresh token only when
+`refresh_token` is present in their registered `grant_types`; refresh requests
+from other clients return `unauthorized_client`. Supported redirect forms are:
 
 - `workbuddy://workbuddy/mcp/connector%3A<source>/oauth/callback`
 - `http://localhost:<port>/oauth/callback`

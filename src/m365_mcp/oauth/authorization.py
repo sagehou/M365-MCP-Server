@@ -7,6 +7,7 @@ import hashlib
 import re
 import secrets
 from collections.abc import Mapping
+from dataclasses import replace
 from time import time
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -21,6 +22,7 @@ from .models import (
     OAuthAuthorizationCode,
     OAuthAuthorizationCodeTokenRequest,
     OAuthAuthorizationRequest,
+    OAuthClient,
     OAuthRefreshTokenRequest,
     OAuthTokenResponse,
     OAuthTransaction,
@@ -80,12 +82,10 @@ class OAuthAuthorizationService:
         if resource != self.settings.mcp_public_url:
             raise OAuthProtocolError("invalid_target", "resource is not supported")
 
-        try:
-            client = await self.registry.get(request.client_id)
-        except OAuthStoreError as exc:
-            raise self._unavailable() from exc
-        if client is None:
-            raise OAuthProtocolError("invalid_client", "client_id is not registered")
+        client = await self._registered_client_for_grant(
+            request.client_id,
+            "authorization_code",
+        )
         if request.redirect_uri not in client.redirect_uris:
             raise OAuthProtocolError(
                 "invalid_request",
@@ -102,13 +102,6 @@ class OAuthAuthorizationService:
             upstream.authorization_uri,
             upstream_state,
         )
-        try:
-            protected_upstream_flow = self.token_protector.seal(
-                {"flow": dict(upstream.flow)}
-            )
-        except TokenProtectionError as exc:
-            raise self._unavailable() from exc
-
         now = int(time())
         transaction = OAuthTransaction(
             transaction_id_hash=self._hash_secret(transaction_id),
@@ -120,9 +113,20 @@ class OAuthAuthorizationService:
             code_challenge=request.code_challenge,
             scope=scope,
             resource=resource,
-            protected_upstream_flow=protected_upstream_flow,
+            protected_upstream_flow=b"",
             created_at=now,
             expires_at=now + self.settings.oauth_transaction_ttl_seconds,
+        )
+        try:
+            protected_upstream_flow = self.token_protector.seal(
+                {"flow": dict(upstream.flow)},
+                context=self._transaction_protection_context(transaction),
+            )
+        except TokenProtectionError as exc:
+            raise self._unavailable() from exc
+        transaction = replace(
+            transaction,
+            protected_upstream_flow=protected_upstream_flow,
         )
         try:
             await self.store.create_transaction(transaction)
@@ -167,7 +171,8 @@ class OAuthAuthorizationService:
             )
         try:
             protected_transaction = self.token_protector.open(
-                transaction.protected_upstream_flow
+                transaction.protected_upstream_flow,
+                context=self._transaction_protection_context(transaction),
             )
         except TokenProtectionError:
             self.audit_logger.entra_authorization_failed(
@@ -208,16 +213,6 @@ class OAuthAuthorizationService:
 
         now = int(time())
         local_code = secrets.token_urlsafe(32)
-        try:
-            protected_bundle = self.token_protector.seal(
-                {
-                    "access_token": token_result.access_token,
-                    "access_token_expires_at": access_token_expires_at,
-                    "serialized_cache": token_result.serialized_cache,
-                }
-            )
-        except TokenProtectionError:
-            return self._callback_error_redirect(transaction, "server_error")
         authorization_code = OAuthAuthorizationCode(
             code_hash=self._hash_secret(local_code),
             issuer=self.issuer,
@@ -226,11 +221,28 @@ class OAuthAuthorizationService:
             scope=transaction.scope,
             resource=transaction.resource,
             code_challenge=transaction.code_challenge,
-            encrypted_msal_cache=protected_bundle,
+            encrypted_msal_cache=b"",
             tenant_id=identity.tenant_id,
             user_id=identity.user_id,
             created_at=now,
             expires_at=now + self.settings.oauth_authorization_code_ttl_seconds,
+        )
+        try:
+            protected_bundle = self.token_protector.seal(
+                {
+                    "access_token": token_result.access_token,
+                    "access_token_expires_at": access_token_expires_at,
+                    "serialized_cache": token_result.serialized_cache,
+                },
+                context=self._authorization_code_protection_context(
+                    authorization_code
+                ),
+            )
+        except TokenProtectionError:
+            return self._callback_error_redirect(transaction, "server_error")
+        authorization_code = replace(
+            authorization_code,
+            encrypted_msal_cache=protected_bundle,
         )
         try:
             await self.store.create_authorization_code(authorization_code)
@@ -268,9 +280,16 @@ class OAuthAuthorizationService:
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
         if not self._authorization_code_binding_is_valid(authorization_code):
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
+        client = await self._registered_client_for_grant(
+            request.client_id,
+            "authorization_code",
+        )
         try:
             bundle = self.token_protector.open(
-                authorization_code.encrypted_msal_cache
+                authorization_code.encrypted_msal_cache,
+                context=self._authorization_code_protection_context(
+                    authorization_code
+                ),
             )
         except TokenProtectionError as exc:
             raise OAuthProtocolError(
@@ -289,11 +308,13 @@ class OAuthAuthorizationService:
         expires_in = access_token_expires_at - now
         if expires_in <= 0:
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
-        refresh_token = await self.session_service.issue(
-            authorization_code,
-            serialized_cache,
-            now,
-        )
+        refresh_token = None
+        if "refresh_token" in client.grant_types:
+            refresh_token = await self.session_service.issue(
+                authorization_code,
+                serialized_cache,
+                now,
+            )
         self.audit_logger.code_redeemed(
             authorization_code.client_id,
             authorization_code.tenant_id,
@@ -311,7 +332,37 @@ class OAuthAuthorizationService:
         self,
         request: OAuthRefreshTokenRequest,
     ) -> OAuthTokenResponse:
+        await self._registered_client_for_grant(
+            request.client_id,
+            "refresh_token",
+            hide_unknown_client=True,
+        )
         return await self.session_service.refresh(request)
+
+    async def _registered_client_for_grant(
+        self,
+        client_id: str,
+        grant_type: str,
+        *,
+        hide_unknown_client: bool = False,
+    ) -> OAuthClient:
+        try:
+            client = await self.registry.get(client_id)
+        except OAuthStoreError as exc:
+            raise self._unavailable() from exc
+        if client is None:
+            if hide_unknown_client:
+                raise OAuthProtocolError(
+                    "invalid_grant",
+                    "refresh token is invalid",
+                )
+            raise OAuthProtocolError("invalid_client", "client_id is not registered")
+        if grant_type not in client.grant_types:
+            raise OAuthProtocolError(
+                "unauthorized_client",
+                "client is not registered for this grant type",
+            )
+        return client
 
     def _validated_scope(self, raw_scope: str) -> str:
         requested = frozenset(item for item in raw_scope.split() if item)
@@ -342,6 +393,44 @@ class OAuthAuthorizationService:
             authorization_code.resource == self.settings.mcp_public_url
             and stored_scope == self.settings.required_scopes
         )
+
+    @staticmethod
+    def _transaction_protection_context(
+        transaction: OAuthTransaction,
+    ) -> dict[str, object]:
+        return {
+            "artifact": "oauth_transaction",
+            "issuer": transaction.issuer,
+            "transaction_id_hash": transaction.transaction_id_hash,
+            "client_id": transaction.client_id,
+            "redirect_uri": transaction.redirect_uri,
+            "workbuddy_state": transaction.workbuddy_state,
+            "entra_state_hash": transaction.entra_state_hash,
+            "code_challenge": transaction.code_challenge,
+            "scope": transaction.scope,
+            "resource": transaction.resource,
+            "created_at": transaction.created_at,
+            "expires_at": transaction.expires_at,
+        }
+
+    @staticmethod
+    def _authorization_code_protection_context(
+        authorization_code: OAuthAuthorizationCode,
+    ) -> dict[str, object]:
+        return {
+            "artifact": "oauth_authorization_code",
+            "issuer": authorization_code.issuer,
+            "code_hash": authorization_code.code_hash,
+            "client_id": authorization_code.client_id,
+            "redirect_uri": authorization_code.redirect_uri,
+            "scope": authorization_code.scope,
+            "resource": authorization_code.resource,
+            "code_challenge": authorization_code.code_challenge,
+            "tenant_id": authorization_code.tenant_id,
+            "user_id": authorization_code.user_id,
+            "created_at": authorization_code.created_at,
+            "expires_at": authorization_code.expires_at,
+        }
 
     def _validate_upstream_authorization_uri(
         self,

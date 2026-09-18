@@ -9,7 +9,11 @@ from typing import Any
 import jwt
 from jwt.exceptions import PyJWTError
 
-from .errors import InsufficientScopeError, TokenValidationError
+from .errors import (
+    IdentityProviderUnavailableError,
+    InsufficientScopeError,
+    TokenValidationError,
+)
 from .models import UserIdentity
 from .oidc import OidcDocumentProvider
 from .settings import Settings
@@ -79,7 +83,9 @@ class JwtValidator:
             document = await self.documents.signing_keys(force_refresh=refresh)
             keys = document.get("keys")
             if not isinstance(keys, list):
-                raise TokenValidationError("Identity signing-key document is invalid")
+                raise IdentityProviderUnavailableError(
+                    "Identity signing-key document is invalid"
+                )
             for key in keys:
                 if isinstance(key, Mapping) and key.get("kid") == key_id:
                     return key
@@ -130,7 +136,7 @@ class JwtValidator:
     ) -> str:
         issuer_template = configuration.get("issuer")
         if not isinstance(issuer_template, str) or not issuer_template:
-            raise TokenValidationError("Identity metadata has no issuer")
+            raise IdentityProviderUnavailableError("Identity metadata has no issuer")
         return re.sub(r"\{tenantid\}", tenant_id, issuer_template, flags=re.IGNORECASE)
 
     @staticmethod
