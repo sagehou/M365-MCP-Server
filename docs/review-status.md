@@ -26,7 +26,12 @@
 Unit and integration tests exercise the real ASGI/FastMCP stack with mocked
 Entra metadata, OBO and Graph transport. Docker smoke tests use the installed
 non-root production image. Builds and tests run exclusively in GitHub Actions.
-No production mailbox data is read or changed by those tests.
+The mocked WorkBuddy client flow follows the 401 discovery challenge through
+DCR, S256 authorization, an Entra callback, local token exchange, authenticated
+MCP initialization, refresh-token rotation and another authenticated MCP call.
+Connector-package tests also enforce the official directory shape, OAuth mode
+without embedded credentials and the three scoped Skills. No production mailbox
+data is read or changed by those tests.
 
 ## Still required before production
 
@@ -37,9 +42,10 @@ No production mailbox data is read or changed by those tests.
 - OAuth discovery, dynamic public-client registration, MSAL-backed interactive
   authorization, S256 PKCE, one-time local authorization-code exchange and
   persistent encrypted refresh sessions with rotation/replay prevention are
-  implemented behind a default-off feature flag. The WorkBuddy connector, CI
-  client-flow coverage and live automatic sign-in/refresh acceptance remain
-  release blockers for a WorkBuddy-compatible v0.1.
+  implemented behind a default-off feature flag. The WorkBuddy connector and CI
+  client-flow coverage are present. Live WorkBuddy automatic sign-in/refresh,
+  restart, real-mailbox and cross-tenant acceptance remain release blockers for
+  a WorkBuddy-compatible v0.1.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.

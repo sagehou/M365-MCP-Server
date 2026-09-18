@@ -32,6 +32,35 @@ real WorkBuddy acceptance gate is complete. Restarted or replacement processes
 must use the same SQLite database and encryption key. Distributed or multi-host
 session storage is outside the v0.1 scope.
 
+## Connector package
+
+The repository includes the package template under `workbuddy/` using the
+[official WorkBuddy connector structure](https://open.workbuddy.cn/en/docs/connector):
+
+    workbuddy/
+    |-- connector-meta.json
+    |-- mcp.json
+    |-- icon.svg
+    `-- skills/
+        |-- outlook-mail/SKILL.md
+        |-- outlook-attachments/SKILL.md
+        `-- outlook-mail-management/SKILL.md
+
+The package deliberately omits `auth_mode`, request headers, token fields and a
+`token-schema.json`. WorkBuddy must discover and complete the server's standard
+MCP OAuth flow as a public client; users must not paste access tokens or receive
+an Entra client secret. The metadata requires WorkBuddy 4.24.0 because it uses
+the current bilingual name and example fields. Each Skill uses the current
+[WorkBuddy Skill format](https://open.workbuddy.cn/en/docs/skill) and exposes
+only its required tools.
+
+`workbuddy/mcp.json` is a source-controlled deployment template. Before creating
+the submission archive, replace `${M365_MCP_URL}` with the exact production HTTPS
+`/mcp/` URL used by `MCP_PUBLIC_URL`. Do not add an Authorization header or switch
+the connector to user-supplied token mode. Zip the contents of `workbuddy/` so
+`connector-meta.json`, `mcp.json`, `icon.svg` and `skills/` are at the archive
+root.
+
 ## Authorization flow
 
 1. WorkBuddy dynamically registers an exact redirect URI.
@@ -121,3 +150,40 @@ reserved OpenID scopes as required. The broker does not request a Graph token;
 the MCP API performs the existing OBO exchange after accepting Token A. Do not
 reuse App A's client credential for App B and do not add the broker callback to
 App A.
+
+## Automated and live acceptance boundary
+
+GitHub Actions runs a mocked WorkBuddy end-to-end test against the real
+ASGI/FastMCP application. It parses the 401 `resource_metadata` challenge,
+discovers both metadata documents, dynamically registers the WorkBuddy private
+callback, completes S256 authorization through a mocked Entra callback, exchanges
+the local code, initializes MCP, rotates the refresh token and lists tools with
+the refreshed access token. This proves the repository flow without contacting a
+tenant or changing a mailbox.
+
+Before enabling OAuth in production or calling v0.1 ready, perform and record all
+of these live checks with the exact release image and connector archive:
+
+1. Install the connector in WorkBuddy 4.24.0 or later and verify that no token
+   entry form appears.
+2. Connect from a clean WorkBuddy profile. Verify browser launch, Microsoft login
+   and consent, then return to WorkBuddy through
+   `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback`.
+3. Initialize MCP, list exactly eight tools, then exercise search, single-message
+   read, attachment extraction and deliberate mutations on disposable messages.
+   Verify the new IDs returned by move and archive are used afterward.
+4. Repeat with a second user and verify that neither user can access the other's
+   mailbox content.
+5. Let Token A expire (or use an approved short-lived test policy), then verify
+   WorkBuddy refreshes and retries transparently without another token prompt.
+6. Restart the server while preserving `OAUTH_DATABASE_PATH` and
+   `OAUTH_ENCRYPTION_KEY`; verify the WorkBuddy session can refresh afterward.
+7. Complete the same flow in an allowed second tenant and record consent, issuer,
+   audience and OBO results. Test consumer accounts separately only if the
+   deployment intentionally supports them.
+8. Confirm application, proxy and platform logs contain no authorization codes,
+   access/refresh tokens, MSAL cache, client secrets, code verifiers, message
+   bodies or attachment contents.
+
+These live checks are manual release gates. Passing the mocked CI flow does not
+mark them complete.

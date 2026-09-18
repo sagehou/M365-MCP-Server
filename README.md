@@ -67,7 +67,10 @@ OAuth discovery, public-client registration, MSAL-backed interactive sign-in,
 S256 PKCE and one-time local authorization-code exchange are available behind
 `OAUTH_ENABLED`. Persistent encrypted MSAL cache, opaque local refresh tokens,
 one-time rotation, replay rejection and restart-safe SQLite sessions are
-implemented. The flag remains false until real WorkBuddy acceptance is complete.
+implemented. The `workbuddy/` package follows the official connector layout, and
+CI exercises a complete mocked WorkBuddy discovery, DCR, authorization-code,
+authenticated MCP and refresh flow. The flag remains false until real WorkBuddy
+acceptance is complete.
 Drafts, OCR, shared mailboxes, RBAC,
 rate limiting and other M365 workloads are not implemented. No live-tenant
 acceptance is implied by mocked Graph/OBO/OAuth tests.

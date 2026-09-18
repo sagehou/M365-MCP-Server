@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "m365": {
+      "type": "streamableHttp",
+      "url": "${M365_MCP_URL}",
+      "timeout": 30000
+    }
+  }
+}

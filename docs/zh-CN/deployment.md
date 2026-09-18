@@ -110,7 +110,7 @@ OAuth Broker 已提供 Discovery Metadata、Dynamic Public-client Registration�
 1. 注册 API Application，暴露 `access_as_user` Delegated Scope，并使用 v2 Access Token。`CLIENT_ID`、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 必须对应真实 API Registration。`ALLOWED_TENANTS` 要么填写逗号分隔的 Tenant Allowlist，要么明确填写 `*`。除非确实需要覆盖默认 Audience 行为，否则 `AUDIENCE` 留空即可。
 2. 授予 Graph Delegated `User.Read` 和 `Mail.ReadWrite`，并在目标租户完成所需 Consent。不要授予 Application Mailbox Permissions 或 `Mail.Send`；当前没有发信工具。
 3. 只配置一种 Credential。使用证书时，将 PEM Private Key 以只读方式挂载进容器，把 `CLIENT_CERT_PATH` 设置为容器内路径，并设置 `CLIENT_CERT_THUMBPRINT`。只填写宿主机路径并不会自动挂载文件。Compose Override 可使用：`./secrets/client.pem:/run/secrets/client.pem:ro`。
-4. 注册独立 Confidential App B，配置 Broker Callback 与三个 `ENTRA_BROKER_*` 值，并向 App B 授予 App A 的 `api://<CLIENT_ID>/access_as_user` Delegated Scope。不要向 App B 授予 Graph Permission。Interactive Sign-in 与 Local Authorization-code Exchange 已位于默认关闭的 Feature Flag 后；Persistent Refresh 仍是 Release Blocker。
+4. 注册独立 Confidential App B，配置 Broker Callback 与三个 `ENTRA_BROKER_*` 值，并向 App B 授予 App A 的 `api://<CLIENT_ID>/access_as_user` Delegated Scope。不要向 App B 授予 Graph Permission。Interactive Sign-in、Local Authorization-code Exchange 与 Persistent Refresh 已位于默认关闭的 Feature Flag 后；真实 WorkBuddy 验收仍是 Release Blocker。
 5. 确认 `/healthz` 返回 200，未带 Bearer Token 的 `/mcp/` 返回 401。这两个检查不能证明 Tenant Credential、Graph Consent 或 OBO 已正确工作。
 6. 使用两个测试用户分别初始化 MCP、列出 8 个工具并读取各自邮箱中的已知消息，确认无法跨用户访问消息。写操作只对可丢弃测试消息执行，并检查 Move 后的新 ID。
 7. 读取代表性附件；确认 JSON Audit Event 包含 Identity、Tool、Outcome 和 Timestamp，但不包含邮件正文、文件名或 Token。若 OBO/Tool 调用失败，应查看 Audit Error Type 与 Entra Sign-in Diagnostics，禁止开启 Payload/Token Logging。

@@ -59,7 +59,7 @@ Microsoft 365
 
 任务 001–007 已有实现和 CI 覆盖，包括全部 8 个邮件工具。GitHub Actions 是当前唯一的构建/测试环境。稳定版发布工作流可以发布经过审核的版本标签；工作流存在并不代表镜像已经发布，部署前必须选择一个实际存在的 GHCR 版本。
 
-服务端接收由客户端取得的 Entra 委托 Bearer Token。OAuth Discovery、Public Client Registration、MSAL Interactive Sign-in、S256 PKCE、一次性 Local Authorization-code Exchange、加密 MSAL Cache、Opaque Local Refresh Token、单次 Rotation、Replay Rejection 与 Restart-safe SQLite Session 已位于 `OAUTH_ENABLED` 后；在真实 WorkBuddy 验收完成前，该开关保持默认关闭。草稿、OCR、共享邮箱、RBAC、限流以及其他 Microsoft 365 工作负载尚未实现。Mock Graph/OBO/OAuth 测试不代表真实租户已经验收。详见[实现复核状态](docs/zh-CN/review-status.md)、[运行时依赖审计](docs/zh-CN/runtime-dependency-audit.md)和 [WorkBuddy OAuth 指南](docs/zh-CN/workbuddy-oauth.md)。
+服务端接收由客户端取得的 Entra 委托 Bearer Token。OAuth Discovery、Public Client Registration、MSAL Interactive Sign-in、S256 PKCE、一次性 Local Authorization-code Exchange、加密 MSAL Cache、Opaque Local Refresh Token、单次 Rotation、Replay Rejection 与 Restart-safe SQLite Session 已位于 `OAUTH_ENABLED` 后。`workbuddy/` 已按官方连接器目录提供 Package，CI 会执行完整的 Mock WorkBuddy Discovery、DCR、Authorization-code、Authenticated MCP 与 Refresh Flow；在真实 WorkBuddy 验收完成前，该开关仍保持默认关闭。草稿、OCR、共享邮箱、RBAC、限流以及其他 Microsoft 365 工作负载尚未实现。Mock Graph/OBO/OAuth 测试不代表真实租户已经验收。详见[实现复核状态](docs/zh-CN/review-status.md)、[运行时依赖审计](docs/zh-CN/runtime-dependency-audit.md)和 [WorkBuddy OAuth 指南](docs/zh-CN/workbuddy-oauth.md)。
 
 ## 部署
 

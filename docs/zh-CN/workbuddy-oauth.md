@@ -23,6 +23,23 @@ Token Endpoint 返回发给 App A、并已通过现有 `JwtValidator` 复验的 
 
 在真实 WorkBuddy Acceptance Gate 完成前，受控集成开发以外应保持 `OAUTH_ENABLED=false`。Restarted 或 Replacement Process 必须使用同一 SQLite Database 与 Encryption Key。Distributed 或 Multi-host Session Storage 不属于 v0.1 Scope。
 
+## Connector Package
+
+仓库在 `workbuddy/` 下提供符合[WorkBuddy 官方 Connector 结构](https://open.workbuddy.cn/docs/connector)的 Package Template：
+
+    workbuddy/
+    |-- connector-meta.json
+    |-- mcp.json
+    |-- icon.svg
+    `-- skills/
+        |-- outlook-mail/SKILL.md
+        |-- outlook-attachments/SKILL.md
+        `-- outlook-mail-management/SKILL.md
+
+Package 明确不包含 `auth_mode`、Request Header、Token 字段或 `token-schema.json`。WorkBuddy 必须作为 Public Client 自动发现并完成 Server 的标准 MCP OAuth Flow；不能要求用户粘贴 Access Token，也不能把 Entra Client Secret 交给 WorkBuddy。Metadata 使用当前中英文名称和示例字段，因此最低 WorkBuddy 版本为 4.24.0。三个 Skill 均采用当前[WorkBuddy Skill 格式](https://open.workbuddy.cn/docs/skill)，并且只开放各自需要的 Tools。
+
+`workbuddy/mcp.json` 是纳入版本控制的 Deployment Template。制作提交包之前，必须把 `${M365_MCP_URL}` 替换为与 `MCP_PUBLIC_URL` 完全一致的生产 HTTPS `/mcp/` URL。不得增加 Authorization Header，也不得切换为用户自填 Token Mode。压缩 `workbuddy/` 的内容，确保 `connector-meta.json`、`mcp.json`、`icon.svg` 和 `skills/` 位于 Archive Root。
+
 ## Authorization Flow
 
 1. WorkBuddy 通过 DCR 注册 Exact Redirect URI。
@@ -80,3 +97,20 @@ Public HTTP Redirect、Malformed Private Scheme、Fragment、Wildcard Match、Pr
     https://mcp.example.com/oauth/callback/entra
 
 App B 请求 App A 的 `api://<CLIENT_ID>/access_as_user` Scope；MSAL 会按需要加入其 Reserved OpenID Scopes。Broker 不直接请求 Graph Token；MCP API 接收 Token A 后仍通过现有 OBO 链路访问 Graph。不要复用 App A 的 Client Credential，也不要把 Broker Callback 配到 App A。
+
+## 自动测试与真实验收边界
+
+GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2E Test：解析 401 `resource_metadata` Challenge，发现两份 Metadata，动态注册 WorkBuddy Private Callback，通过 Mock Entra Callback 完成 S256 Authorization，兑换 Local Code，初始化 MCP，轮换 Refresh Token，再使用刷新后的 Access Token 列出 Tools。该测试不连接真实 Tenant，也不会修改邮箱。
+
+生产启用 OAuth 或把 v0.1 标记为 Ready 之前，必须针对精确 Release Image 和 Connector Archive 执行并记录以下 Live Checks：
+
+1. 在 WorkBuddy 4.24.0 或更高版本安装 Connector，确认不会出现 Token 填写表单。
+2. 使用干净 WorkBuddy Profile 连接，确认 Browser Launch、Microsoft Login 与 Consent，并通过 `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback` 返回 WorkBuddy。
+3. 初始化 MCP，确认只列出 8 个 Tools；在可丢弃消息上执行 Search、单封读取、附件提取和有意的 Mutation，并确认 Move/Archive 后继续使用返回的新 ID。
+4. 使用第二个用户重复测试，确认两个用户都不能访问对方邮箱内容。
+5. 等待 Token A 到期（或使用批准的短期测试策略），确认 WorkBuddy 无需再次填写 Token 即可自动 Refresh 并重试原请求。
+6. 保留 `OAUTH_DATABASE_PATH` 与 `OAUTH_ENCRYPTION_KEY` 后重启 Server，确认 WorkBuddy Session 仍可继续 Refresh。
+7. 在 Allowlist 内第二个 Tenant 完成同一 Flow，并记录 Consent、Issuer、Audience 与 OBO 结果。只有部署明确支持 Consumer Account 时才单独测试该场景。
+8. 确认 Application、Proxy 与 Platform Logs 不含 Authorization Code、Access/Refresh Token、MSAL Cache、Client Secret、Code Verifier、Message Body 或 Attachment Content。
+
+这些 Live Checks 是 Manual Release Gates。Mock CI Flow 通过不能把它们标记为已完成。
