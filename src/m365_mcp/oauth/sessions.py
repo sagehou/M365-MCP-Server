@@ -25,7 +25,7 @@ from .models import (
     OAuthSession,
     OAuthTokenResponse,
 )
-from .store import OAuthStore, OAuthStoreError
+from .store import OAuthStore, OAuthStoreError, RefreshSessionRotationResult
 
 
 _REFRESH_TOKEN = re.compile(r"^[A-Za-z0-9_-]{43}$")
@@ -79,6 +79,7 @@ class OAuthSessionService:
             expires_at=(now + self.settings.oauth_refresh_token_ttl_days * 86_400),
             revoked_at=None,
             rotation_family=rotation_family,
+            rotation_count=0,
         )
         try:
             encrypted_cache = self.token_protector.seal(
@@ -137,6 +138,9 @@ class OAuthSessionService:
                     "invalid_scope",
                     "requested scope is not supported",
                 )
+        if session.rotation_count >= self.settings.oauth_refresh_max_rotations:
+            await self._revoke(session, current_hash, now, "RotationLimitReached")
+            raise self._invalid_grant()
 
         try:
             protected_cache = self.token_protector.open(
@@ -184,23 +188,44 @@ class OAuthSessionService:
             raise self._invalid_grant()
 
         new_refresh_token = secrets.token_urlsafe(32)
+        new_refresh_token_hash = self._hash_secret(new_refresh_token)
+        rotated_session = replace(
+            session,
+            refresh_token_hash=new_refresh_token_hash,
+            rotation_count=session.rotation_count + 1,
+        )
         try:
             encrypted_cache = self.token_protector.seal(
                 {"serialized_cache": token_result.serialized_cache},
-                context=self._session_protection_context(session),
+                context=self._session_protection_context(rotated_session),
             )
-            rotated = await self.store.rotate_refresh_session(
+            rotation_result = await self.store.rotate_refresh_session(
                 self.issuer,
                 session.id,
                 session.client_id,
                 current_hash,
-                self._hash_secret(new_refresh_token),
+                new_refresh_token_hash,
                 encrypted_cache,
+                self.settings.oauth_refresh_max_rotations,
                 now,
             )
         except (TokenProtectionError, OAuthStoreError) as exc:
             raise self._unavailable() from exc
-        if not rotated:
+        if rotation_result is RefreshSessionRotationResult.LIMIT_REACHED:
+            self.audit_logger.refresh_failed(
+                session.client_id,
+                "RotationLimitReached",
+                session.id,
+            )
+            self.audit_logger.session_revoked(
+                session.client_id,
+                session.tenant_id,
+                session.user_id,
+                session.id,
+                "RotationLimitReached",
+            )
+            raise self._invalid_grant()
+        if rotation_result is not RefreshSessionRotationResult.ROTATED:
             replayed = await self._revoke_replayed_session(
                 request.client_id,
                 current_hash,
@@ -315,9 +340,11 @@ class OAuthSessionService:
             "user_id": session.user_id,
             "scope": session.scope,
             "resource": session.resource,
+            "refresh_token_hash": session.refresh_token_hash,
             "created_at": session.created_at,
             "expires_at": session.expires_at,
             "rotation_family": session.rotation_family,
+            "rotation_count": session.rotation_count,
         }
 
     @staticmethod

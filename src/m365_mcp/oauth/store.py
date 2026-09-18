@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from enum import StrEnum
 import json
 from pathlib import Path
 import sqlite3
@@ -21,6 +22,14 @@ class OAuthClientAlreadyExistsError(Exception):
 
 class OAuthStoreError(Exception):
     """Raised when OAuth persistence is unavailable without exposing internals."""
+
+
+class RefreshSessionRotationResult(StrEnum):
+    """Atomic result of one local refresh-session rotation attempt."""
+
+    ROTATED = "rotated"
+    CONFLICT = "conflict"
+    LIMIT_REACHED = "limit_reached"
 
 
 class OAuthStore(Protocol):
@@ -72,8 +81,9 @@ class OAuthStore(Protocol):
         current_refresh_token_hash: str,
         new_refresh_token_hash: str,
         encrypted_msal_cache: bytes,
+        max_rotations: int,
         now: int,
-    ) -> bool: ...
+    ) -> RefreshSessionRotationResult: ...
 
     async def revoke_refresh_session(
         self,
@@ -207,8 +217,9 @@ class SQLiteOAuthStore:
         current_refresh_token_hash: str,
         new_refresh_token_hash: str,
         encrypted_msal_cache: bytes,
+        max_rotations: int,
         now: int,
-    ) -> bool:
+    ) -> RefreshSessionRotationResult:
         try:
             return await asyncio.to_thread(
                 self._rotate_refresh_session_sync,
@@ -218,6 +229,7 @@ class SQLiteOAuthStore:
                 current_refresh_token_hash,
                 new_refresh_token_hash,
                 encrypted_msal_cache,
+                max_rotations,
                 now,
             )
         except sqlite3.Error as exc:
@@ -334,7 +346,8 @@ class SQLiteOAuthStore:
                     updated_at INTEGER NOT NULL,
                     expires_at INTEGER NOT NULL,
                     revoked_at INTEGER,
-                    rotation_family TEXT NOT NULL
+                    rotation_family TEXT NOT NULL,
+                    rotation_count INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS oauth_refresh_token_history (
@@ -359,6 +372,15 @@ class SQLiteOAuthStore:
                     "ALTER TABLE oauth_transactions "
                     "ADD COLUMN protected_upstream_flow BLOB NOT NULL DEFAULT X''"
                 )
+            session_columns = {
+                row[1]
+                for row in connection.execute("PRAGMA table_info(oauth_sessions)")
+            }
+            if "rotation_count" not in session_columns:
+                connection.execute(
+                    "ALTER TABLE oauth_sessions "
+                    "ADD COLUMN rotation_count INTEGER NOT NULL DEFAULT 0"
+                )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS oauth_sessions_expires_at_idx "
                 "ON oauth_sessions(expires_at)"
@@ -372,7 +394,7 @@ class SQLiteOAuthStore:
                 "ON oauth_refresh_token_history(session_id)"
             )
             self._delete_terminal_oauth_rows(connection, int(time()))
-            connection.execute("PRAGMA user_version = 4")
+            connection.execute("PRAGMA user_version = 5")
 
     def _create_client_sync(self, client: OAuthClient) -> None:
         with self._connect() as connection:
@@ -564,8 +586,8 @@ class SQLiteOAuthStore:
                     id, issuer, client_id, tenant_id, user_id, scope,
                     resource, refresh_token_hash, encrypted_msal_cache,
                     created_at, updated_at, expires_at, revoked_at,
-                    rotation_family
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    rotation_family, rotation_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session.id,
@@ -582,6 +604,7 @@ class SQLiteOAuthStore:
                     session.expires_at,
                     session.revoked_at,
                     session.rotation_family,
+                    session.rotation_count,
                 ),
             )
 
@@ -612,13 +635,14 @@ class SQLiteOAuthStore:
         current_refresh_token_hash: str,
         new_refresh_token_hash: str,
         encrypted_msal_cache: bytes,
+        max_rotations: int,
         now: int,
-    ) -> bool:
+    ) -> RefreshSessionRotationResult:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             session = connection.execute(
                 """
-                SELECT rotation_family FROM oauth_sessions
+                SELECT rotation_family, rotation_count FROM oauth_sessions
                 WHERE issuer = ? AND id = ? AND client_id = ?
                   AND refresh_token_hash = ? AND revoked_at IS NULL
                   AND expires_at > ?
@@ -632,12 +656,33 @@ class SQLiteOAuthStore:
                 ),
             ).fetchone()
             if session is None:
-                return False
+                return RefreshSessionRotationResult.CONFLICT
+            if session["rotation_count"] >= max_rotations:
+                revoked = connection.execute(
+                    """
+                    UPDATE oauth_sessions SET revoked_at = ?, updated_at = ?
+                    WHERE issuer = ? AND id = ? AND client_id = ?
+                      AND refresh_token_hash = ? AND revoked_at IS NULL
+                      AND expires_at > ?
+                    """,
+                    (
+                        now,
+                        now,
+                        issuer,
+                        session_id,
+                        client_id,
+                        current_refresh_token_hash,
+                        now,
+                    ),
+                )
+                if revoked.rowcount != 1:
+                    return RefreshSessionRotationResult.CONFLICT
+                return RefreshSessionRotationResult.LIMIT_REACHED
             updated = connection.execute(
                 """
                 UPDATE oauth_sessions
                 SET refresh_token_hash = ?, encrypted_msal_cache = ?,
-                    updated_at = ?
+                    updated_at = ?, rotation_count = rotation_count + 1
                 WHERE issuer = ? AND id = ? AND client_id = ?
                   AND refresh_token_hash = ? AND revoked_at IS NULL
                   AND expires_at > ?
@@ -654,7 +699,7 @@ class SQLiteOAuthStore:
                 ),
             )
             if updated.rowcount != 1:
-                return False
+                return RefreshSessionRotationResult.CONFLICT
             connection.execute(
                 """
                 INSERT INTO oauth_refresh_token_history (
@@ -672,7 +717,7 @@ class SQLiteOAuthStore:
                 ),
             )
             self._delete_terminal_oauth_rows(connection, now)
-            return True
+            return RefreshSessionRotationResult.ROTATED
 
     def _revoke_refresh_session_sync(
         self,
@@ -709,24 +754,24 @@ class SQLiteOAuthStore:
         now: int,
     ) -> OAuthSession | None:
         with self._connect() as connection:
+            row = self._find_refresh_session_by_replay(
+                connection,
+                issuer,
+                refresh_token_hash,
+                client_id,
+                now,
+            )
+        if row is None:
+            return None
+        with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute(
-                """
-                SELECT sessions.*
-                FROM oauth_refresh_token_history AS history
-                JOIN oauth_sessions AS sessions
-                  ON sessions.id = history.session_id
-                 AND sessions.issuer = history.issuer
-                 AND sessions.client_id = history.client_id
-                 AND sessions.rotation_family = history.rotation_family
-                WHERE history.issuer = ?
-                  AND history.client_id = ?
-                  AND history.refresh_token_hash = ?
-                  AND sessions.revoked_at IS NULL
-                  AND sessions.expires_at > ?
-                """,
-                (issuer, client_id, refresh_token_hash, now),
-            ).fetchone()
+            row = self._find_refresh_session_by_replay(
+                connection,
+                issuer,
+                refresh_token_hash,
+                client_id,
+                now,
+            )
             if row is None:
                 return None
             updated = connection.execute(
@@ -749,6 +794,32 @@ class SQLiteOAuthStore:
             if updated.rowcount != 1:
                 return None
             return self._session_from_row(row, revoked_at=now)
+
+    @staticmethod
+    def _find_refresh_session_by_replay(
+        connection: sqlite3.Connection,
+        issuer: str,
+        refresh_token_hash: str,
+        client_id: str,
+        now: int,
+    ) -> sqlite3.Row | None:
+        return connection.execute(
+            """
+            SELECT sessions.*
+            FROM oauth_refresh_token_history AS history
+            JOIN oauth_sessions AS sessions
+              ON sessions.id = history.session_id
+             AND sessions.issuer = history.issuer
+             AND sessions.client_id = history.client_id
+             AND sessions.rotation_family = history.rotation_family
+            WHERE history.issuer = ?
+              AND history.client_id = ?
+              AND history.refresh_token_hash = ?
+              AND sessions.revoked_at IS NULL
+              AND sessions.expires_at > ?
+            """,
+            (issuer, client_id, refresh_token_hash, now),
+        ).fetchone()
 
     @staticmethod
     def _delete_terminal_oauth_rows(
@@ -847,4 +918,5 @@ class SQLiteOAuthStore:
             expires_at=row["expires_at"],
             revoked_at=revoked_at if revoked_at is not None else row["revoked_at"],
             rotation_family=row["rotation_family"],
+            rotation_count=row["rotation_count"],
         )

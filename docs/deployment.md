@@ -76,6 +76,7 @@ until live WorkBuddy acceptance is complete:
     OAUTH_DATABASE_PATH=/data/oauth.db
     OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
     OAUTH_REFRESH_TOKEN_TTL_DAYS=30
+    OAUTH_REFRESH_MAX_ROTATIONS=10000
     ENTRA_BROKER_CLIENT_ID=<app-b-client-id>
     ENTRA_BROKER_CLIENT_SECRET=<app-b-secret>
     ENTRA_BROKER_AUTHORITY=https://login.microsoftonline.com/organizations
@@ -91,7 +92,8 @@ database and key. v0.1 does not provide distributed or multi-host session storag
 
 Route `/.well-known/*`, `/oauth/*` and `/mcp/` through the same fixed public
 origin. Register `https://mcp.example.com/oauth/callback/entra` only on App B.
-Apply reverse-proxy request-size and rate limits to `/oauth/register`;
+Apply reverse-proxy request-size and rate limits to `/oauth/register`, and rate
+plus concurrency limits to `/oauth/token`;
 the application deliberately does not add Redis or an enterprise rate limiter.
 The production entry point disables Uvicorn request-line access logs because
 OAuth authorization and callback query strings contain sensitive transient

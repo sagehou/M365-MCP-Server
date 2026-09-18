@@ -51,8 +51,9 @@ Microsoft Revocation、Unusable Cache 或 Identity Mismatch 会吊销 Local Sess
     OAUTH_DATABASE_PATH=/data/oauth.db
     OAUTH_ENCRYPTION_KEY=<32-random-bytes-base64>
     OAUTH_REFRESH_TOKEN_TTL_DAYS=30
+    OAUTH_REFRESH_MAX_ROTATIONS=10000
 
-Public URL 必须与 Reverse-proxy Route 精确一致。应用不会从 Request Header 推导这些值。生产值必须使用 HTTPS；HTTP 仅允许 Loopback 开发。Encryption Key 必须留在 Database、Image、Repository 与 Log 之外；丢失 Key 会使已保存 Session 失效。
+Public URL 必须与 Reverse-proxy Route 精确一致。应用不会从 Request Header 推导这些值。生产值必须使用 HTTPS；HTTP 仅允许 Loopback 开发。Encryption Key 必须留在 Database、Image、Repository 与 Log 之外；丢失 Key 会使已保存 Session 失效。Rotation Limit 会限制单个 Session 的 Replay History 增长；达到上限后 Session 会被吊销，并要求重新执行 Interactive Authorization。
 
 ## Dynamic Registration Policy
 

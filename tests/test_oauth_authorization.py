@@ -194,9 +194,10 @@ def make_app(
     *,
     audit_logger: OAuthAuditLogger | None = None,
     broker: Any | None = None,
+    settings_overrides: dict[str, Any] | None = None,
     validator: Any | None = None,
 ):
-    settings = make_settings(database_path)
+    settings = make_settings(database_path, **(settings_overrides or {}))
     store = SQLiteOAuthStore(database_path)
     registry = DynamicClientRegistry(store, ISSUER, audit_logger=audit_logger)
     selected_broker = broker if broker is not None else FakeBroker()
@@ -858,6 +859,10 @@ def test_sqlite_store_migrates_pr2_transaction_schema(tmp_path: Path) -> None:
             row[1]
             for row in connection.execute("PRAGMA table_info(oauth_transactions)")
         }
+        session_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(oauth_sessions)")
+        }
         tables = {
             row[0]
             for row in connection.execute(
@@ -866,8 +871,9 @@ def test_sqlite_store_migrates_pr2_transaction_schema(tmp_path: Path) -> None:
         }
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
     assert "protected_upstream_flow" in columns
+    assert "rotation_count" in session_columns
     assert "oauth_refresh_token_history" in tables
-    assert user_version == 4
+    assert user_version == 5
 
 
 def test_authorization_flow_emits_safe_audit_metadata(
@@ -987,6 +993,41 @@ def test_refresh_allows_multiple_rotations_without_replay(tmp_path: Path) -> Non
     ]
 
 
+def test_refresh_rotation_limit_revokes_the_session(tmp_path: Path) -> None:
+    database_path = tmp_path / "oauth.db"
+    app, broker, _ = make_app(
+        database_path,
+        settings_overrides={"oauth_refresh_max_rotations": 2},
+    )
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        initial = authorize_and_redeem(client, client_id)
+        first = refresh_token(client, client_id, initial["refresh_token"])
+        second = refresh_token(client, client_id, first.json()["refresh_token"])
+        rejected = refresh_token(client, client_id, second.json()["refresh_token"])
+        retried = refresh_token(client, client_id, second.json()["refresh_token"])
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert rejected.status_code == 400
+    assert rejected.json()["error"] == "invalid_grant"
+    assert retried.status_code == 400
+    assert broker.refreshed_caches == [
+        "sensitive-msal-cache",
+        "refreshed-cache-1",
+    ]
+    with sqlite3.connect(database_path) as connection:
+        rotation_count, revoked_at = connection.execute(
+            "SELECT rotation_count, revoked_at FROM oauth_sessions"
+        ).fetchone()
+        history_count = connection.execute(
+            "SELECT COUNT(*) FROM oauth_refresh_token_history"
+        ).fetchone()[0]
+    assert rotation_count == 2
+    assert revoked_at is not None
+    assert history_count == 2
+
+
 def test_older_generation_replay_revokes_latest_successor(tmp_path: Path) -> None:
     app, _, _ = make_app(tmp_path / "oauth.db")
     with TestClient(app) as client:
@@ -1003,6 +1044,20 @@ def test_older_generation_replay_revokes_latest_successor(tmp_path: Path) -> Non
     assert replay.json()["error"] == "invalid_grant"
     assert latest.status_code == 400
     assert latest.json()["error"] == "invalid_grant"
+
+
+def test_unknown_refresh_token_does_not_wait_for_sqlite_writer(tmp_path: Path) -> None:
+    database_path = tmp_path / "oauth.db"
+    app, _, _ = make_app(database_path)
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        with sqlite3.connect(database_path) as writer:
+            writer.execute("BEGIN IMMEDIATE")
+            response = refresh_token(client, client_id, "z" * 43)
+            writer.rollback()
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_grant"
 
 
 def test_wrong_client_or_scope_does_not_consume_refresh_token(
@@ -1053,6 +1108,30 @@ def test_expired_and_revoked_refresh_sessions_are_rejected(tmp_path: Path) -> No
     assert expired.json()["error"] == "invalid_grant"
     assert revoked.status_code == 400
     assert revoked.json()["error"] == "invalid_grant"
+
+
+def test_refresh_token_hash_substitution_is_rejected(tmp_path: Path) -> None:
+    database_path = tmp_path / "oauth.db"
+    app, broker, _ = make_app(database_path)
+    attacker_token = "a" * 43
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        authorize_and_redeem(client, client_id)
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "UPDATE oauth_sessions SET refresh_token_hash = ?",
+                (hashlib.sha256(attacker_token.encode("utf-8")).hexdigest(),),
+            )
+        response = refresh_token(client, client_id, attacker_token)
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_grant"
+    assert broker.refreshed_caches == []
+    with sqlite3.connect(database_path) as connection:
+        revoked_at = connection.execute(
+            "SELECT revoked_at FROM oauth_sessions"
+        ).fetchone()[0]
+    assert revoked_at is not None
 
 
 def test_corrupt_encrypted_cache_revokes_session(tmp_path: Path) -> None:

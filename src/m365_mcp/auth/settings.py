@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     oauth_transaction_ttl_seconds: int = Field(default=600, ge=60, le=900)
     oauth_authorization_code_ttl_seconds: int = Field(default=600, ge=60, le=600)
     oauth_refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
+    oauth_refresh_max_rotations: int = Field(default=10_000, ge=1, le=10_000)
     oauth_encryption_key: SecretStr | None = None
     entra_broker_client_id: str | None = None
     entra_broker_client_secret: SecretStr | None = None

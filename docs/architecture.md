@@ -65,15 +65,17 @@ and do not know the SQLite schema.
 persists registered clients, atomically consumes Entra transactions and local
 authorization codes, and compare-and-swap rotates issuer-bound refresh sessions.
 Spent handle hashes remain linked to each rotation family so replay atomically
-revokes the active successor instead of only rejecting the stale request.
+revokes the active successor instead of only rejecting the stale request. Unknown
+handles take a read-only rejection path, while an atomically enforced per-session
+rotation counter bounds retained replay history.
 `MsalEntraAuthorizationBroker` is the true-external adapter for App B, while the
 existing `JwtValidator` revalidates Token A for App A before any local code is
 created. `OAuthSessionService` hides opaque-token hashing, encrypted MSAL cache
 persistence, silent refresh, identity rebinding checks, revocation and one-time
 rotation behind a small interface. The authorization-flow object, Token A and
 MSAL cache use AES-256-GCM under the configured restart-stable key, with
-record-specific authenticated context that binds ciphertext to immutable OAuth
-metadata.
+record-specific authenticated context that binds ciphertext to OAuth metadata,
+including the current local-handle hash and rotation count.
 
 The public resource and issuer URLs come only from `MCP_PUBLIC_URL` and
 `OAUTH_ISSUER_URL`; request Host and forwarded-host headers never define this

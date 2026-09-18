@@ -76,11 +76,14 @@ Set the externally reachable URLs explicitly:
     OAUTH_DATABASE_PATH=/data/oauth.db
     OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
     OAUTH_REFRESH_TOKEN_TTL_DAYS=30
+    OAUTH_REFRESH_MAX_ROTATIONS=10000
 
 The public URLs must match the reverse-proxy routes exactly. The application does
 not derive them from request headers. Production values require HTTPS; HTTP is
 accepted only for loopback development. The encryption key must remain outside
 the database, image, repository and logs; losing it invalidates stored sessions.
+The rotation limit bounds replay-history growth for one session; reaching it
+revokes the session and requires interactive authorization again.
 
 ## Dynamic registration policy
 

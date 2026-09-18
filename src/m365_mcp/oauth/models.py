@@ -174,6 +174,7 @@ class OAuthSession:
     expires_at: int
     revoked_at: int | None
     rotation_family: str
+    rotation_count: int
 
 
 @dataclass(frozen=True, slots=True)

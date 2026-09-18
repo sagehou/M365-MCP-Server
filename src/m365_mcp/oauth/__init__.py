@@ -26,6 +26,7 @@ from .store import (
     OAuthClientAlreadyExistsError,
     OAuthStore,
     OAuthStoreError,
+    RefreshSessionRotationResult,
     SQLiteOAuthStore,
 )
 
@@ -47,6 +48,7 @@ __all__ = [
     "OAuthProtocolError",
     "OAuthStore",
     "OAuthStoreError",
+    "RefreshSessionRotationResult",
     "SQLiteOAuthStore",
     "TokenProtectionError",
     "TokenProtector",

@@ -132,9 +132,10 @@ Token A is revalidated by the existing `JwtValidator` before a random, hashed,
 single-use local code is created. Browser redirects contain only that local code
 and the original WorkBuddy state. The Entra authorization-flow object, Token A
 and MSAL cache are encrypted with AES-256-GCM before being written to SQLite.
-Each ciphertext authenticates its artifact type and immutable transaction, code
-or session metadata, so an intact encrypted bundle cannot be moved to another
-OAuth record.
+Each ciphertext authenticates its artifact type and record metadata. Refresh
+session ciphertext additionally binds the current local-handle hash and rotation
+count, and is resealed on each successful rotation, so database-only credential
+substitution cannot reuse an intact encrypted cache.
 `OAUTH_ENCRYPTION_KEY` must decode from base64 to exactly 32 bytes and is required
 whenever OAuth is enabled. The key is not stored in SQLite.
 
@@ -147,7 +148,10 @@ the session is reclaimed. Concurrent or replayed use of any old handle returns
 `invalid_grant` and atomically revokes the active family, including an
 attacker-first successor. Microsoft revocation, corrupt cache or identity mismatch
 revokes the local session. Transient Microsoft or identity-metadata failures do
-not consume the current handle.
+not consume the current handle. Replay misses are rejected by a read-only history
+lookup before SQLite write intent is acquired. Each successful rotation increments
+an atomically enforced counter; `OAUTH_REFRESH_MAX_ROTATIONS` bounds history growth,
+and reaching the limit revokes the session.
 
 During initialization and normal OAuth writes, the SQLite adapter reclaims
 expired/completed transactions, expired/used codes, expired sessions and old
