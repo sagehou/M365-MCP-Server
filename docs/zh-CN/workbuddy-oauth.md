@@ -47,11 +47,11 @@ Package 明确不包含 `auth_mode`、Request Header、Token 字段或 `token-sc
 3. Server 保存 WorkBuddy State，并生成不同的 Cryptographically Random Entra State，再启动 MSAL Authorization。
 4. `/oauth/callback` 原子消费 Transaction，由 MSAL 兑换 Microsoft Code，再通过现有 `JwtValidator` 复验 Token A。
 5. Browser 只会把 `code=<local-code>&state=<original-state>` 发送到 Exact Registered Redirect。
-6. `/oauth/token` 在 Exact Client、Redirect 与 PKCE 校验通过后原子兑换 Local Code，返回 Token A 与 Random Local Refresh Token；第二次兑换返回 `invalid_grant`。
+6. `/oauth/token` 接受 RFC 8707 `resource` Indicator；提供时必须与 `MCP_PUBLIC_URL` 精确匹配，并在 Exact Client、Redirect 与 PKCE 校验通过后原子兑换 Local Code，返回 Token A 与 Random Local Refresh Token；第二次兑换返回 `invalid_grant`。
 
 ## Refresh Flow
 
-1. WorkBuddy 发送 `grant_type=refresh_token`、Public `client_id` 与当前 Opaque Local Refresh Token。
+1. WorkBuddy 发送 `grant_type=refresh_token`、Public `client_id`、当前 Opaque Local Refresh Token，以及提供时相同的 `resource`。
 2. Server 对 Handle 做 Hash，并查找绑定到 Configured Issuer 和 Client、尚未过期且未吊销的 Session。
 3. 打开 Encrypted MSAL Cache，强制执行 MSAL Silent Token Acquisition；结果 Token A 再次通过 Validator，并且必须与原 Session 的 Tenant/User 一致。
 4. SQLite 使用 Compare-and-swap 把旧 Handle Hash 与 Encrypted Cache 替换为新值；已消费 Hash 会继续绑定 Rotation Family。

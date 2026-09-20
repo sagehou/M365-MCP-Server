@@ -297,17 +297,18 @@ def redeem_code(
     *,
     verifier: str = VERIFIER,
     redirect_uri: str = REDIRECT_URI,
+    resource: str | None = None,
 ):
-    return client.post(
-        "/oauth/token",
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "code_verifier": verifier,
-        },
-    )
+    data = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "code_verifier": verifier,
+    }
+    if resource is not None:
+        data["resource"] = resource
+    return client.post("/oauth/token", data=data)
 
 
 def refresh_token(
@@ -316,6 +317,7 @@ def refresh_token(
     token: str,
     *,
     scope: str | None = None,
+    resource: str | None = None,
 ):
     data = {
         "grant_type": "refresh_token",
@@ -324,6 +326,8 @@ def refresh_token(
     }
     if scope is not None:
         data["scope"] = scope
+    if resource is not None:
+        data["resource"] = resource
     return client.post("/oauth/token", data=data)
 
 
@@ -445,6 +449,53 @@ def test_wrong_pkce_or_client_does_not_consume_valid_code(tmp_path: Path) -> Non
     assert wrong_redirect.json()["error"] == "invalid_grant"
     assert valid.status_code == 200
     assert len(entra_client.completed_flows) == 1
+
+
+def test_wrong_token_resource_does_not_consume_code_or_refresh_token(
+    tmp_path: Path,
+) -> None:
+    app, _, _ = make_app(tmp_path / "oauth.db")
+    with TestClient(app) as client:
+        client_id = register_client(client)
+        authorization = begin_authorization(client, client_id)
+        upstream_state = parse_qs(
+            urlsplit(authorization.headers["location"]).query
+        )["state"][0]
+        callback = complete_authorization(client, upstream_state)
+        local_code = local_code_from_redirect(callback.headers["location"])
+
+        wrong_code_resource = redeem_code(
+            client,
+            client_id,
+            local_code,
+            resource="https://attacker.example/mcp/",
+        )
+        valid_code_resource = redeem_code(
+            client,
+            client_id,
+            local_code,
+            resource=RESOURCE,
+        )
+        issued_refresh_token = valid_code_resource.json()["refresh_token"]
+        wrong_refresh_resource = refresh_token(
+            client,
+            client_id,
+            issued_refresh_token,
+            resource="https://attacker.example/mcp/",
+        )
+        valid_refresh_resource = refresh_token(
+            client,
+            client_id,
+            issued_refresh_token,
+            resource=RESOURCE,
+        )
+
+    assert wrong_code_resource.status_code == 400
+    assert wrong_code_resource.json()["error"] == "invalid_target"
+    assert valid_code_resource.status_code == 200
+    assert wrong_refresh_resource.status_code == 400
+    assert wrong_refresh_resource.json()["error"] == "invalid_target"
+    assert valid_refresh_resource.status_code == 200
 
 
 def test_new_authorization_reclaims_terminal_transaction_and_code_rows(
@@ -739,6 +790,65 @@ def test_token_endpoint_requires_form_encoding_and_rejects_duplicates(
     assert duplicate_response.json()["error"] == "invalid_request"
 
 
+def test_token_validation_failure_emits_safe_structured_audit(
+    tmp_path: Path,
+    caplog: Any,
+) -> None:
+    logger = logging.getLogger("test.oauth.token.audit")
+    audit_logger = OAuthAuditLogger(logger)
+    app, _, _ = make_app(
+        tmp_path / "oauth.db",
+        audit_logger=audit_logger,
+    )
+    unexpected_secret = "unexpected-sensitive-token-metadata"
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        with TestClient(app) as client:
+            client_id = register_client(client)
+            authorization = begin_authorization(client, client_id)
+            upstream_state = parse_qs(
+                urlsplit(authorization.headers["location"]).query
+            )["state"][0]
+            callback = complete_authorization(client, upstream_state)
+            local_code = local_code_from_redirect(callback.headers["location"])
+            rejected = client.post(
+                "/oauth/token",
+                data={
+                    "grant_type": "authorization_code",
+                    "code": local_code,
+                    "client_id": client_id,
+                    "redirect_uri": REDIRECT_URI,
+                    "code_verifier": VERIFIER,
+                    "resource": RESOURCE,
+                    "unexpected": unexpected_secret,
+                },
+            )
+            valid = redeem_code(
+                client,
+                client_id,
+                local_code,
+                resource=RESOURCE,
+            )
+
+    assert rejected.status_code == 400
+    assert rejected.json()["error"] == "invalid_request"
+    assert valid.status_code == 200
+    failures = [
+        record
+        for record in caplog.records
+        if getattr(record, "event", None) == "oauth_token_failed"
+    ]
+    assert len(failures) == 1
+    failure = failures[0]
+    assert failure.grant_type == "authorization_code"
+    assert failure.error_type == "ValidationError"
+    assert failure.oauth_error == "invalid_request"
+    assert failure.status_code == 400
+    assert failure.result == "error"
+    for secret in (local_code, VERIFIER, unexpected_secret):
+        assert secret not in caplog.text
+
+
 def test_msal_entra_client_reuses_single_app_and_api_scope(tmp_path: Path) -> None:
     settings = make_settings(tmp_path / "oauth.db")
     created: list[dict[str, Any]] = []
@@ -895,6 +1005,7 @@ def test_authorization_flow_emits_safe_audit_metadata(
         "oauth_client_registered",
         "oauth_authorization_started",
         "entra_authorization_succeeded",
+        "oauth_authorization_code_issued",
         "oauth_code_redeemed",
     ]
     assert all(record.client_id == client_id for record in records)

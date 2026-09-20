@@ -255,6 +255,10 @@ class OAuthAuthorizationService:
                 transaction,
                 "temporarily_unavailable",
             )
+        self.audit_logger.authorization_code_issued(
+            transaction.client_id,
+            transaction.transaction_id_hash,
+        )
         return self._append_authorization_result(
             transaction.redirect_uri,
             local_code,
@@ -265,6 +269,7 @@ class OAuthAuthorizationService:
         self,
         request: OAuthAuthorizationCodeTokenRequest,
     ) -> OAuthTokenResponse:
+        self._validate_token_resource(request.resource)
         if not _PKCE_VERIFIER.fullmatch(request.code_verifier):
             raise OAuthProtocolError("invalid_grant", "authorization code is invalid")
         verifier_challenge = self._pkce_challenge(request.code_verifier)
@@ -336,6 +341,7 @@ class OAuthAuthorizationService:
         self,
         request: OAuthRefreshTokenRequest,
     ) -> OAuthTokenResponse:
+        self._validate_token_resource(request.resource)
         await self._registered_client_for_grant(
             request.client_id,
             "refresh_token",
@@ -376,6 +382,10 @@ class OAuthAuthorizationService:
                 "requested scope is not supported",
             )
         return " ".join(sorted(requested))
+
+    def _validate_token_resource(self, resource: str | None) -> None:
+        if resource is not None and resource != self.settings.mcp_public_url:
+            raise OAuthProtocolError("invalid_target", "resource is not supported")
 
     @staticmethod
     def _hash_secret(value: str) -> str:

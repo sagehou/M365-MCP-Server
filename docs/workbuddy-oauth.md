@@ -74,14 +74,15 @@ root.
    `JwtValidator`.
 5. The browser receives only `code=<local-code>&state=<original-state>` at the
    exact registered redirect.
-6. `/oauth/token` atomically redeems the local code after exact client, redirect
-   and PKCE verification. It returns Token A plus a random local refresh token;
-   a second code redemption returns `invalid_grant`.
+6. `/oauth/token` accepts the RFC 8707 `resource` indicator, requires it to match
+   `MCP_PUBLIC_URL` when present, and atomically redeems the local code after
+   exact client, redirect and PKCE verification. It returns Token A plus a random
+   local refresh token; a second code redemption returns `invalid_grant`.
 
 ## Refresh flow
 
-1. WorkBuddy sends `grant_type=refresh_token`, its public `client_id` and the
-   current opaque local refresh token.
+1. WorkBuddy sends `grant_type=refresh_token`, its public `client_id`, the
+   current opaque local refresh token and, when supplied, the same `resource`.
 2. The server hashes the handle and resolves an unexpired, non-revoked session
    bound to the configured issuer and client.
 3. The encrypted MSAL cache is opened and MSAL performs a forced silent token
