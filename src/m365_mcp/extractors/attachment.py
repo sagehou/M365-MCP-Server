@@ -65,6 +65,15 @@ class TextAttachmentExtractor:
         return content.decode("utf-8-sig", errors="replace")
 
 
+class MarkdownAttachmentExtractor:
+    format_name = "markdown"
+    extensions = frozenset({".md", ".markdown"})
+    media_types = frozenset({"text/markdown", "text/x-markdown"})
+
+    def extract(self, content: bytes) -> str:
+        return content.decode("utf-8-sig", errors="replace")
+
+
 class PdfAttachmentExtractor:
     format_name = "pdf"
     extensions = frozenset({".pdf"})
@@ -273,7 +282,7 @@ class AttachmentExtractorRegistry:
         handler = self._by_extension.get(extension) or self._by_media_type.get(media_type)
         if handler is None:
             raise UnsupportedAttachmentError(
-                "Attachment format is not supported; use PDF, DOCX, XLSX, PPTX, or TXT"
+                "Attachment format is not supported; use PDF, DOCX, XLSX, PPTX, TXT, or Markdown"
             )
         return handler
 
@@ -304,6 +313,7 @@ def default_extractors() -> tuple[AttachmentExtractor, ...]:
 
     return (
         TextAttachmentExtractor(),
+        MarkdownAttachmentExtractor(),
         PdfAttachmentExtractor(),
         DocxAttachmentExtractor(),
         XlsxAttachmentExtractor(),

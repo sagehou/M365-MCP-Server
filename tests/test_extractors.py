@@ -97,6 +97,29 @@ def test_builtin_extractors_read_supported_formats() -> None:
     assert "PPTX body" in pptx.content
 
 
+@pytest.mark.parametrize(
+    ("name", "content_type"),
+    [
+        ("notes.md", "application/octet-stream"),
+        ("notes", "text/markdown; charset=utf-8"),
+        ("notes.markdown", "text/x-markdown"),
+    ],
+)
+def test_markdown_extractor_resolves_extension_and_media_type(
+    name: str, content_type: str
+) -> None:
+    result = AttachmentExtractorRegistry().extract(
+        AttachmentInput(
+            name=name,
+            content_type=content_type,
+            content=b"# Markdown body",
+        )
+    )
+
+    assert result.format == "markdown"
+    assert result.content == "# Markdown body"
+
+
 def test_extractor_enforces_byte_and_text_limits() -> None:
     registry = AttachmentExtractorRegistry(max_bytes=4, max_text_chars=10)
 
