@@ -84,6 +84,26 @@ def test_mail_read_attachment_extracts_text_without_returning_base64() -> None:
     assert "contentBytes" not in result
 
 
+def test_mail_read_attachment_extracts_markdown() -> None:
+    payload = b"# Incident notes\n\nAttachment body"
+    service_stub = StubMailService(
+        {
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "id": "attachment-1",
+            "name": "notes.md",
+            "contentType": "text/markdown; charset=utf-8",
+            "size": len(payload),
+            "contentBytes": base64.b64encode(payload).decode("ascii"),
+        }
+    )
+    service = MailToolService(service_stub)  # type: ignore[arg-type]
+
+    result = asyncio.run(service.read_attachment(make_context(), "message-1", "attachment-1"))
+
+    assert result["attachment"]["format"] == "markdown"
+    assert result["content"] == "# Incident notes\n\nAttachment body"
+
+
 def test_mail_read_attachment_rejects_item_attachments() -> None:
     service_stub = StubMailService(
         {
