@@ -9,6 +9,7 @@ from threading import Barrier
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+import pytest
 from fastapi.testclient import TestClient
 
 from m365_mcp.app import create_app
