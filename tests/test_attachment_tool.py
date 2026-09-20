@@ -201,9 +201,11 @@ def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
             context: AuthContext,
             message_id: str,
         ) -> GraphResponse:
+            metadata = dict(self.data)
+            metadata.pop("contentBytes")
             return GraphResponse(
                 status_code=200,
-                data={"value": [self.data]},
+                data={"value": [metadata]},
                 request_id=None,
                 headers={},
             )
@@ -229,7 +231,7 @@ def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
         service.download_attachment(make_context(), "message-1", "attachment-1")
     )
 
-    assert listed["attachments"][0]["size"] == len(payload)
+    assert "size" not in listed["attachments"][0]
     assert listed["attachments"][0]["reported_size"] == reported_size
     assert read["attachment"]["size"] == len(payload)
     assert read["attachment"]["reported_size"] == reported_size
