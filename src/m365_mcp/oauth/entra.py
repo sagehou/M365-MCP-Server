@@ -122,7 +122,7 @@ class MsalEntraAuthorizationClient:
             result = application.acquire_token_by_auth_code_flow(
                 auth_code_flow=flow,
                 auth_response=authorization_response,
-                scopes=list(self.settings.entra_authorization_scopes),
+                scopes=list(self.settings.entra_token_scopes),
             )
             serialized_cache = cache.serialize()
         except Exception as exc:
@@ -149,7 +149,7 @@ class MsalEntraAuthorizationClient:
                     "Microsoft session requires interactive authorization"
                 )
             result = application.acquire_token_silent_with_error(
-                scopes=list(self.settings.entra_authorization_scopes),
+                scopes=list(self.settings.entra_token_scopes),
                 account=accounts[0],
                 force_refresh=True,
             )

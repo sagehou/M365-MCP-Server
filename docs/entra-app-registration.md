@@ -173,6 +173,12 @@ Microsoft Graph currently supports the delegated `Mail.ReadWrite` permission for
 
 `Mail.Send` is deliberately not required by the current MVP. Add the **delegated** `Mail.Send` permission only if the project later implements an approved send-mail tool.
 
+Do not grant tenant-wide admin consent merely to complete the baseline setup. The
+server includes these explicit delegated scopes in the interactive authorization
+request, so the signed-in user can consent when tenant policy permits. A blank
+**Status** column means consent has not yet been granted; it does not require the
+administrator button when **Admin consent required** is `No`.
+
 ## 7. Create the confidential client credential
 
 The same application must authenticate itself to Microsoft Entra for both the
@@ -218,9 +224,21 @@ Do not set `CLIENT_SECRET` when certificate authentication is used.
 
 For an organizational user in another Microsoft Entra tenant, the multitenant application needs a service principal (Enterprise Application) in that tenant and the downstream Graph delegated permissions must be consented there.
 
-### Recommended enterprise test path: tenant-wide admin consent
+### Default path: per-user delegated consent
 
-Sign in as an authorized administrator in the target tenant and open:
+When WorkBuddy starts authorization, the server asks the user to consent to the
+MCP `access_as_user` scope and the explicit `GRAPH_CONSENT_SCOPES` in one
+authorization interaction. The authorization-code exchange requests Token A only
+for the MCP resource; Graph access still uses OBO afterward.
+
+No administrator click is required when the target tenant permits user consent
+for all requested delegated permissions. The first user sign-in also provisions
+the Enterprise Application in that tenant.
+
+### Optional policy fallback: tenant-wide admin consent
+
+If the target tenant disables user consent or applies a policy that requires
+administrator approval, sign in as an authorized administrator and open:
 
 ```text
 https://login.microsoftonline.com/<TARGET-TENANT-ID>/adminconsent?client_id=<MCP_API_CLIENT_ID>
@@ -261,6 +279,7 @@ AUDIENCE=
 ALLOWED_TENANTS=<TARGET-TENANT-ID>
 REQUIRED_SCOPES=access_as_user
 GRAPH_SCOPES=https://graph.microsoft.com/.default
+GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
 GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 ```
 
@@ -297,16 +316,21 @@ The App Registration home tenant ID is not used as the OBO authority for another
 ## 10. One App Registration, two roles
 
 The `M365-MCP-Server` registration is both the resource / OBO middle-tier API and
-the confidential interactive OAuth client. It requests its own exposed scope:
+the confidential interactive OAuth client. The authorization request includes
+its own exposed scope plus the explicit downstream consent scopes:
 
 A client must first obtain token A for:
 
 ```text
 api://<MCP_API_CLIENT_ID>/access_as_user
+https://graph.microsoft.com/User.Read
+https://graph.microsoft.com/Mail.ReadWrite
 ```
 
-MSAL obtains Token A for that scope, and WorkBuddy sends Token A to `/mcp/` as a
-bearer token. The server validates Token A before performing OBO to Graph.
+MSAL redeems the authorization code only for the MCP scope, so Token A remains an
+MCP API token. WorkBuddy sends Token A to `/mcp/` as a bearer token, and the
+server validates it before performing `.default` OBO to Graph. The additional
+Graph scopes obtain user consent; they do not return a Graph token to WorkBuddy.
 
 Current repository status:
 
@@ -343,6 +367,7 @@ Current repository status:
    OAUTH_ENABLED=true
    OAUTH_DATABASE_PATH=/data/oauth.db
    OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
+   GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
    ```
 
 MSAL automatically manages its reserved OpenID scopes. The returned Token A is
@@ -416,7 +441,13 @@ For organizational tenants check:
 
 - `access_as_user` is enabled under **Expose an API**
 - M365-MCP-Server enterprise application exists in the target tenant
-- target tenant has consented `User.Read` and `Mail.ReadWrite`
+- `GRAPH_CONSENT_SCOPES` contains explicit `User.Read` and `Mail.ReadWrite`
+- the user reconnected after this interactive-consent behavior was deployed
+- target-tenant user-consent policy permits these delegated permissions
+
+If tenant policy permits user consent, disconnect and reconnect WorkBuddy so the
+authorization request can show the missing permissions. Use tenant-wide admin
+consent only when tenant policy rejects per-user consent.
 
 When a mail tool reports `OboTokenError`, the server audit event includes strictly
 filtered `entra_error`, `entra_suberror`, `entra_error_code`, and `correlation_id`

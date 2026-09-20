@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     graph_scopes: tuple[str, ...] = (
         "https://graph.microsoft.com/.default",
     )
+    graph_consent_scopes: tuple[str, ...] = (
+        "https://graph.microsoft.com/User.Read",
+        "https://graph.microsoft.com/Mail.ReadWrite",
+    )
     graph_base_url: str = "https://graph.microsoft.com/v1.0"
     graph_max_retries: int = Field(default=3, ge=0, le=5)
     graph_retry_backoff_seconds: float = Field(default=0.5, ge=0, allow_inf_nan=False)
@@ -81,10 +85,42 @@ class Settings(BaseSettings):
             raise ValueError("ALLOWED_TENANTS '*' cannot be combined with tenant IDs")
         return value
 
-    @field_validator("graph_scopes", mode="before")
+    @field_validator("graph_scopes", "graph_consent_scopes", mode="before")
     @classmethod
     def normalize_scopes(cls, value: Any) -> tuple[str, ...]:
         return tuple(_split_values(value) or ())
+
+    @field_validator("graph_consent_scopes")
+    @classmethod
+    def validate_graph_consent_scopes(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        for scope in value:
+            parsed = urlsplit(scope)
+            permission = parsed.path.removeprefix("/")
+            if (
+                not scope.isascii()
+                or any(character.isspace() for character in scope)
+                or parsed.scheme.casefold() != "https"
+                or parsed.hostname is None
+                or parsed.hostname.casefold() != "graph.microsoft.com"
+                or parsed.port is not None
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+                or not permission
+                or "/" in permission
+                or permission.casefold() == ".default"
+                or not permission[0].isalpha()
+                or not all(
+                    character.isalnum() or character == "."
+                    for character in permission
+                )
+            ):
+                raise ValueError(
+                    "GRAPH_CONSENT_SCOPES must contain explicit Microsoft Graph "
+                    "delegated scopes"
+                )
+        return value
 
     @field_validator("authority_host")
     @classmethod
@@ -183,13 +219,19 @@ class Settings(BaseSettings):
         return f"{self.normalized_oauth_issuer_url}/oauth/callback"
 
     @property
-    def entra_authorization_scopes(self) -> tuple[str, ...]:
+    def entra_token_scopes(self) -> tuple[str, ...]:
         if not self.client_id:
             raise ConfigurationError("CLIENT_ID is not configured")
         return tuple(
             f"api://{self.client_id}/{scope}"
             for scope in sorted(self.required_scopes)
         )
+
+    @property
+    def entra_authorization_scopes(self) -> tuple[str, ...]:
+        """Request MCP access and downstream delegated consent in one interaction."""
+
+        return (*self.entra_token_scopes, *self.graph_consent_scopes)
 
     @property
     def entra_authority(self) -> str:
@@ -246,6 +288,8 @@ class Settings(BaseSettings):
         missing: list[str] = []
         if self.oauth_encryption_key is None:
             missing.append("OAUTH_ENCRYPTION_KEY")
+        if not self.graph_consent_scopes:
+            missing.append("GRAPH_CONSENT_SCOPES")
         if missing:
             raise ConfigurationError(
                 "OAuth authorization configuration is incomplete: "

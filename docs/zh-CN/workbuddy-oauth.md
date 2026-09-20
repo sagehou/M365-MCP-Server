@@ -99,7 +99,7 @@ Public HTTP Redirect、Malformed Private Scheme、Fragment、Wildcard Match、Pr
 
     http://localhost:8000/oauth/callback
 
-MSAL 请求同一个 App 的 `api://<CLIENT_ID>/access_as_user` Scope，并按需要加入 Reserved OpenID Scopes。Interactive Client 不直接请求 Graph Token；MCP API 接收 Token A 后仍通过现有 OBO 链路访问 Graph。不存在第二个 Entra App，也不存在第二套 Client Credential 配置。
+MSAL 会让用户同时授权同一个 App 的 `api://<CLIENT_ID>/access_as_user` Scope 与显式 Graph Delegated Consent Scopes（默认 `User.Read`、`Mail.ReadWrite`）。代码兑换 Authorization Code 时只请求 Token A 的 MCP Resource，因此 WorkBuddy 收到的仍是 MCP API Token，而不是 Graph Token；MCP API 接收 Token A 后继续通过现有 `.default` OBO 链路访问 Graph。不存在第二个 Entra App，也不存在第二套 Client Credential 配置。即使某项 Delegated Permission 默认不要求管理员，Tenant Policy 仍可能要求管理员批准。
 
 ## 自动测试与真实验收边界
 

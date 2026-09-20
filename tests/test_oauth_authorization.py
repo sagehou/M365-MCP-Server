@@ -849,7 +849,9 @@ def test_token_validation_failure_emits_safe_structured_audit(
         assert secret not in caplog.text
 
 
-def test_msal_entra_client_reuses_single_app_and_api_scope(tmp_path: Path) -> None:
+def test_msal_entra_client_requests_graph_consent_but_redeems_api_token(
+    tmp_path: Path,
+) -> None:
     settings = make_settings(tmp_path / "oauth.db")
     created: list[dict[str, Any]] = []
 
@@ -868,11 +870,16 @@ def test_msal_entra_client_reuses_single_app_and_api_scope(tmp_path: Path) -> No
             state: str | None = None,
             **kwargs: Any,
         ) -> dict[str, Any]:
-            assert scopes == [f"api://{API_CLIENT_ID}/access_as_user"]
+            assert scopes == [
+                f"api://{API_CLIENT_ID}/access_as_user",
+                "https://graph.microsoft.com/User.Read",
+                "https://graph.microsoft.com/Mail.ReadWrite",
+            ]
             assert redirect_uri == f"{ISSUER}/oauth/callback"
             return {
                 "auth_uri": f"https://login.microsoftonline.com/auth?state={state}",
                 "state": state,
+                "scope": scopes,
                 "code_verifier": "upstream-verifier",
             }
 
@@ -885,6 +892,7 @@ def test_msal_entra_client_reuses_single_app_and_api_scope(tmp_path: Path) -> No
         ) -> dict[str, Any]:
             assert auth_code_flow["state"] == auth_response["state"]
             assert scopes == [f"api://{API_CLIENT_ID}/access_as_user"]
+            assert set(scopes).issubset(auth_code_flow["scope"])
             return {"access_token": "token-a", "expires_in": 3210}
 
     entra_client = MsalEntraAuthorizationClient(
@@ -928,6 +936,20 @@ def test_oauth_enabled_fails_closed_without_single_app_credential(
         assert "exactly one of CLIENT_SECRET or CLIENT_CERT_PATH" in str(exc)
     else:
         raise AssertionError("OAuth must fail closed without the single app credential")
+
+
+def test_oauth_enabled_fails_closed_without_graph_consent_scopes(
+    tmp_path: Path,
+) -> None:
+    settings = make_settings(
+        tmp_path / "oauth.db",
+        graph_consent_scopes=(),
+    )
+
+    with pytest.raises(ConfigurationError) as error:
+        create_app(settings=settings, mail_service=object())
+
+    assert "GRAPH_CONSENT_SCOPES" in str(error.value)
 
 
 def test_sqlite_store_migrates_pr2_transaction_schema(tmp_path: Path) -> None:

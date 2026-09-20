@@ -141,6 +141,20 @@ def test_wildcard_cannot_be_combined_with_explicit_tenant_ids() -> None:
         make_settings(allowed_tenants={"*", TENANT_ID})
 
 
+@pytest.mark.parametrize(
+    "scope",
+    [
+        "https://graph.microsoft.com/.default",
+        "https://graph.microsoft.com/User.Read extra",
+        "https://graph.microsoft.com/User.Read%0A",
+        "https://evil.example/User.Read",
+    ],
+)
+def test_graph_consent_requires_explicit_graph_delegated_scopes(scope: str) -> None:
+    with pytest.raises(ValidationError):
+        make_settings(graph_consent_scopes=[scope])
+
+
 def test_obo_uses_allowlisted_tenant_and_configured_graph_scope() -> None:
     calls: list[dict[str, Any]] = []
 

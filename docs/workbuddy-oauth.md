@@ -154,10 +154,14 @@ For local development, register this separate loopback Web redirect URI:
 
     http://localhost:8000/oauth/callback
 
-MSAL requests the same app's `api://<CLIENT_ID>/access_as_user` scope and adds
-its reserved OpenID scopes as required. The interactive client does not request
-a Graph token directly; after Token A is accepted, the MCP API performs the
-existing OBO exchange. There is no second Entra app or second credential set.
+MSAL asks the user to authorize the same app's
+`api://<CLIENT_ID>/access_as_user` scope together with the explicit delegated
+Graph consent scopes (`User.Read` and `Mail.ReadWrite` by default). The code
+redeems the authorization code only for Token A's MCP resource, so WorkBuddy
+still receives an MCP API token rather than a Graph token. After Token A is
+accepted, the MCP API performs the existing `.default` OBO exchange. There is no
+second Entra app or second credential set. Tenant policy can still require admin
+approval even when a delegated permission does not require it by default.
 
 ## Automated and live acceptance boundary
 

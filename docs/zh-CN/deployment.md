@@ -107,7 +107,7 @@ OAuth Module 已提供 Discovery Metadata、Dynamic Public-client Registration�
 ## Entra / Client 前置条件与验收
 
 1. 只注册一个名为 `M365-MCP-Server` 的 Application，暴露 `access_as_user` Delegated Scope，并使用 v2 Access Token。`CLIENT_ID`、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 必须对应这个 Registration。`ALLOWED_TENANTS` 要么填写逗号分隔的 Tenant Allowlist，要么明确填写 `*`。除非确实需要覆盖默认 Audience 行为，否则 `AUDIENCE` 留空即可。
-2. 授予 Graph Delegated `User.Read` 和 `Mail.ReadWrite`，并在目标租户完成所需 Consent。不要授予 Application Mailbox Permissions 或 `Mail.Send`；当前没有发信工具。
+2. 配置 Graph Delegated `User.Read` 和 `Mail.ReadWrite`。Interactive Sign-in 会请求这两个 Scope；目标 Tenant Policy 允许时，每个用户自行 Consent。Tenant-wide Admin Consent 只是策略兜底，不是默认配置。不要授予 Application Mailbox Permissions 或 `Mail.Send`；当前没有发信工具。
 3. 只配置一种 Credential。使用证书时，将 PEM Private Key 以只读方式挂载进容器，把 `CLIENT_CERT_PATH` 设置为容器内路径，并设置 `CLIENT_CERT_THUMBPRINT`。只填写宿主机路径并不会自动挂载文件。Compose Override 可使用：`./secrets/client.pem:/run/secrets/client.pem:ro`。
 4. 在同一 App Registration 中增加 `https://<your-host>/oauth/callback` Web Callback。Interactive Sign-in 复用现有 `CLIENT_ID` 和 Client Credential，不存在第二个 Registration 或第二套 Credential 配置。Interactive Sign-in、Local Authorization-code Exchange 与 Persistent Refresh 仍位于默认关闭的 Feature Flag 后；真实 WorkBuddy 验收仍是 Release Blocker。
 5. 确认 `/healthz` 返回 200，未带 Bearer Token 的 `/mcp/` 返回 401。这两个检查不能证明 Tenant Credential、Graph Consent 或 OBO 已正确工作。

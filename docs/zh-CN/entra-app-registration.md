@@ -171,6 +171,8 @@ Microsoft Graph 当前明确支持个人 Microsoft 账户对 Delegated `Mail.Rea
 
 当前 MVP 不需要 `Mail.Send`。未来只有在项目正式实现并批准发信工具后，才增加 **Delegated** `Mail.Send`。
 
+基础配置不需要仅为此点击 Tenant-wide Admin Consent。Server 会在 Interactive Authorization Request 中加入这些显式 Delegated Scopes；Tenant Policy 允许时，当前登录用户可以自行 Consent。**状态**列为空只表示尚未 Consent；当**需要管理员同意**为“否”时，并不表示必须点击管理员按钮。
+
 ## 7. 创建 Confidential Client Credential
 
 同一个 Application 必须在 Interactive Authorization-code Exchange 与 OBO Middle-tier Exchange 中向 Microsoft Entra 证明自身身份。
@@ -215,9 +217,15 @@ CLIENT_CERT_THUMBPRINT=<certificate-thumbprint>
 
 对于另一个 Microsoft Entra Tenant 中的组织用户，Multitenant Application 需要在目标 Tenant 中生成 Service Principal（Enterprise Application），并在该 Tenant 对下游 Microsoft Graph Delegated Permissions 完成 Consent。
 
-### 推荐企业测试路径：Tenant-wide Admin Consent
+### 默认路径：用户自行 Delegated Consent
 
-使用目标 Tenant 中具备权限的管理员访问：
+WorkBuddy 发起 Authorization 时，Server 会在同一次用户交互中请求 MCP `access_as_user` 与显式 `GRAPH_CONSENT_SCOPES`。Authorization Code Exchange 仍只为 MCP Resource 请求 Token A；Graph Access 随后继续使用 OBO。
+
+如果目标 Tenant 允许用户对全部请求的 Delegated Permissions 自行 Consent，就不需要管理员点击。首个用户登录也会在该 Tenant 中生成 Enterprise Application。
+
+### 可选策略兜底：Tenant-wide Admin Consent
+
+只有目标 Tenant 禁止用户 Consent，或 Tenant Policy 明确要求管理员批准时，才由具备权限的管理员访问：
 
 ```text
 https://login.microsoftonline.com/<TARGET-TENANT-ID>/adminconsent?client_id=<MCP_API_CLIENT_ID>
@@ -258,6 +266,7 @@ AUDIENCE=
 ALLOWED_TENANTS=<TARGET-TENANT-ID>
 REQUIRED_SCOPES=access_as_user
 GRAPH_SCOPES=https://graph.microsoft.com/.default
+GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
 GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 ```
 
@@ -293,15 +302,17 @@ App Registration 的 Home Tenant ID 不用于其他 Tenant User 的 OBO Authorit
 
 ## 10. 一个 App Registration，两个角色
 
-`M365-MCP-Server` Registration 同时作为 Resource/OBO Middle-tier API 与 Confidential Interactive OAuth Client。它请求自己暴露的 Scope：
+`M365-MCP-Server` Registration 同时作为 Resource/OBO Middle-tier API 与 Confidential Interactive OAuth Client。Authorization Request 会同时包含自身暴露的 Scope 与显式下游 Consent Scopes：
 
 Client 必须先取得 Token A：
 
 ```text
 api://<MCP_API_CLIENT_ID>/access_as_user
+https://graph.microsoft.com/User.Read
+https://graph.microsoft.com/Mail.ReadWrite
 ```
 
-MSAL 为该 Scope 获取 Token A，WorkBuddy 再把 Token A 作为 Bearer Token 发送给 `/mcp/`。Server 在执行 Graph OBO 前验证 Token A。
+MSAL 兑换 Authorization Code 时只请求 MCP Scope，因此 Token A 仍是 MCP API Token。WorkBuddy 把 Token A 作为 Bearer Token 发送给 `/mcp/`，Server 验证后再对 Graph 执行 `.default` OBO。额外 Graph Scopes 只用于在 Authorization Request 中取得用户 Consent，不会把 Graph Token 返回给 WorkBuddy。
 
 当前仓库状态：
 
@@ -334,6 +345,7 @@ MSAL 为该 Scope 获取 Token A，WorkBuddy 再把 Token A 作为 Bearer Token 
    OAUTH_ENABLED=true
    OAUTH_DATABASE_PATH=/data/oauth.db
    OAUTH_ENCRYPTION_KEY=<32-random-bytes-base64>
+   GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
    ```
 
 MSAL 会自动管理 Reserved OpenID Scopes。返回的 Token A 仍必须通过现有 JWT Validator 复验。系统不再使用第二个 App Registration、Client ID、Secret 或 Authority Setting。
@@ -400,7 +412,11 @@ Graph Layer 使用 `/me` 和 OBO Delegated Token。实际访问权限同时受�
 
 - **Expose an API** 中的 `access_as_user` 是否已启用
 - 目标 Tenant 中是否存在 `M365-MCP-Server` Enterprise Application
-- 目标 Tenant 是否已 Consent `User.Read` 和 `Mail.ReadWrite`
+- `GRAPH_CONSENT_SCOPES` 是否包含显式 `User.Read` 和 `Mail.ReadWrite`
+- 是否在部署本次 Interactive Consent 行为后重新连接 WorkBuddy
+- 目标 Tenant 的 User Consent Policy 是否允许这些 Delegated Permissions
+
+Tenant Policy 允许用户 Consent 时，断开并重新连接 WorkBuddy，让 Authorization Request 展示缺失权限。只有 Tenant Policy 拒绝用户自行 Consent 时，才使用 Tenant-wide Admin Consent。
 
 邮件工具出现 `OboTokenError` 时，服务端审计事件会附带经过严格过滤的
 `entra_error`、`entra_suberror`、`entra_error_code` 和 `correlation_id`。
