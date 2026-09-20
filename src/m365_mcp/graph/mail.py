@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ..auth.models import AuthContext
+from ..errors import InvalidToolInputError
 from .client import GraphClient, GraphResponse
 
 
@@ -38,13 +39,19 @@ class MailService:
         date_to: str | None = None,
     ) -> GraphResponse:
         if not 1 <= limit <= 100:
-            raise ValueError("limit must be between 1 and 100")
+            raise InvalidToolInputError(
+                "limit", "out_of_range", "limit must be between 1 and 100"
+            )
         if len(query) > 2048:
-            raise ValueError("query must not exceed 2048 characters")
-        start = self._date_value(date_from) if date_from else None
-        end = self._date_value(date_to) if date_to else None
+            raise InvalidToolInputError(
+                "query", "too_long", "query must not exceed 2048 characters"
+            )
+        start = self._date_value(date_from, "date_from") if date_from else None
+        end = self._date_value(date_to, "date_to") if date_to else None
         if start and end and datetime.fromisoformat(start) > datetime.fromisoformat(end):
-            raise ValueError("date_from must not be after date_to")
+            raise InvalidToolInputError(
+                "date_from", "invalid_range", "date_from must not be after date_to"
+            )
 
         params: dict[str, str | int] = {
             "$top": limit,
@@ -184,11 +191,15 @@ class MailService:
         return quote(value, safe="")
 
     @staticmethod
-    def _date_value(value: str) -> str:
+    def _date_value(value: str, param: str) -> str:
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError as exc:
-            raise ValueError("date values must be ISO 8601 timestamps") from exc
+            raise InvalidToolInputError(
+                param, "invalid_date_format", "must be an RFC 3339 timestamp"
+            ) from exc
         if parsed.tzinfo is None:
-            raise ValueError("date values must include a timezone")
+            raise InvalidToolInputError(
+                param, "missing_timezone", "must include a timezone offset"
+            )
         return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")

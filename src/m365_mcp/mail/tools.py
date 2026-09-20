@@ -2,16 +2,19 @@
 
 import base64
 import binascii
+import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
+from pydantic import Field
 
 from ..auth.context import get_auth_context
 from ..auth.models import AuthContext
+from ..errors import InvalidToolInputError
 from ..extractors import (
     AttachmentExtractorRegistry,
     AttachmentInput,
@@ -291,13 +294,23 @@ def register_mail_tools(
         write_operation: bool = False,
     ) -> dict[str, Any]:
         context = get_auth_context(get_http_request())
+        event_id = uuid.uuid4().hex[:8]
         try:
-            return await logger.invoke(context, tool_name, operation)
+            return await logger.invoke(
+                context, tool_name, operation, event_id=event_id
+            )
+        except InvalidToolInputError as exc:
+            # The caller's own argument was rejected; echoing the parameter and
+            # machine code is safe and removes the need to guess at the cause.
+            raise ToolError(
+                f"Invalid argument '{exc.param}' ({exc.code}): {exc.detail}"
+            ) from None
         except Exception:
             # Framework exception logging must never receive provider/parser details.
             message = "Mailbox operation failed; consult the audit event."
             if write_operation:
                 message += " Verify mailbox state before retrying."
+            message += f" (ref {event_id})"
             raise ToolError(message) from None
 
     @mcp.tool(
@@ -310,8 +323,12 @@ def register_mail_tools(
     async def mail_search(
         query: str = "",
         limit: int = 25,
-        date_from: str | None = None,
-        date_to: str | None = None,
+        date_from: Annotated[
+            str | None, Field(format="date-time", description="RFC 3339 timestamp")
+        ] = None,
+        date_to: Annotated[
+            str | None, Field(format="date-time", description="RFC 3339 timestamp")
+        ] = None,
     ) -> dict[str, Any]:
         return await audited(
             "mail_search",

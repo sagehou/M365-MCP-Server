@@ -72,6 +72,13 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         "mail_search", "mail_get", "mail_list_attachments", "mail_read_attachment",
                         "mail_mark_read", "mail_archive", "mail_move", "mail_set_category",
                     }
+                    search_schema = next(
+                        tool["inputSchema"]["properties"]
+                        for tool in listed["tools"]
+                        if tool["name"] == "mail_search"
+                    )
+                    assert search_schema["date_from"].get("format") == "date-time"
+                    assert search_schema["date_to"].get("format") == "date-time"
                     results = await asyncio.gather(*[
                         rpc(user, "tools/call", {"name": "mail_get", "arguments": {"message_id": "id"}})
                         for user in ("alice", "bob")
@@ -98,11 +105,21 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             assert payload["message_id"] == "moved-id"
                         if name == "mail_read_attachment":
                             assert payload["content"] == "hello"
+                    bad_date = await rpc("alice", "tools/call", {
+                        "name": "mail_search",
+                        "arguments": {"query": "test", "date_from": "2026-13-45"},
+                    })
+                    assert bad_date["isError"]
+                    bad_text = json.dumps(bad_date)
+                    assert "date_from" in bad_text
+                    assert "invalid_date_format" in bad_text
+                    assert "consult the audit event" not in bad_text
                     failure = await rpc("alice", "tools/call", {
                         "name": "mail_get", "arguments": {"message_id": "failure"}})
                     assert failure["isError"]
                     assert "SECRET_PROVIDER_BODY" not in json.dumps(failure)
                     assert "consult the audit event" in json.dumps(failure)
+                    assert "ref " in json.dumps(failure)
                     assert "verify mailbox state before retrying" not in json.dumps(failure)
                     write_failure = await rpc("alice", "tools/call", {
                         "name": "mail_mark_read",
