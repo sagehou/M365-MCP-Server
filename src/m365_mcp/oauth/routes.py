@@ -19,6 +19,7 @@ from .models import (
     OAuthAuthorizationRequest,
     OAuthClientRegistration,
     OAuthRefreshTokenRequest,
+    SUPPORTED_GRANT_TYPES,
 )
 from .registry import OAuthClientRegistry, OAuthRegistrationUnavailableError
 
@@ -242,6 +243,7 @@ def create_oauth_router(
                 return _protocol_error(
                     OAuthProtocolError("invalid_request", "token request is too large")
                 )
+        grant_type: str | None = None
         try:
             items = parse_qsl(
                 body.decode("utf-8"),
@@ -269,11 +271,26 @@ def create_oauth_router(
                     "unsupported_grant_type",
                     "grant_type is not supported",
                 )
-        except (UnicodeDecodeError, ValueError, ValidationError):
-            return _protocol_error(
-                OAuthProtocolError("invalid_request", "token request is invalid")
+        except (UnicodeDecodeError, ValueError, ValidationError) as exc:
+            error = OAuthProtocolError("invalid_request", "token request is invalid")
+            authorization_service.audit_logger.token_failed(
+                grant_type=(
+                    grant_type if grant_type in SUPPORTED_GRANT_TYPES else "unknown"
+                ),
+                error_type=type(exc).__name__,
+                oauth_error=error.error,
+                status_code=error.status_code,
             )
+            return _protocol_error(error)
         except OAuthProtocolError as exc:
+            authorization_service.audit_logger.token_failed(
+                grant_type=(
+                    grant_type if grant_type in SUPPORTED_GRANT_TYPES else "unknown"
+                ),
+                error_type=type(exc).__name__,
+                oauth_error=exc.error,
+                status_code=exc.status_code,
+            )
             return _protocol_error(exc)
         return JSONResponse(
             status_code=200,

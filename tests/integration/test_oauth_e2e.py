@@ -247,6 +247,7 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
                 "client_id": registered["client_id"],
                 "redirect_uri": WORKBUDDY_REDIRECT,
                 "code_verifier": VERIFIER,
+                "resource": RESOURCE,
             },
         )
         assert token.status_code == 200
@@ -273,6 +274,7 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
                 "grant_type": "refresh_token",
                 "refresh_token": first_tokens["refresh_token"],
                 "client_id": registered["client_id"],
+                "resource": RESOURCE,
             },
         )
         assert refresh.status_code == 200

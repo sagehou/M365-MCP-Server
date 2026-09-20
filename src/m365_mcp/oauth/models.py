@@ -74,6 +74,7 @@ class OAuthAuthorizationCodeTokenRequest(BaseModel):
     client_id: str = Field(min_length=1, max_length=200)
     redirect_uri: str = Field(min_length=1, max_length=2048)
     code_verifier: str = Field(min_length=1, max_length=256)
+    resource: str | None = Field(default=None, min_length=1, max_length=2048)
 
 
 class OAuthRefreshTokenRequest(BaseModel):
@@ -85,6 +86,7 @@ class OAuthRefreshTokenRequest(BaseModel):
     refresh_token: str = Field(min_length=1, max_length=512)
     client_id: str = Field(min_length=1, max_length=200)
     scope: str | None = Field(default=None, min_length=1, max_length=500)
+    resource: str | None = Field(default=None, min_length=1, max_length=2048)
 
 
 @dataclass(frozen=True, slots=True)

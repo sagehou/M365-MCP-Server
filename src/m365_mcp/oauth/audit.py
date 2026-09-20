@@ -70,6 +70,34 @@ class OAuthAuditLogger:
             result="error",
         )
 
+    def authorization_code_issued(
+        self,
+        client_id: str,
+        correlation_id: str,
+    ) -> None:
+        self._record(
+            "oauth_authorization_code_issued",
+            client_id=client_id,
+            correlation_id=correlation_id,
+            result="success",
+        )
+
+    def token_failed(
+        self,
+        grant_type: str,
+        error_type: str,
+        oauth_error: str,
+        status_code: int,
+    ) -> None:
+        self._record(
+            "oauth_token_failed",
+            grant_type=grant_type,
+            error_type=error_type,
+            oauth_error=oauth_error,
+            status_code=status_code,
+            result="error",
+        )
+
     def code_redeemed(
         self,
         client_id: str,
@@ -135,5 +163,5 @@ class OAuthAuditLogger:
             result="success",
         )
 
-    def _record(self, event: str, **fields: str) -> None:
+    def _record(self, event: str, **fields: str | int) -> None:
         self.logger.info(event, extra={"event": event, **fields})
