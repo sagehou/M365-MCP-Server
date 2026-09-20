@@ -24,7 +24,9 @@ List attachments for a message.
 For file attachments whose Graph response includes `contentBytes`, `size` is the
 decoded content length. If Graph's `size` metadata differs, the response also
 includes `reported_size` so callers do not confuse a provider-reported metadata
-difference with file integrity.
+difference with file integrity. The production metadata-only list request does
+not fetch `contentBytes`, so it exposes Graph's value only as `reported_size` and
+does not claim an authoritative `size`.
 
 ### mail_read_attachment
 

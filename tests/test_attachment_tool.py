@@ -201,9 +201,11 @@ def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
             context: AuthContext,
             message_id: str,
         ) -> GraphResponse:
+            metadata = dict(self.data)
+            metadata.pop("contentBytes")
             return GraphResponse(
                 status_code=200,
-                data={"value": [self.data]},
+                data={"value": [metadata]},
                 request_id=None,
                 headers={},
             )
@@ -229,10 +231,46 @@ def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
         service.download_attachment(make_context(), "message-1", "attachment-1")
     )
 
-    assert listed["attachments"][0]["size"] == len(payload)
+    assert "size" not in listed["attachments"][0]
     assert listed["attachments"][0]["reported_size"] == reported_size
     assert read["attachment"]["size"] == len(payload)
     assert read["attachment"]["reported_size"] == reported_size
     assert downloaded["attachment"]["size"] == len(payload)
     assert downloaded["attachment"]["reported_size"] == reported_size
+
+
+def test_attachment_list_uses_actual_size_when_content_is_available() -> None:
+    payload = b"actual bytes"
+
+    class InlineContentMailService:
+        async def list_attachments(
+            self,
+            context: AuthContext,
+            message_id: str,
+        ) -> GraphResponse:
+            return GraphResponse(
+                status_code=200,
+                data={
+                    "value": [
+                        {
+                            "id": "attachment-1",
+                            "name": "notes.txt",
+                            "size": len(payload) + 12,
+                            "contentBytes": base64.b64encode(payload).decode("ascii"),
+                        }
+                    ]
+                },
+                request_id=None,
+                headers={},
+            )
+
+    service = MailToolService(InlineContentMailService())  # type: ignore[arg-type]
+
+    result = asyncio.run(service.list_attachments(make_context(), "message-1"))
+
+    attachment = result["attachments"][0]
+    assert attachment["size"] == len(payload)
+    assert attachment["reported_size"] == len(payload) + 12
+    assert attachment["has_content"] is True
+    assert "contentBytes" not in attachment
 
