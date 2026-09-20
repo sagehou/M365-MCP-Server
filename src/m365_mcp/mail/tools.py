@@ -294,7 +294,7 @@ def register_mail_tools(
         write_operation: bool = False,
     ) -> dict[str, Any]:
         context = get_auth_context(get_http_request())
-        event_id = uuid.uuid4().hex[:8]
+        event_id = uuid.uuid4().hex[:16]
         try:
             return await logger.invoke(
                 context, tool_name, operation, event_id=event_id
