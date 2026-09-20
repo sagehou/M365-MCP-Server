@@ -13,6 +13,7 @@
 - XLSX
 - PPTX
 - TXT
+- Markdown（`.md`、`.markdown`）
 - Images（未来 OCR）
 
 ## 要求
@@ -38,4 +39,4 @@
 
 返回文本受 `ATTACHMENT_MAX_TEXT_CHARS` 限制；Raw `contentBytes` 永远不会返回给 MCP Client。
 
-当前 Handler 支持 PDF、DOCX、XLSX、PPTX 和 UTF-8 TXT。Image OCR 与 Email Classification 仍不在 Scope 内。
+当前 Handler 支持 PDF、DOCX、XLSX、PPTX、UTF-8 TXT 和 UTF-8 Markdown。Image OCR 与 Email Classification 仍不在 Scope 内。

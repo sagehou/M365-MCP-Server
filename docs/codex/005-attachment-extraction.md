@@ -13,6 +13,7 @@ Provide AI-friendly attachment reading capabilities.
 - XLSX
 - PPTX
 - TXT
+- Markdown (`.md`, `.markdown`)
 - Images (future OCR)
 
 ## Requirements
@@ -40,5 +41,5 @@ server, bounded by ATTACHMENT_MAX_BYTES, and passed to format handlers for
 server-side extraction. Returned text is bounded by
 ATTACHMENT_MAX_TEXT_CHARS; raw contentBytes is never returned.
 
-Supported handlers are PDF, DOCX, XLSX, PPTX, and UTF-8 TXT. Image OCR and email
-classification remain out of scope.
+Supported handlers are PDF, DOCX, XLSX, PPTX, UTF-8 TXT, and UTF-8 Markdown.
+Image OCR and email classification remain out of scope.
