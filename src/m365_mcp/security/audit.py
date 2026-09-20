@@ -23,7 +23,8 @@ class AuditJsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         fields = {name: getattr(record, name) for name in (
             "event", "tenant_id", "user_id", "tool_name", "outcome", "duration_ms",
-            "error_type", "client_id", "result", "correlation_id", "grant_type",
+            "error_type", "client_id", "result", "correlation_id", "event_id",
+            "grant_type",
             "oauth_error", "status_code", "entra_error", "entra_suberror",
             "entra_error_code", "provider_size", "content_size",
             "graph_request_id",
@@ -56,6 +57,8 @@ class AuditLogger:
         context: AuthContext,
         tool_name: str,
         operation: AuditOperation[T],
+        *,
+        event_id: str | None = None,
     ) -> T:
         """Run an operation and emit one success or failure audit event."""
 
@@ -81,10 +84,13 @@ class AuditLogger:
                 outcome="error",
                 started=started,
                 error_type=type(exc).__name__,
+                event_id=event_id,
                 **entra_fields,
             )
             raise
-        self._record(context, tool_name, outcome="success", started=started)
+        self._record(
+            context, tool_name, outcome="success", started=started, event_id=event_id
+        )
         return result
 
     def attachment_size_mismatch(
@@ -119,6 +125,7 @@ class AuditLogger:
         outcome: str,
         started: float,
         error_type: str | None = None,
+        event_id: str | None = None,
         entra_error: str | None = None,
         entra_suberror: str | None = None,
         entra_error_code: int | None = None,
@@ -135,6 +142,7 @@ class AuditLogger:
         if error_type is not None:
             fields["error_type"] = error_type
         for name, value in {
+            "event_id": event_id,
             "entra_error": entra_error,
             "entra_suberror": entra_suberror,
             "entra_error_code": entra_error_code,

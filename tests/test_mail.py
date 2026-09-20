@@ -1,7 +1,10 @@
 import asyncio
 from typing import Any
 
+import pytest
+
 from m365_mcp.auth import AuthContext, UserIdentity
+from m365_mcp.errors import InvalidToolInputError
 from m365_mcp.graph.client import GraphResponse
 from m365_mcp.graph.mail import MailService
 from m365_mcp.mail import MailToolService
@@ -100,3 +103,37 @@ def test_mail_tool_service_omits_attachment_bytes() -> None:
         ],
         "next_link": "https://example.invalid/next",
     }
+
+
+@pytest.mark.parametrize(
+    "kwargs, param, code",
+    [
+        ({"date_from": "not-a-date"}, "date_from", "invalid_date_format"),
+        ({"date_to": "2026-01-01"}, "date_to", "missing_timezone"),
+        ({"limit": 0}, "limit", "out_of_range"),
+        ({"limit": 500}, "limit", "out_of_range"),
+        ({"query": "x" * 2049}, "query", "too_long"),
+        (
+            {
+                "date_from": "2026-02-01T00:00:00Z",
+                "date_to": "2026-01-01T00:00:00Z",
+            },
+            "date_from",
+            "invalid_range",
+        ),
+    ],
+)
+def test_search_validation_echoes_param_and_code(
+    kwargs: dict[str, Any], param: str, code: str
+) -> None:
+    graph = StubGraphClient()
+    service = MailService(graph)  # type: ignore[arg-type]
+
+    with pytest.raises(InvalidToolInputError) as raised:
+        asyncio.run(service.search_messages(make_context(), **kwargs))
+
+    assert raised.value.param == param
+    assert raised.value.code == code
+    assert isinstance(raised.value, ValueError)
+    # Validation must fail before any Graph request is attempted.
+    assert graph.calls == []
