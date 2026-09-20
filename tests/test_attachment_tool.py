@@ -222,12 +222,17 @@ def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
     )
 
     listed = asyncio.run(service.list_attachments(make_context(), "message-1"))
+    read = asyncio.run(
+        service.read_attachment(make_context(), "message-1", "attachment-1")
+    )
     downloaded = asyncio.run(
         service.download_attachment(make_context(), "message-1", "attachment-1")
     )
 
     assert listed["attachments"][0]["size"] == len(payload)
     assert listed["attachments"][0]["reported_size"] == reported_size
+    assert read["attachment"]["size"] == len(payload)
+    assert read["attachment"]["reported_size"] == reported_size
     assert downloaded["attachment"]["size"] == len(payload)
     assert downloaded["attachment"]["reported_size"] == reported_size
 
