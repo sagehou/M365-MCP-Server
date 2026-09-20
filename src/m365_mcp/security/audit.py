@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from time import perf_counter
 from typing import TypeVar
 
+from ..auth.errors import OboTokenError
 from ..auth.models import AuthContext
 
 
@@ -23,7 +24,8 @@ class AuditJsonFormatter(logging.Formatter):
         fields = {name: getattr(record, name) for name in (
             "event", "tenant_id", "user_id", "tool_name", "outcome", "duration_ms",
             "error_type", "client_id", "result", "correlation_id", "grant_type",
-            "oauth_error", "status_code",
+            "oauth_error", "status_code", "entra_error", "entra_suberror",
+            "entra_error_code",
         ) if hasattr(record, name)}
         fields["timestamp"] = datetime.fromtimestamp(
             record.created, timezone.utc
@@ -60,12 +62,25 @@ class AuditLogger:
         try:
             result = await operation(context)
         except Exception as exc:
+            entra_fields: dict[str, str | int] = {}
+            if isinstance(exc, OboTokenError):
+                entra_fields = {
+                    name: value
+                    for name, value in {
+                        "entra_error": exc.entra_error,
+                        "entra_suberror": exc.entra_suberror,
+                        "entra_error_code": exc.entra_error_code,
+                        "correlation_id": exc.correlation_id,
+                    }.items()
+                    if value is not None
+                }
             self._record(
                 context,
                 tool_name,
                 outcome="error",
                 started=started,
                 error_type=type(exc).__name__,
+                **entra_fields,
             )
             raise
         self._record(context, tool_name, outcome="success", started=started)
@@ -79,6 +94,10 @@ class AuditLogger:
         outcome: str,
         started: float,
         error_type: str | None = None,
+        entra_error: str | None = None,
+        entra_suberror: str | None = None,
+        entra_error_code: int | None = None,
+        correlation_id: str | None = None,
     ) -> None:
         fields: dict[str, str | int] = {
             "event": "mcp_tool_invocation",
@@ -90,4 +109,12 @@ class AuditLogger:
         }
         if error_type is not None:
             fields["error_type"] = error_type
+        for name, value in {
+            "entra_error": entra_error,
+            "entra_suberror": entra_suberror,
+            "entra_error_code": entra_error_code,
+            "correlation_id": correlation_id,
+        }.items():
+            if value is not None:
+                fields[name] = value
         self.logger.info("mcp_tool_invocation", extra=fields)

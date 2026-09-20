@@ -418,6 +418,11 @@ For organizational tenants check:
 - M365-MCP-Server enterprise application exists in the target tenant
 - target tenant has consented `User.Read` and `Mail.ReadWrite`
 
+When a mail tool reports `OboTokenError`, the server audit event includes strictly
+filtered `entra_error`, `entra_suberror`, `entra_error_code`, and `correlation_id`
+fields. Use these fields to classify the Entra rejection. The log never includes
+`error_description`, access tokens, authorization codes, or the OBO user assertion.
+
 ### AADSTS70011 - invalid scope
 
 Do not mix a resource `.default` request with individual delegated scopes in the same OBO request.

@@ -402,6 +402,11 @@ Graph Layer 使用 `/me` 和 OBO Delegated Token。实际访问权限同时受�
 - 目标 Tenant 中是否存在 `M365-MCP-Server` Enterprise Application
 - 目标 Tenant 是否已 Consent `User.Read` 和 `Mail.ReadWrite`
 
+邮件工具出现 `OboTokenError` 时，服务端审计事件会附带经过严格过滤的
+`entra_error`、`entra_suberror`、`entra_error_code` 和 `correlation_id`。
+这些字段可用于定位 Entra 的拒绝原因；日志不会记录 `error_description`、
+Access Token、Authorization Code 或 OBO User Assertion。
+
 ### AADSTS70011 - invalid scope
 
 同一个 OBO Request 中不要混合某个 Resource 的 `.default` 和单独 Delegated Scopes。

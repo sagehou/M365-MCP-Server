@@ -1,11 +1,13 @@
 import asyncio
+import json
 import logging
 from typing import Any
 
 import pytest
 
-from m365_mcp.auth import AuthContext, UserIdentity
+from m365_mcp.auth import AuthContext, OboTokenError, UserIdentity
 from m365_mcp.security import AuditLogger, SecurityHeadersMiddleware
+from m365_mcp.security.audit import AuditJsonFormatter
 
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
@@ -62,6 +64,41 @@ def test_audit_logger_records_safe_failure_type_only(caplog: Any) -> None:
     assert record.outcome == "error"
     assert record.error_type == "ValueError"
     assert "attachment bytes" not in caplog.text
+
+
+def test_audit_logger_records_safe_obo_failure_classification(caplog: Any) -> None:
+    logger = logging.getLogger("test.audit.obo_failure")
+    audit = AuditLogger(logger)
+    correlation_id = "11111111-2222-3333-4444-555555555555"
+
+    async def operation(context: AuthContext) -> None:
+        raise OboTokenError.from_msal_result(
+            {
+                "error": "invalid_grant",
+                "suberror": "consent_required",
+                "error_codes": [65001],
+                "correlation_id": correlation_id,
+                "error_description": "sensitive provider detail",
+            }
+        )
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        with pytest.raises(OboTokenError):
+            asyncio.run(audit.invoke(make_context(), "mail_search", operation))
+
+    record = caplog.records[-1]
+    assert record.error_type == "OboTokenError"
+    assert record.entra_error == "invalid_grant"
+    assert record.entra_suberror == "consent_required"
+    assert record.entra_error_code == 65001
+    assert record.correlation_id == correlation_id
+    formatted = json.loads(AuditJsonFormatter().format(record))
+    assert formatted["entra_error"] == "invalid_grant"
+    assert formatted["entra_suberror"] == "consent_required"
+    assert formatted["entra_error_code"] == 65001
+    assert formatted["correlation_id"] == correlation_id
+    assert "sensitive provider detail" not in caplog.text
+    assert "inbound-token" not in caplog.text
 
 
 def test_security_headers_are_added_to_http_responses() -> None:
