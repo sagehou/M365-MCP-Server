@@ -172,12 +172,17 @@ def test_obo_uses_allowlisted_tenant_and_configured_graph_scope() -> None:
 
 
 def test_obo_does_not_return_identity_provider_error_details() -> None:
+    correlation_id = "11111111-2222-3333-4444-555555555555"
+
     class FailingMsalClient:
         def acquire_token_on_behalf_of(
             self, user_assertion: str, scopes: list[str]
         ) -> dict[str, Any]:
             return {
                 "error": "invalid_grant",
+                "suberror": "consent_required",
+                "error_codes": [65001],
+                "correlation_id": correlation_id,
                 "error_description": "sensitive provider detail",
             }
 
@@ -191,6 +196,28 @@ def test_obo_does_not_return_identity_provider_error_details() -> None:
             tenant_id=TENANT_ID,
         )
     assert "sensitive provider detail" not in str(error.value)
+    assert error.value.entra_error == "invalid_grant"
+    assert error.value.entra_suberror == "consent_required"
+    assert error.value.entra_error_code == 65001
+    assert error.value.correlation_id == correlation_id
+
+
+def test_obo_discards_unsafe_provider_diagnostic_values() -> None:
+    error = OboTokenError.from_msal_result(
+        {
+            "error": "invalid_grant\nforged-log-entry",
+            "suberror": "x" * 65,
+            "error_codes": [True, -1, 1_000_000_000],
+            "correlation_id": "not-a-uuid",
+            "error_description": "secret bearer token",
+        }
+    )
+
+    assert error.entra_error is None
+    assert error.entra_suberror is None
+    assert error.entra_error_code is None
+    assert error.correlation_id is None
+    assert "secret bearer token" not in str(error)
 
 
 def test_mcp_requires_bearer_auth_but_health_remains_public() -> None:

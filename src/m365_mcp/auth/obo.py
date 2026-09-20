@@ -55,7 +55,9 @@ class MsalOboService:
         access_token = result.get("access_token") if isinstance(result, dict) else None
         if isinstance(access_token, str) and access_token:
             return access_token
-        raise OboTokenError("Microsoft Entra rejected the OBO token request")
+        raise OboTokenError.from_msal_result(
+            result if isinstance(result, dict) else None
+        )
 
     def _client_for_tenant(self, tenant_id: str) -> MsalApplication:
         with self._client_lock:
