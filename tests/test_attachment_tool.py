@@ -237,9 +237,9 @@ def test_attachment_tools_expose_one_contextual_size(caplog: Any) -> None:
 
     assert listed["attachments"][0]["size"] == provider_size
     assert "reported_size" not in listed["attachments"][0]
-    assert read["attachment"]["size"] == len(payload)
+    assert read["attachment"]["content_length"] == len(payload)
     assert "reported_size" not in read["attachment"]
-    assert downloaded["attachment"]["size"] == len(payload)
+    assert downloaded["attachment"]["content_length"] == len(payload)
     assert "reported_size" not in downloaded["attachment"]
     mismatch_records = [
         record
