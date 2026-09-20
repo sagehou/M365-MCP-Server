@@ -99,11 +99,13 @@ The application exposes:
 - `/mcp/` for the protected FastMCP Streamable HTTP endpoint
 
 Configure `CLIENT_ID`, exactly one shared OAuth/OBO client credential,
-`ALLOWED_TENANTS`, and
-`REQUIRED_SCOPES` before using `/mcp/`. `ALLOWED_TENANTS` accepts a comma-separated
+`ALLOWED_TENANTS`, `REQUIRED_SCOPES`, and the delegated
+`GRAPH_CONSENT_SCOPES` before using `/mcp/`. `ALLOWED_TENANTS` accepts a comma-separated
 list of tenant IDs or `*` for any valid Microsoft tenant; an empty value fails
 closed. `AUDIENCE` is optional and, when omitted, the server accepts the API
 client ID and `api://<client-id>` forms. The protected endpoint exposes only the
-current user's delegated Outlook mailbox operations.
+current user's delegated Outlook mailbox operations. Interactive sign-in requests
+the configured Graph scopes so that users can consent for themselves when tenant
+policy permits; OBO still uses `GRAPH_SCOPES=https://graph.microsoft.com/.default`.
 
 Tests and the Docker build run in GitHub Actions.

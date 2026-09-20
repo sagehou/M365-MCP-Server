@@ -154,9 +154,10 @@ and `api://<CLIENT_ID>` audience forms.
    to the actual API registration. Use a comma-separated tenant allowlist or `*`
    intentionally. Leave AUDIENCE empty unless an explicit audience override is
    required.
-2. Grant delegated Graph User.Read and Mail.ReadWrite plus the required target-
-   tenant consent for the implemented read/update tools. Do not grant application
-   mailbox permissions or Mail.Send; there is no send tool.
+2. Configure delegated Graph User.Read and Mail.ReadWrite. Interactive sign-in
+   requests those scopes so each user can consent when target-tenant policy permits.
+   Tenant-wide admin consent is an optional policy fallback, not the default setup.
+   Do not grant application mailbox permissions or Mail.Send; there is no send tool.
 3. Configure exactly one credential. For a certificate, mount its PEM private key
    read-only into the container, set CLIENT_CERT_PATH to that container path and
    set CLIENT_CERT_THUMBPRINT. Merely setting a host path does not mount the file.

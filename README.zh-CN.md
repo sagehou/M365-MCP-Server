@@ -78,6 +78,6 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 - `GET /health`（同时支持 `/healthz`），仅用于进程存活检查
 - `/mcp/`，受保护的 FastMCP Streamable HTTP Endpoint
 
-使用 `/mcp/` 前必须配置 `CLIENT_ID`、且只配置一种由 Interactive OAuth 与 OBO 共用的 Client Credential、`ALLOWED_TENANTS` 和 `REQUIRED_SCOPES`。`ALLOWED_TENANTS` 可以填写逗号分隔的 Tenant ID 列表，也可以填写 `*` 表示接受任意有效 Microsoft Tenant；留空仍然按 fail closed 处理。`AUDIENCE` 可留空，此时 Server 会自动接受 API Client ID 和 `api://<client-id>` 两种形式。受保护端点只允许当前登录用户访问其委托 Outlook 邮箱。
+使用 `/mcp/` 前必须配置 `CLIENT_ID`、且只配置一种由 Interactive OAuth 与 OBO 共用的 Client Credential、`ALLOWED_TENANTS`、`REQUIRED_SCOPES` 和 Delegated `GRAPH_CONSENT_SCOPES`。`ALLOWED_TENANTS` 可以填写逗号分隔的 Tenant ID 列表，也可以填写 `*` 表示接受任意有效 Microsoft Tenant；留空仍然按 fail closed 处理。`AUDIENCE` 可留空，此时 Server 会自动接受 API Client ID 和 `api://<client-id>` 两种形式。受保护端点只允许当前登录用户访问其委托 Outlook 邮箱。Interactive Sign-in 会请求配置的 Graph Scopes；Tenant Policy 允许时用户可自行 Consent。OBO 仍使用 `GRAPH_SCOPES=https://graph.microsoft.com/.default`。
 
 测试和 Docker 构建均在 GitHub Actions 中执行。
