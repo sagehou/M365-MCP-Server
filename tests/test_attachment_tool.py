@@ -182,3 +182,57 @@ def test_mail_download_attachment_returns_ticket_without_file_bytes() -> None:
     assert "content" not in result
     assert "contentBytes" not in result
 
+
+def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
+    payload = b"x" * 42_326
+    reported_size = 42_710
+    attachment = {
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "id": "attachment-1",
+        "name": "implementation-plan.md",
+        "contentType": "text/markdown; charset=utf-8",
+        "size": reported_size,
+        "contentBytes": base64.b64encode(payload).decode("ascii"),
+    }
+
+    class SizeMismatchMailService(StubMailService):
+        async def list_attachments(
+            self,
+            context: AuthContext,
+            message_id: str,
+        ) -> GraphResponse:
+            return GraphResponse(
+                status_code=200,
+                data={"value": [self.data]},
+                request_id=None,
+                headers={},
+            )
+
+    service_stub = SizeMismatchMailService(attachment)
+    store = AttachmentDownloadStore(
+        ttl_seconds=300,
+        max_items=2,
+        max_total_bytes=100_000,
+        token_factory=lambda: "f" * 43,
+    )
+    service = MailToolService(
+        service_stub,  # type: ignore[arg-type]
+        attachment_download_store=store,
+        attachment_download_url_prefix="https://mcp.example.com/downloads",
+    )
+
+    listed = asyncio.run(service.list_attachments(make_context(), "message-1"))
+    read = asyncio.run(
+        service.read_attachment(make_context(), "message-1", "attachment-1")
+    )
+    downloaded = asyncio.run(
+        service.download_attachment(make_context(), "message-1", "attachment-1")
+    )
+
+    assert listed["attachments"][0]["size"] == len(payload)
+    assert listed["attachments"][0]["reported_size"] == reported_size
+    assert read["attachment"]["size"] == len(payload)
+    assert read["attachment"]["reported_size"] == reported_size
+    assert downloaded["attachment"]["size"] == len(payload)
+    assert downloaded["attachment"]["reported_size"] == reported_size
+

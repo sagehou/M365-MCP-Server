@@ -117,15 +117,15 @@ class MailToolService:
                 declared_size=attachment.declared_size,
             )
         )
-        return {
-            "attachment": {
-                "id": attachment.identifier,
-                "name": attachment.name,
-                "content_type": attachment.content_type,
-                "size": len(attachment.content),
+        metadata = _file_attachment_metadata(attachment)
+        metadata.update(
+            {
                 "format": result.format,
                 "truncated": result.truncated,
-            },
+            }
+        )
+        return {
+            "attachment": metadata,
             "content": result.content,
             "content_metadata": untrusted_content_metadata("email_attachment"),
         }
@@ -151,12 +151,7 @@ class MailToolService:
             )
         )
         return {
-            "attachment": {
-                "id": attachment.identifier,
-                "name": attachment.name,
-                "content_type": attachment.content_type,
-                "size": len(attachment.content),
-            },
+            "attachment": _file_attachment_metadata(attachment),
             "download_url": f"{prefix}/{ticket.token}",
             "expires_in_seconds": ticket.expires_in_seconds,
             "single_use": True,
@@ -206,9 +201,7 @@ class MailToolService:
         content_type = attachment.get("contentType")
         if not isinstance(content_type, str):
             content_type = None
-        declared_size = attachment.get("size")
-        if not isinstance(declared_size, int) or isinstance(declared_size, bool):
-            declared_size = None
+        declared_size = _valid_size(attachment.get("size"))
         attachment_identifier = attachment.get("id")
         if not isinstance(attachment_identifier, str) or not attachment_identifier:
             attachment_identifier = attachment_id
@@ -446,7 +439,40 @@ def _attachment_metadata(item: Any) -> Any:
     if not isinstance(item, Mapping):
         return item
     metadata = dict(item)
-    if "contentBytes" in metadata:
-        metadata.pop("contentBytes", None)
+    has_content = "contentBytes" in metadata
+    encoded = metadata.pop("contentBytes", None)
+    if has_content:
         metadata["has_content"] = True
+    if isinstance(encoded, str):
+        try:
+            content_size = len(base64.b64decode(encoded, validate=True))
+        except (binascii.Error, UnicodeError, ValueError):
+            pass
+        else:
+            reported_size = _valid_size(metadata.get("size"))
+            metadata["size"] = content_size
+            if reported_size is not None and reported_size != content_size:
+                metadata["reported_size"] = reported_size
     return metadata
+
+
+def _file_attachment_metadata(attachment: _FileAttachment) -> dict[str, Any]:
+    content_size = len(attachment.content)
+    metadata: dict[str, Any] = {
+        "id": attachment.identifier,
+        "name": attachment.name,
+        "content_type": attachment.content_type,
+        "size": content_size,
+    }
+    if (
+        attachment.declared_size is not None
+        and attachment.declared_size != content_size
+    ):
+        metadata["reported_size"] = attachment.declared_size
+    return metadata
+
+
+def _valid_size(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
