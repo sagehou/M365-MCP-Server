@@ -74,8 +74,16 @@ Record:
 Mail attachment listing removes `contentBytes` before returning data to
 MCP clients. The mail_read_attachment tool decodes file attachments only on
 the server, applies byte and extracted-text limits, and returns metadata plus
-text for PDF, DOCX, XLSX, PPTX, and TXT files. It never returns the Graph
+text for PDF, DOCX, XLSX, PPTX, TXT, and Markdown files. It never returns the Graph
 contentBytes base64 field to an MCP client.
+
+The mail_download_attachment tool retains bounded file-attachment bytes only in
+the issuing process and returns an opaque HTTPS capability URL. Tickets expire,
+are single-use, are stored only as hashes, and are removed on redemption,
+eviction, expiry or process shutdown. The download route deliberately accepts
+the capability without a bearer header so a browser can save the file; anyone
+holding the URL can redeem it before expiry, so clients and proxies must treat
+the complete URL as a secret.
 
 Do not store:
 
@@ -157,5 +165,6 @@ During initialization and normal OAuth writes, the SQLite adapter reclaims
 expired/completed transactions, expired/used codes, expired sessions and old
 revoked sessions so terminal OAuth state does not grow without bound. The
 production Uvicorn request-line access log is
-disabled; reverse proxies must also omit `/oauth/*` query strings so Entra
-codes, state, and PKCE values are not retained outside the allowlisted audit log.
+disabled; reverse proxies must also omit `/oauth/*` query strings and
+`/downloads/*` tokenized paths so transient capabilities are not retained
+outside the allowlisted audit log.

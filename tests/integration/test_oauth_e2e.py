@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from m365_mcp.app import create_app
 from m365_mcp.auth import Settings, UserIdentity
+from m365_mcp.graph.client import GraphResponse
 from m365_mcp.oauth.authorization import OAuthAuthorizationService
 from m365_mcp.oauth.crypto import AesGcmTokenProtector
 from m365_mcp.oauth.models import UpstreamAuthorization, UpstreamTokenResult
@@ -95,6 +97,32 @@ class MockTokenValidator:
         )
 
 
+class MockMailService:
+    async def get_attachment(
+        self,
+        context: Any,
+        message_id: str,
+        attachment_id: str,
+    ) -> GraphResponse:
+        assert context.identity.user_id == "44444444-4444-4444-4444-444444444444"
+        assert message_id == "message-1"
+        assert attachment_id == "attachment-1"
+        content = b"original attachment bytes"
+        return GraphResponse(
+            status_code=200,
+            data={
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "id": attachment_id,
+                "name": "archive.bin",
+                "contentType": "application/octet-stream",
+                "size": len(content),
+                "contentBytes": base64.b64encode(content).decode("ascii"),
+            },
+            request_id=None,
+            headers={},
+        )
+
+
 def _make_app(database_path: Path):
     settings = Settings(
         oauth_enabled=True,
@@ -131,7 +159,7 @@ def _make_app(database_path: Path):
     app = create_app(
         settings=settings,
         token_validator=validator,
-        mail_service=object(),
+        mail_service=MockMailService(),
         oauth_registry=registry,
         oauth_store=store,
         oauth_authorization_service=authorization,
@@ -293,11 +321,33 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
             "mail_get",
             "mail_list_attachments",
             "mail_read_attachment",
+            "mail_download_attachment",
             "mail_mark_read",
             "mail_archive",
             "mail_move",
             "mail_set_category",
         }
+
+        download_result = _mcp_rpc(
+            client,
+            refreshed_tokens["access_token"],
+            "tools/call",
+            {
+                "name": "mail_download_attachment",
+                "arguments": {
+                    "message_id": "message-1",
+                    "attachment_id": "attachment-1",
+                },
+            },
+        )
+        assert not download_result.get("isError"), download_result
+        download_payload = json.loads(download_result["content"][0]["text"])
+        download_path = _local_path(download_payload["download_url"])
+        downloaded = client.get(download_path)
+        repeated = client.get(download_path)
+        assert downloaded.status_code == 200
+        assert downloaded.content == b"original attachment bytes"
+        assert repeated.status_code == 404
 
     assert entra_client.refresh_count == 1
     assert "mock-token-a-1" in validator.validated_tokens

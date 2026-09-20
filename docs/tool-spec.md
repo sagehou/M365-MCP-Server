@@ -33,6 +33,14 @@ Supported formats:
 - XLSX
 - PPTX
 - TXT
+- Markdown
+
+### mail_download_attachment
+
+Fetch one bounded Outlook file attachment and return a temporary HTTPS download
+URL. The URL is an unguessable, single-use capability that expires after the
+configured TTL. Attachment bytes are retained only in bounded process memory and
+are never returned through MCP JSON.
 
 ### mail_mark_read
 

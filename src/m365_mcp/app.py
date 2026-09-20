@@ -12,7 +12,12 @@ from .auth import BearerAuthMiddleware, JwtValidator, MsalOboService, Settings
 from .auth.middleware import TokenValidator
 from .graph import GraphClient, MailService
 from .extractors import AttachmentExtractorRegistry
-from .mail import MailToolService, register_mail_tools
+from .mail import (
+    AttachmentDownloadStore,
+    MailToolService,
+    create_attachment_download_router,
+    register_mail_tools,
+)
 from .oauth import (
     AesGcmTokenProtector,
     DynamicClientRegistry,
@@ -52,6 +57,7 @@ def create_app(
     oauth_registry: OAuthClientRegistry | None = None,
     oauth_store: OAuthStore | None = None,
     oauth_authorization_service: OAuthAuthorizationService | None = None,
+    attachment_download_store: AttachmentDownloadStore | None = None,
 ) -> FastAPI:
     """Create an application with protected MCP mail tools."""
 
@@ -74,9 +80,27 @@ def create_app(
         max_bytes=configured_settings.attachment_max_bytes,
         max_text_chars=configured_settings.attachment_max_text_chars,
     )
+    download_store = (
+        attachment_download_store if configured_settings.oauth_enabled else None
+    )
+    if configured_settings.oauth_enabled and download_store is None:
+        download_store = AttachmentDownloadStore(
+            ttl_seconds=configured_settings.attachment_download_ttl_seconds,
+            max_items=configured_settings.attachment_download_max_items,
+            max_total_bytes=configured_settings.attachment_download_max_total_bytes,
+        )
     register_mail_tools(
         server,
-        MailToolService(mail_service, attachment_extractor=attachment_extractor),
+        MailToolService(
+            mail_service,
+            attachment_extractor=attachment_extractor,
+            attachment_download_store=download_store,
+            attachment_download_url_prefix=(
+                f"{configured_settings.normalized_oauth_issuer_url}/downloads"
+                if download_store is not None
+                else None
+            ),
+        ),
         audit_logger=audit_logger or AuditLogger(),
     )
 
@@ -115,10 +139,14 @@ def create_app(
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with http_app.lifespan(application):
             try:
+                if download_store is not None:
+                    await download_store.start()
                 if registry is not None:
                     await registry.initialize()
                 yield
             finally:
+                if download_store is not None:
+                    await download_store.aclose()
                 if graph_client is not None:
                     await graph_client.aclose()
 
@@ -152,6 +180,8 @@ def create_app(
                 authorization_service,
             )
         )
+    if download_store is not None:
+        application.include_router(create_attachment_download_router(download_store))
     application.add_middleware(
         BearerAuthMiddleware,
         validator=validator,

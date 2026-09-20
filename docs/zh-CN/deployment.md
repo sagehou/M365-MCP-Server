@@ -70,7 +70,7 @@ OAuth Module 已提供 Discovery Metadata、Dynamic Public-client Registration�
 
 在集成开发中显式开启后，两个 Public URL 都来自经过验证的配置，绝不从 Host 或 Forwarded Header 推导。除 Loopback 开发外必须使用 HTTPS。Compose 把 Named Volume `oauth-data` 挂载到 `/data`，使 Registered Client 与加密 Session 在 Container Recreate 后仍然存在。该 Volume 属于敏感认证状态，必须纳入备份保护。`OAUTH_ENCRYPTION_KEY` 必须存入部署 Secret Manager，不得进入 Database、Image、Repository 或 Log；恢复与替换进程必须使用同一 Database 和 Key。v0.1 不提供 Distributed 或 Multi-host Session Storage。
 
-反向代理必须把 `/.well-known/*`、`/oauth/*` 和 `/mcp/` 路由到同一固定 Public Origin，并在 `M365-MCP-Server` App Registration 中把 `https://mcp.example.com/oauth/callback` 注册为 Web Redirect URI；Loopback 开发另行注册 `http://localhost:8000/oauth/callback`。对 `/oauth/register` 配置 Request-size 与 Rate Limit，并对 `/oauth/token` 配置 Rate/Concurrency Limit；应用不会为此增加 Redis 或 Enterprise Rate Limiter。生产入口已关闭 Uvicorn Request-line Access Log，因为 OAuth Authorization 和 Callback Query String 包含敏感的短期值；所有反向代理与日志采集器也必须对 `/oauth/*` 省略 Query String。在 WorkBuddy E2E Gate 完成前，不要在生产设置 `OAUTH_ENABLED=true`。详见 [WorkBuddy OAuth](workbuddy-oauth.md)。
+反向代理必须把 `/.well-known/*`、`/oauth/*`、`/downloads/*` 和 `/mcp/` 路由到同一固定 Public Origin，并在 `M365-MCP-Server` App Registration 中把 `https://mcp.example.com/oauth/callback` 注册为 Web Redirect URI；Loopback 开发另行注册 `http://localhost:8000/oauth/callback`。对 `/oauth/register` 配置 Request-size 与 Rate Limit，并对 `/oauth/token` 配置 Rate/Concurrency Limit；应用不会为此增加 Redis 或 Enterprise Rate Limiter。生产入口已关闭 Uvicorn Request-line Access Log，因为 OAuth Authorization/Callback Query String 与 Attachment-download Path 都包含敏感的短期 Capability；所有反向代理与日志采集器也必须省略 `/downloads/*` Path 与 `/oauth/*` Query String。在 WorkBuddy E2E Gate 完成前，不要在生产设置 `OAUTH_ENABLED=true`。详见 [WorkBuddy OAuth](workbuddy-oauth.md)。
 
 ## 容器发布
 
@@ -111,9 +111,11 @@ OAuth Module 已提供 Discovery Metadata、Dynamic Public-client Registration�
 3. 只配置一种 Credential。使用证书时，将 PEM Private Key 以只读方式挂载进容器，把 `CLIENT_CERT_PATH` 设置为容器内路径，并设置 `CLIENT_CERT_THUMBPRINT`。只填写宿主机路径并不会自动挂载文件。Compose Override 可使用：`./secrets/client.pem:/run/secrets/client.pem:ro`。
 4. 在同一 App Registration 中增加 `https://<your-host>/oauth/callback` Web Callback。Interactive Sign-in 复用现有 `CLIENT_ID` 和 Client Credential，不存在第二个 Registration 或第二套 Credential 配置。Interactive Sign-in、Local Authorization-code Exchange 与 Persistent Refresh 仍位于默认关闭的 Feature Flag 后；真实 WorkBuddy 验收仍是 Release Blocker。
 5. 确认 `/healthz` 返回 200，未带 Bearer Token 的 `/mcp/` 返回 401。这两个检查不能证明 Tenant Credential、Graph Consent 或 OBO 已正确工作。
-6. 使用两个测试用户分别初始化 MCP、列出 8 个工具并读取各自邮箱中的已知消息，确认无法跨用户访问消息。写操作只对可丢弃测试消息执行，并检查 Move 后的新 ID。
-7. 读取代表性附件；确认 JSON Audit Event 包含 Identity、Tool、Outcome 和 Timestamp，但不包含邮件正文、文件名或 Token。若 OBO/Tool 调用失败，应查看 Audit Error Type 与 Entra Sign-in Diagnostics，禁止开启 Payload/Token Logging。
+6. 使用两个测试用户分别初始化 MCP、列出 9 个工具并读取各自邮箱中的已知消息，确认无法跨用户访问消息。写操作只对可丢弃测试消息执行，并检查 Move 后的新 ID。
+7. 读取代表性附件，并确认生成的 Download URL 只能兑换一次，过期或 Replay 返回 404；确认 JSON Audit Event 包含 Identity、Tool、Outcome 和 Timestamp，但不包含邮件正文、文件名、URL Ticket 或 Token。若 OBO/Tool 调用失败，应查看 Audit Error Type 与 Entra Sign-in Diagnostics，禁止开启 Payload/Token Logging。
 
 附件 Worker 默认限制：512 MiB Address Space、15 CPU Seconds、20 Seconds Wall Time，并且每个 Server Process 最多两个 Active Workers。Office Archive 最多允许 64 MiB 解压数据和 2048 个 Entries。这些限制用于资源隔离，并不等价于 Filesystem/Network Sandbox。生产环境还应在反向代理配置 Request Size / Concurrency Limits，并设置 Container Memory/PID Limits。
 
 如果提高 `ATTACHMENT_MAX_BYTES`，也要同步提高 `GRAPH_MAX_RESPONSE_BYTES`，因为 Graph JSON 中 Base64 后的数据至少需要原始字节的 4/3，再加 Metadata。
+
+临时下载只保留在签发 URL 的进程内，受 `ATTACHMENT_DOWNLOAD_MAX_ITEMS` 与 `ATTACHMENT_DOWNLOAD_MAX_TOTAL_BYTES` 限制，并在 `ATTACHMENT_DOWNLOAD_TTL_SECONDS` 后过期。总字节上限不得小于 `ATTACHMENT_MAX_BYTES`。重启进程会使全部未兑换 URL 失效。v0.1 不支持为 Download URL 启用多 Replica。

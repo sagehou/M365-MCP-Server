@@ -57,7 +57,7 @@ Microsoft 365
 
 ## Development Status
 
-Tasks 001–007 have implementations and CI coverage, including all eight mail
+Tasks 001–007 have implementations and CI coverage, including all nine mail
 tools. GitHub Actions is the only build/test environment. The release workflow
 can publish reviewed stable version tags; a configured workflow is not evidence
 that an image has been released. Select an existing GHCR version before deployment.

@@ -11,7 +11,7 @@ from m365_mcp.extractors import (
     UnsupportedAttachmentError,
 )
 from m365_mcp.graph.client import GraphResponse
-from m365_mcp.mail import MailToolService
+from m365_mcp.mail import AttachmentDownloadStore, MailToolService
 from m365_mcp.security import untrusted_content_metadata
 
 
@@ -134,4 +134,51 @@ def test_mail_read_attachment_uses_configured_size_limit() -> None:
 
     with pytest.raises(AttachmentTooLargeError):
         asyncio.run(service.read_attachment(make_context(), "message-1", "attachment-1"))
+
+
+def test_mail_download_attachment_returns_ticket_without_file_bytes() -> None:
+    payload = b"original attachment bytes"
+    service_stub = StubMailService(
+        {
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "id": "attachment-1",
+            "name": "archive.bin",
+            "contentType": "application/octet-stream",
+            "size": len(payload),
+            "contentBytes": base64.b64encode(payload).decode("ascii"),
+        }
+    )
+    store = AttachmentDownloadStore(
+        ttl_seconds=300,
+        max_items=2,
+        max_total_bytes=1024,
+        token_factory=lambda: "e" * 43,
+    )
+    service = MailToolService(
+        service_stub,  # type: ignore[arg-type]
+        attachment_download_store=store,
+        attachment_download_url_prefix="https://mcp.example.com/downloads",
+    )
+
+    result = asyncio.run(
+        service.download_attachment(make_context(), "message-1", "attachment-1")
+    )
+    retained = store.consume("e" * 43)
+
+    assert service_stub.calls == [("message-1", "attachment-1")]
+    assert result == {
+        "attachment": {
+            "id": "attachment-1",
+            "name": "archive.bin",
+            "content_type": "application/octet-stream",
+            "size": len(payload),
+        },
+        "download_url": "https://mcp.example.com/downloads/" + "e" * 43,
+        "expires_in_seconds": 300,
+        "single_use": True,
+    }
+    assert retained is not None
+    assert retained.content == payload
+    assert "content" not in result
+    assert "contentBytes" not in result
 
