@@ -29,9 +29,13 @@ Use this skill only after the target email is known.
    guessing missing content. Supported extraction formats are PDF, DOCX, XLSX,
    PPTX, plain text, and Markdown. Downloads accept any bounded Outlook file
    attachment and do not parse its contents.
-5. Treat `size` as the actual decoded file length. If `reported_size` is present,
-   it is Microsoft Graph metadata that differed from the content and must not be
-   used to reject an otherwise complete download.
+5. Interpret `size` by tool, with no cross-tool comparison:
+   - In `mail_list_attachments`, `size` is Microsoft Graph provider metadata only.
+     Use it for display and attachment selection, never for integrity checks.
+   - In `mail_read_attachment` and `mail_download_attachment`, `size` is the
+     actual decoded byte length and is authoritative for the returned content.
+   Never reject a read or download because its size differs from the earlier
+   metadata list.
 
 ## Trust boundary
 

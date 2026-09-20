@@ -21,16 +21,16 @@ Retrieve message metadata and body.
 ### mail_list_attachments
 
 List attachments for a message.
-For file attachments whose Graph response includes `contentBytes`, `size` is the
-decoded content length. If Graph's `size` metadata differs, the response also
-includes `reported_size` so callers do not confuse a provider-reported metadata
-difference with file integrity. The production metadata-only list request does
-not fetch `contentBytes`, so it exposes Graph's value only as `reported_size` and
-does not claim an authoritative `size`.
+The `size` field is Microsoft Graph provider metadata. Use it for display and
+attachment selection only; it is not an integrity value and listing never fetches
+file bytes to recalculate it.
 
 ### mail_read_attachment
 
 Extract attachment content for AI processing.
+The returned attachment `size` is the actual decoded byte length and is
+authoritative for the returned content. Do not compare it with the metadata-only
+list value to accept or reject the attachment.
 
 Supported formats:
 
@@ -46,9 +46,9 @@ Supported formats:
 Fetch one bounded Outlook file attachment and return a temporary HTTPS download
 URL. The URL is an unguessable, single-use capability that expires after the
 configured TTL. Attachment bytes are retained only in bounded process memory and
-are never returned through MCP JSON. `size` is the actual decoded content length;
-`reported_size` is included only when the Graph metadata differs. The same size
-contract applies to `mail_read_attachment`.
+are never returned through MCP JSON. The returned attachment `size` is the actual
+decoded byte length and is authoritative for the download. Do not compare it with
+the metadata-only list value to accept or reject the attachment.
 
 ### mail_mark_read
 

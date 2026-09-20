@@ -89,6 +89,7 @@ def create_app(
             max_items=configured_settings.attachment_download_max_items,
             max_total_bytes=configured_settings.attachment_download_max_total_bytes,
         )
+    mail_audit_logger = audit_logger or AuditLogger()
     register_mail_tools(
         server,
         MailToolService(
@@ -100,8 +101,9 @@ def create_app(
                 if download_store is not None
                 else None
             ),
+            audit_logger=mail_audit_logger,
         ),
-        audit_logger=audit_logger or AuditLogger(),
+        audit_logger=mail_audit_logger,
     )
 
     registry = oauth_registry

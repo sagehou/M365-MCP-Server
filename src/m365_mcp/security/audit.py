@@ -25,7 +25,8 @@ class AuditJsonFormatter(logging.Formatter):
             "event", "tenant_id", "user_id", "tool_name", "outcome", "duration_ms",
             "error_type", "client_id", "result", "correlation_id", "grant_type",
             "oauth_error", "status_code", "entra_error", "entra_suberror",
-            "entra_error_code",
+            "entra_error_code", "provider_size", "content_size",
+            "graph_request_id",
         ) if hasattr(record, name)}
         fields["timestamp"] = datetime.fromtimestamp(
             record.created, timezone.utc
@@ -85,6 +86,30 @@ class AuditLogger:
             raise
         self._record(context, tool_name, outcome="success", started=started)
         return result
+
+    def attachment_size_mismatch(
+        self,
+        context: AuthContext,
+        tool_name: str,
+        *,
+        provider_size: int,
+        content_size: int,
+        graph_request_id: str | None,
+    ) -> None:
+        """Record a provider/content size difference without attachment identifiers."""
+
+        fields: dict[str, str | int] = {
+            "event": "attachment_size_mismatch",
+            "tenant_id": context.identity.tenant_id,
+            "user_id": context.identity.user_id,
+            "tool_name": tool_name,
+            "outcome": "warning",
+            "provider_size": provider_size,
+            "content_size": content_size,
+        }
+        if graph_request_id is not None:
+            fields["graph_request_id"] = graph_request_id
+        self.logger.warning("attachment_size_mismatch", extra=fields)
 
     def _record(
         self,

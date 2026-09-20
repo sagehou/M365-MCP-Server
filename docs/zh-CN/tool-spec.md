@@ -21,11 +21,12 @@
 ### mail_list_attachments
 
 列出邮件附件。
-当 File Attachment 的 Graph Response 包含 `contentBytes` 时，`size` 表示解码后的实际内容长度。如果 Graph 的 `size` Metadata 与实际长度不同，Response 会额外返回 `reported_size`，避免调用方把 Provider 报告值的差异误判为文件完整性问题。生产环境的 Metadata-only List Request 不获取 `contentBytes`，因此只把 Graph 值暴露为 `reported_size`，不会声称存在权威 `size`。
+`size` 是 Microsoft Graph 提供的 Metadata，只用于展示和选择附件，不是完整性校验值。列表操作不会为了重新计算大小而读取文件内容。
 
 ### mail_read_attachment
 
 提取附件内容供 AI 处理。
+返回的 Attachment `size` 是解码后的实际字节数，对本次返回内容具有权威性。不得与 Metadata-only 列表中的值比较后决定是否接受附件。
 
 支持格式：
 
@@ -39,7 +40,7 @@
 ### mail_download_attachment
 
 获取一个受大小限制的 Outlook File Attachment，并返回临时 HTTPS 下载 URL。URL 是不可猜测、单次使用且会在配置 TTL 后过期的 Capability。Attachment Bytes 只会保留在受限的 Process Memory 中，不会通过 MCP JSON 返回。
-`size` 表示解码后的实际内容长度；仅当 Graph Metadata 不一致时返回 `reported_size`。`mail_read_attachment` 使用相同的 Size Contract。
+返回的 Attachment `size` 是解码后的实际字节数，对本次下载具有权威性。不得与 Metadata-only 列表中的值比较后决定是否接受附件。
 
 ### mail_mark_read
 
