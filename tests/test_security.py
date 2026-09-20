@@ -101,6 +101,36 @@ def test_audit_logger_records_safe_obo_failure_classification(caplog: Any) -> No
     assert "inbound-token" not in caplog.text
 
 
+def test_audit_logger_records_attachment_size_mismatch_without_identifiers(
+    caplog: Any,
+) -> None:
+    logger = logging.getLogger("test.audit.attachment_size_mismatch")
+    audit = AuditLogger(logger)
+
+    with caplog.at_level(logging.WARNING, logger=logger.name):
+        audit.attachment_size_mismatch(
+            make_context(),
+            "mail_download_attachment",
+            provider_size=42_710,
+            content_size=42_326,
+            graph_request_id="graph-request-1",
+        )
+
+    record = caplog.records[-1]
+    assert record.event == "attachment_size_mismatch"
+    assert record.outcome == "warning"
+    assert record.provider_size == 42_710
+    assert record.content_size == 42_326
+    assert record.graph_request_id == "graph-request-1"
+    formatted = json.loads(AuditJsonFormatter().format(record))
+    assert formatted["provider_size"] == 42_710
+    assert formatted["content_size"] == 42_326
+    assert formatted["graph_request_id"] == "graph-request-1"
+    assert "attachment-1" not in caplog.text
+    assert "implementation-plan.md" not in caplog.text
+    assert "inbound-token" not in caplog.text
+
+
 def test_security_headers_are_added_to_http_responses() -> None:
     messages: list[dict[str, Any]] = []
 

@@ -100,6 +100,11 @@ tool name, success or failure outcome, duration, and safe exception type. It
 does not accept or serialize tool arguments, Graph responses, email bodies,
 attachment names, attachment bytes, access tokens, or secrets.
 
+When Graph's attachment `size` metadata differs from decoded `contentBytes`, the
+server emits a separate `attachment_size_mismatch` warning with tenant, user,
+tool, provider size, decoded size, and optional Graph request ID. It never logs
+the message ID, attachment ID, attachment name, content, token, or download URL.
+
 The tool boundary replaces exceptions before FastMCP logs them; raw provider or
 parser messages are not exposed. Invalid protocol/schema requests that never
 reach a registered mail-tool function are not mailbox audit events.

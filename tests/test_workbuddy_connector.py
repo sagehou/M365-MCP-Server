@@ -69,3 +69,13 @@ def test_connector_skills_expose_only_their_scoped_mail_tools() -> None:
         assert frontmatter["description_zh"]
         assert frontmatter["description_en"]
         assert {tool.strip() for tool in frontmatter["allowed-tools"].split(",")} == tools
+
+
+def test_attachment_skill_defines_one_contextual_size_field() -> None:
+    text = (CONNECTOR / "skills" / "outlook-attachments" / "SKILL.md").read_text(
+        "utf-8"
+    )
+
+    assert "reported_size" not in text
+    assert "Graph provider metadata only" in text
+    assert "actual decoded byte length and is authoritative" in text

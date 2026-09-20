@@ -77,6 +77,8 @@ Audit Logger 对每个 MCP Mail-tool Invocation 输出一条 JSON Event 到 stde
 
 Logger 不接受也不序列化 Tool Arguments、Graph Responses、Email Bodies、Attachment Names、Attachment Bytes、Access Tokens 或 Secrets。
 
+当 Graph 的 Attachment `size` Metadata 与解码后的 `contentBytes` 长度不一致时，Server 会额外记录 `attachment_size_mismatch` Warning，只包含 Tenant、User、Tool、Provider Size、Decoded Size 与可选的 Graph Request ID。它不会记录 Message ID、Attachment ID、Attachment Name、Content、Token 或 Download URL。
+
 Tool Boundary 会在 FastMCP Logging 前替换 Exception，原始 Provider/Parser Message 不会暴露。未进入已注册 Mail Tool Function 的 Invalid Protocol/Schema Request 不属于 Mailbox Audit Event。
 
 Graph Response Bytes 在 JSON Parsing 前进行限制。Attachment Base64 长度会在 Decode 前检查；不可信 Parser 运行在 Resource-limited Linux Process 中，不继承 Entra Secrets，并带 Timeout/Cancellation Cleanup。
