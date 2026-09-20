@@ -102,7 +102,14 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         "name": "mail_get", "arguments": {"message_id": "failure"}})
                     assert failure["isError"]
                     assert "SECRET_PROVIDER_BODY" not in json.dumps(failure)
-                    assert "verify mailbox state before retrying" in json.dumps(failure)
+                    assert "consult the audit event" in json.dumps(failure)
+                    assert "verify mailbox state before retrying" not in json.dumps(failure)
+                    write_failure = await rpc("alice", "tools/call", {
+                        "name": "mail_mark_read",
+                        "arguments": {"message_id": "failure", "is_read": True},
+                    })
+                    assert write_failure["isError"]
+                    assert "verify mailbox state before retrying" in json.dumps(write_failure)
                     missing = await client.post("/mcp/", json={})
                     assert missing.status_code == 401
 

@@ -92,7 +92,7 @@ container recreation. Back up this volume as sensitive authentication state. Sto
 image, repository or logs. Restores and replacement processes must use the same
 database and key. v0.1 does not provide distributed or multi-host session storage.
 
-Route `/.well-known/*`, `/oauth/*` and `/mcp/` through the same fixed public
+Route `/.well-known/*`, `/oauth/*`, `/downloads/*` and `/mcp/` through the same fixed public
 origin. Register `https://mcp.example.com/oauth/callback` as a Web redirect URI
 on the `M365-MCP-Server` App Registration. For loopback development, register
 `http://localhost:8000/oauth/callback` separately.
@@ -100,9 +100,9 @@ Apply reverse-proxy request-size and rate limits to `/oauth/register`, and rate
 plus concurrency limits to `/oauth/token`;
 the application deliberately does not add Redis or an enterprise rate limiter.
 The production entry point disables Uvicorn request-line access logs because
-OAuth authorization and callback query strings contain sensitive transient
-values. Configure every reverse proxy and log collector to omit query strings
-for `/oauth/*` as well.
+OAuth authorization and callback query strings and attachment-download paths
+contain sensitive transient capabilities. Configure every reverse proxy and log
+collector to omit `/downloads/*` paths and `/oauth/*` query strings as well.
 Do not set `OAUTH_ENABLED=true` in production until the WorkBuddy end-to-end gate
 is complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
 
@@ -170,11 +170,12 @@ and `api://<CLIENT_ID>` audience forms.
    disabled feature flag; live acceptance remains a release blocker.
 5. Confirm /healthz returns 200 and /mcp/ without a bearer token returns 401.
    These checks do not validate tenant credentials, Graph consent or OBO.
-6. With two test users, initialize MCP, list the eight tools and read a known
+6. With two test users, initialize MCP, list the nine tools and read a known
    message from each mailbox. Verify cross-user message access is denied.
    Exercise updates only on disposable test messages and verify moved IDs.
-7. Read representative attachments; verify JSON audit events contain identity,
-   tool, outcome and timestamp but no message text, filenames or tokens.
+7. Read representative attachments and redeem a generated download URL exactly
+   once; verify expiry/replay returns 404. Verify JSON audit events contain identity,
+   tool, outcome and timestamp but no message text, filenames, URL tickets or tokens.
    If OBO/tool calls fail, inspect audit error type and Entra sign-in diagnostics;
    do not enable payload/token logging.
 
@@ -185,3 +186,8 @@ containment, not a filesystem/network security sandbox. Apply reverse-proxy
 request size/concurrency limits and container memory/PID limits for production.
 If increasing ATTACHMENT_MAX_BYTES, also size GRAPH_MAX_RESPONSE_BYTES for its
 base64-expanded JSON representation (at least 4/3 of the byte limit plus metadata).
+Temporary downloads are retained only in the issuing process, bounded by
+`ATTACHMENT_DOWNLOAD_MAX_ITEMS` and `ATTACHMENT_DOWNLOAD_MAX_TOTAL_BYTES`, and
+expire after `ATTACHMENT_DOWNLOAD_TTL_SECONDS`. Restarting the process invalidates
+all outstanding URLs. The total-byte limit must be at least
+`ATTACHMENT_MAX_BYTES`. v0.1 does not support multiple replicas for download URLs.

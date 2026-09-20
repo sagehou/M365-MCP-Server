@@ -52,6 +52,14 @@ def test_configuration_rejects_invalid_limits(field, value):
         Settings(**{field: value})
 
 
+def test_download_capacity_covers_one_maximum_attachment():
+    with pytest.raises(ValidationError):
+        Settings(
+            attachment_max_bytes=1024,
+            attachment_download_max_total_bytes=512,
+        )
+
+
 def test_required_scope_cannot_be_disabled():
     with pytest.raises(ConfigurationError):
         make_settings(required_scopes=[]).validate_auth_configuration()

@@ -181,8 +181,8 @@ of these live checks with the exact release image and connector archive:
 2. Connect from a clean WorkBuddy profile. Verify browser launch, Microsoft login
    and consent, then return to WorkBuddy through
    `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback`.
-3. Initialize MCP, list exactly eight tools, then exercise search, single-message
-   read, attachment extraction and deliberate mutations on disposable messages.
+3. Initialize MCP, list exactly nine tools, then exercise search, single-message
+   read, attachment extraction, one-time attachment download and deliberate mutations on disposable messages.
    Verify the new IDs returned by move and archive are used afterward.
 4. Repeat with a second user and verify that neither user can access the other's
    mailbox content.

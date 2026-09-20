@@ -26,6 +26,7 @@ Tools:
 - mail_get
 - mail_list_attachments
 - mail_read_attachment
+- mail_download_attachment
 - mail_mark_read
 - mail_archive
 - mail_move

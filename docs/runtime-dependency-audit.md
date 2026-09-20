@@ -42,7 +42,7 @@ dependency helper remain exercised through the production application factory.
 
 GitHub Actions covers both protocol eras on that same endpoint:
 
-- Legacy `2025-03-26`: initialize, tools/list, every one of the eight mail tools,
+- Legacy `2025-03-26`: initialize, tools/list, every one of the nine mail tools,
   sanitized failures and concurrent Alice/Bob identity isolation.
 - Modern `2026-07-28`: server/discover, tools/list and tools/call with request
   metadata and no MCP session identifier.

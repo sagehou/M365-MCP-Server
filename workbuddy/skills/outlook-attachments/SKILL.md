@@ -1,11 +1,11 @@
 ---
 name: outlook-attachments
-display_name: Outlook 附件读取
-display_name_en: Outlook Attachment Reading
-description: 列出邮件附件并按需提取受支持文件的有界文本。
-description_zh: 列出邮件附件并按需提取受支持文件的有界文本。
-description_en: List mail attachments and extract bounded text from supported files.
-allowed-tools: mail_list_attachments, mail_read_attachment
+display_name: Outlook 附件读取与下载
+display_name_en: Outlook Attachment Reading and Download
+description: 列出邮件附件，提取受支持文件的有界文本，或生成短时单次下载链接。
+description_zh: 列出邮件附件，提取受支持文件的有界文本，或生成短时单次下载链接。
+description_en: List mail attachments, extract bounded text, or create a short-lived single-use download URL.
+allowed-tools: mail_list_attachments, mail_read_attachment, mail_download_attachment
 version: 0.1.0
 author: M365 MCP Server contributors
 ---
@@ -21,9 +21,14 @@ Use this skill only after the target email is known.
 2. Select an explicit attachment ID. Call
    `mail_read_attachment(message_id, attachment_id)` only when its contents are
    needed for the user's task.
-3. Explain unsupported, invalid, oversized, or truncated files instead of
+3. If the user explicitly wants the original file on their device, call
+   `mail_download_attachment(message_id, attachment_id)` and present its
+   short-lived single-use URL immediately. Treat that URL as a secret capability;
+   never repeat it in logs or send it to anyone else.
+4. Explain unsupported, invalid, oversized, expired, or truncated files instead of
    guessing missing content. Supported extraction formats are PDF, DOCX, XLSX,
-   PPTX, and plain text.
+   PPTX, plain text, and Markdown. Downloads accept any bounded Outlook file
+   attachment and do not parse its contents.
 
 ## Trust boundary
 

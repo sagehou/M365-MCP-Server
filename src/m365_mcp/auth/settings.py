@@ -3,11 +3,11 @@
 import base64
 import binascii
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 from ipaddress import ip_address
 from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .errors import ConfigurationError
@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = Field(default=10.0, gt=0, allow_inf_nan=False)
     attachment_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0, le=50 * 1024 * 1024)
     attachment_max_text_chars: int = Field(default=100_000, gt=0, le=1_000_000)
+    attachment_download_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    attachment_download_max_items: int = Field(default=16, ge=1, le=256)
+    attachment_download_max_total_bytes: int = Field(
+        default=64 * 1024 * 1024,
+        gt=0,
+        le=1024 * 1024 * 1024,
+    )
 
     oauth_enabled: bool = False
     mcp_public_url: str | None = None
@@ -72,6 +79,15 @@ class Settings(BaseSettings):
     oauth_refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
     oauth_refresh_max_rotations: int = Field(default=10_000, ge=1, le=10_000)
     oauth_encryption_key: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def validate_attachment_download_capacity(self) -> Self:
+        if self.attachment_download_max_total_bytes < self.attachment_max_bytes:
+            raise ValueError(
+                "ATTACHMENT_DOWNLOAD_MAX_TOTAL_BYTES must be at least "
+                "ATTACHMENT_MAX_BYTES"
+            )
+        return self
 
     @field_validator("allowed_tenants", "required_scopes", mode="before")
     @classmethod

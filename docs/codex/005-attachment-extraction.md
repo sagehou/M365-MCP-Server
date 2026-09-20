@@ -43,3 +43,8 @@ ATTACHMENT_MAX_TEXT_CHARS; raw contentBytes is never returned.
 
 Supported handlers are PDF, DOCX, XLSX, PPTX, UTF-8 TXT, and UTF-8 Markdown.
 Image OCR and email classification remain out of scope.
+
+`mail_download_attachment` uses the same bounded Graph file-attachment decode
+path but does not parse the file. It retains bytes only in a bounded in-memory
+store and returns a short-lived, single-use capability URL. Tickets are hashed,
+expire automatically, and are invalidated by process restart.

@@ -50,6 +50,7 @@ def test_connector_skills_expose_only_their_scoped_mail_tools() -> None:
         "outlook-attachments": {
             "mail_list_attachments",
             "mail_read_attachment",
+            "mail_download_attachment",
         },
         "outlook-mail-management": {
             "mail_mark_read",

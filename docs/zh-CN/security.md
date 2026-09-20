@@ -60,7 +60,9 @@ Graph Token 通过 MSAL On-Behalf-Of Flow，从已经验证的 Inbound Assertion
 - MCP Tool
 - Operation Result
 
-Mail Attachment Listing 会在返回 MCP Client 前移除 `contentBytes`。`mail_read_attachment` 只在 Server 端解码 File Attachment，并应用 Byte Limit 与 Extracted-text Limit；PDF、DOCX、XLSX、PPTX、TXT 只返回 Metadata 与 Text，不会把 Graph `contentBytes` Base64 返回 MCP Client。
+Mail Attachment Listing 会在返回 MCP Client 前移除 `contentBytes`。`mail_read_attachment` 只在 Server 端解码 File Attachment，并应用 Byte Limit 与 Extracted-text Limit；PDF、DOCX、XLSX、PPTX、TXT 与 Markdown 只返回 Metadata 与 Text，不会把 Graph `contentBytes` Base64 返回 MCP Client。
+
+`mail_download_attachment` 只在签发进程内保留受限的 File-attachment Bytes，并返回 Opaque HTTPS Capability URL。Ticket 只保存 Hash，会在兑换、Eviction、Expiry 或 Process Shutdown 时删除，且只能使用一次。Download Route 为了让 Browser 直接保存文件，故意允许凭 Capability 而不携带 Bearer Header；任何获得完整 URL 的人都可在过期前兑换，因此 Client 与 Proxy 必须把完整 URL 当作 Secret。
 
 不得记录：
 
@@ -93,4 +95,4 @@ Interactive Authorization 强制要求 `response_type=code`、Exact Client/Redir
 
 WorkBuddy 只接收 Random Local Opaque Handle，绝不会获得 Entra Refresh Token。SQLite 仅保存该 Handle 的 SHA-256 Hash 与 Encrypted MSAL Cache。Refresh 会恢复 Cache，强制执行 MSAL Silent Acquisition，再次校验 Token A，并确认 Tenant/User 仍与 Session 一致，最后通过 Compare-and-swap 原子轮换 Local Handle。已消费 Handle Hash 会保留并绑定 Rotation Family，直到 Session 被回收；并发请求或任意旧 Handle Replay 都返回 `invalid_grant` 并原子吊销当前 Family，包括 Attacker-first 取得的 Successor。未知 Handle 会先通过 Read-only History Lookup 被拒绝，不会直接获取 SQLite Write Intent。每次成功轮换都会原子递增 Counter；`OAUTH_REFRESH_MAX_ROTATIONS` 对 History 增长设置上限，达到上限即吊销 Session。Microsoft Revocation、Corrupt Cache 或 Identity Mismatch 会吊销 Local Session。Microsoft 或 Identity Metadata 的临时故障不会消费当前 Handle。
 
-SQLite Adapter 会在初始化及正常 OAuth Write 时回收 Expired/Completed Transaction、Expired/Used Code、Expired Session 与旧 Revoked Session，避免终态 OAuth 数据无限增长。生产 Uvicorn Request-line Access Log 已关闭；反向代理也必须省略 `/oauth/*` Query String，防止 Entra Code、State 与 PKCE 值进入 Allowlist Audit Log 之外的日志。
+SQLite Adapter 会在初始化及正常 OAuth Write 时回收 Expired/Completed Transaction、Expired/Used Code、Expired Session 与旧 Revoked Session，避免终态 OAuth 数据无限增长。生产 Uvicorn Request-line Access Log 已关闭；反向代理也必须省略 `/oauth/*` Query String 与 `/downloads/*` Tokenized Path，防止短时 Capability 进入 Allowlist Audit Log 之外的日志。

@@ -33,6 +33,11 @@
 - XLSX
 - PPTX
 - TXT
+- Markdown
+
+### mail_download_attachment
+
+获取一个受大小限制的 Outlook File Attachment，并返回临时 HTTPS 下载 URL。URL 是不可猜测、单次使用且会在配置 TTL 后过期的 Capability。Attachment Bytes 只会保留在受限的 Process Memory 中，不会通过 MCP JSON 返回。
 
 ### mail_mark_read
 

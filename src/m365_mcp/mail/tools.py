@@ -3,6 +3,7 @@
 import base64
 import binascii
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from fastmcp import FastMCP
@@ -21,6 +22,16 @@ from ..extractors import (
 from ..graph.client import GraphResponse
 from ..graph.mail import MailService
 from ..security import AuditLogger, untrusted_content_metadata
+from .downloads import AttachmentDownloadStore, DownloadPayload
+
+
+@dataclass(frozen=True, slots=True)
+class _FileAttachment:
+    identifier: str
+    name: str
+    content_type: str | None
+    declared_size: int | None
+    content: bytes
 
 
 class MailToolService:
@@ -31,9 +42,24 @@ class MailToolService:
         mail_service: MailService,
         *,
         attachment_extractor: AttachmentExtractorRegistry | None = None,
+        attachment_download_store: AttachmentDownloadStore | None = None,
+        attachment_download_url_prefix: str | None = None,
     ) -> None:
         self.mail_service = mail_service
         self.attachment_extractor = attachment_extractor or AttachmentExtractorRegistry()
+        self.attachment_download_store = attachment_download_store
+        self.attachment_download_url_prefix = (
+            attachment_download_url_prefix.rstrip("/")
+            if attachment_download_url_prefix is not None
+            else None
+        )
+
+    @property
+    def downloads_enabled(self) -> bool:
+        return (
+            self.attachment_download_store is not None
+            and self.attachment_download_url_prefix is not None
+        )
 
     async def search(
         self,
@@ -81,6 +107,67 @@ class MailToolService:
         message_id: str,
         attachment_id: str,
     ) -> dict[str, Any]:
+        attachment = await self._file_attachment(context, message_id, attachment_id)
+
+        result = await self.attachment_extractor.extract_async(
+            AttachmentInput(
+                name=attachment.name,
+                content=attachment.content,
+                content_type=attachment.content_type,
+                declared_size=attachment.declared_size,
+            )
+        )
+        return {
+            "attachment": {
+                "id": attachment.identifier,
+                "name": attachment.name,
+                "content_type": attachment.content_type,
+                "size": len(attachment.content),
+                "format": result.format,
+                "truncated": result.truncated,
+            },
+            "content": result.content,
+            "content_metadata": untrusted_content_metadata("email_attachment"),
+        }
+
+    async def download_attachment(
+        self,
+        context: AuthContext,
+        message_id: str,
+        attachment_id: str,
+    ) -> dict[str, Any]:
+        if not self.downloads_enabled:
+            raise RuntimeError("Attachment downloads are not configured")
+        attachment = await self._file_attachment(context, message_id, attachment_id)
+        store = self.attachment_download_store
+        prefix = self.attachment_download_url_prefix
+        if store is None or prefix is None:
+            raise RuntimeError("Attachment downloads are not configured")
+        ticket = store.issue(
+            DownloadPayload(
+                filename=attachment.name,
+                content_type=attachment.content_type,
+                content=attachment.content,
+            )
+        )
+        return {
+            "attachment": {
+                "id": attachment.identifier,
+                "name": attachment.name,
+                "content_type": attachment.content_type,
+                "size": len(attachment.content),
+            },
+            "download_url": f"{prefix}/{ticket.token}",
+            "expires_in_seconds": ticket.expires_in_seconds,
+            "single_use": True,
+        }
+
+    async def _file_attachment(
+        self,
+        context: AuthContext,
+        message_id: str,
+        attachment_id: str,
+    ) -> _FileAttachment:
         response = await self.mail_service.get_attachment(
             context,
             message_id,
@@ -96,11 +183,11 @@ class MailToolService:
             and not odata_type.casefold().endswith("fileattachment")
         ):
             raise UnsupportedAttachmentError(
-                "Only Outlook file attachments can be extracted"
+                "Only Outlook file attachments can be downloaded or extracted"
             )
 
         encoded = attachment.get("contentBytes")
-        if not isinstance(encoded, str) or not encoded:
+        if not isinstance(encoded, str):
             raise InvalidAttachmentError(
                 "Graph did not return inline file attachment content"
             )
@@ -122,30 +209,16 @@ class MailToolService:
         declared_size = attachment.get("size")
         if not isinstance(declared_size, int) or isinstance(declared_size, bool):
             declared_size = None
-
-        result = await self.attachment_extractor.extract_async(
-            AttachmentInput(
-                name=name,
-                content=content,
-                content_type=content_type,
-                declared_size=declared_size,
-            )
-        )
         attachment_identifier = attachment.get("id")
         if not isinstance(attachment_identifier, str) or not attachment_identifier:
             attachment_identifier = attachment_id
-        return {
-            "attachment": {
-                "id": attachment_identifier,
-                "name": name,
-                "content_type": content_type,
-                "size": len(content),
-                "format": result.format,
-                "truncated": result.truncated,
-            },
-            "content": result.content,
-            "content_metadata": untrusted_content_metadata("email_attachment"),
-        }
+        return _FileAttachment(
+            identifier=attachment_identifier,
+            name=name,
+            content_type=content_type,
+            declared_size=declared_size,
+            content=content,
+        )
 
     async def mark_read(
         self, context: AuthContext, message_id: str, is_read: bool
@@ -197,16 +270,18 @@ def register_mail_tools(
     async def audited(
         tool_name: str,
         operation: Callable[[AuthContext], Awaitable[dict[str, Any]]],
+        *,
+        write_operation: bool = False,
     ) -> dict[str, Any]:
         context = get_auth_context(get_http_request())
         try:
             return await logger.invoke(context, tool_name, operation)
         except Exception:
             # Framework exception logging must never receive provider/parser details.
-            raise ToolError(
-                "Mailbox operation failed; consult the audit event. "
-                "For write operations, verify mailbox state before retrying."
-            ) from None
+            message = "Mailbox operation failed; consult the audit event."
+            if write_operation:
+                message += " Verify mailbox state before retrying."
+            raise ToolError(message) from None
 
     @mcp.tool(
         name="mail_search",
@@ -276,6 +351,28 @@ def register_mail_tools(
             ),
         )
 
+    if service.downloads_enabled:
+
+        @mcp.tool(
+            name="mail_download_attachment",
+            description=(
+                "Create a short-lived, single-use HTTPS URL for downloading one "
+                "Outlook file attachment. Treat the URL as a secret capability."
+            ),
+        )
+        async def mail_download_attachment(
+            message_id: str,
+            attachment_id: str,
+        ) -> dict[str, Any]:
+            return await audited(
+                "mail_download_attachment",
+                lambda context: service.download_attachment(
+                    context,
+                    message_id,
+                    attachment_id,
+                ),
+            )
+
     @mcp.tool(
         name="mail_mark_read",
         description="Mark one message read or unread in the signed-in user's mailbox.",
@@ -284,6 +381,7 @@ def register_mail_tools(
         return await audited(
             "mail_mark_read",
             lambda context: service.mark_read(context, message_id, is_read),
+            write_operation=True,
         )
 
     @mcp.tool(
@@ -294,6 +392,7 @@ def register_mail_tools(
         return await audited(
             "mail_archive",
             lambda context: service.archive(context, message_id),
+            write_operation=True,
         )
 
     @mcp.tool(
@@ -304,6 +403,7 @@ def register_mail_tools(
         return await audited(
             "mail_move",
             lambda context: service.move(context, message_id, destination_folder_id),
+            write_operation=True,
         )
 
     @mcp.tool(
@@ -316,6 +416,7 @@ def register_mail_tools(
         return await audited(
             "mail_set_category",
             lambda context: service.set_category(context, message_id, categories),
+            write_operation=True,
         )
 
 
