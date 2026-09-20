@@ -439,6 +439,7 @@ def _attachment_metadata(item: Any) -> Any:
     if not isinstance(item, Mapping):
         return item
     metadata = dict(item)
+    reported_size = _valid_size(metadata.pop("size", None))
     has_content = "contentBytes" in metadata
     encoded = metadata.pop("contentBytes", None)
     if has_content:
@@ -449,10 +450,12 @@ def _attachment_metadata(item: Any) -> Any:
         except (binascii.Error, UnicodeError, ValueError):
             pass
         else:
-            reported_size = _valid_size(metadata.get("size"))
             metadata["size"] = content_size
             if reported_size is not None and reported_size != content_size:
                 metadata["reported_size"] = reported_size
+            return metadata
+    if reported_size is not None:
+        metadata["reported_size"] = reported_size
     return metadata
 
 

@@ -21,7 +21,7 @@
 ### mail_list_attachments
 
 列出邮件附件。
-当 File Attachment 的 Graph Response 包含 `contentBytes` 时，`size` 表示解码后的实际内容长度。如果 Graph 的 `size` Metadata 与实际长度不同，Response 会额外返回 `reported_size`，避免调用方把 Provider 报告值的差异误判为文件完整性问题。
+当 File Attachment 的 Graph Response 包含 `contentBytes` 时，`size` 表示解码后的实际内容长度。如果 Graph 的 `size` Metadata 与实际长度不同，Response 会额外返回 `reported_size`，避免调用方把 Provider 报告值的差异误判为文件完整性问题。生产环境的 Metadata-only List Request 不获取 `contentBytes`，因此只把 Graph 值暴露为 `reported_size`，不会声称存在权威 `size`。
 
 ### mail_read_attachment
 

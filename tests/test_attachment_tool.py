@@ -238,3 +238,39 @@ def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
     assert downloaded["attachment"]["size"] == len(payload)
     assert downloaded["attachment"]["reported_size"] == reported_size
 
+
+def test_attachment_list_uses_actual_size_when_content_is_available() -> None:
+    payload = b"actual bytes"
+
+    class InlineContentMailService:
+        async def list_attachments(
+            self,
+            context: AuthContext,
+            message_id: str,
+        ) -> GraphResponse:
+            return GraphResponse(
+                status_code=200,
+                data={
+                    "value": [
+                        {
+                            "id": "attachment-1",
+                            "name": "notes.txt",
+                            "size": len(payload) + 12,
+                            "contentBytes": base64.b64encode(payload).decode("ascii"),
+                        }
+                    ]
+                },
+                request_id=None,
+                headers={},
+            )
+
+    service = MailToolService(InlineContentMailService())  # type: ignore[arg-type]
+
+    result = asyncio.run(service.list_attachments(make_context(), "message-1"))
+
+    attachment = result["attachments"][0]
+    assert attachment["size"] == len(payload)
+    assert attachment["reported_size"] == len(payload) + 12
+    assert attachment["has_content"] is True
+    assert "contentBytes" not in attachment
+
