@@ -109,7 +109,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         "arguments": {"message_id": "failure", "is_read": True},
                     })
                     assert write_failure["isError"]
-                    assert "verify mailbox state before retrying" in json.dumps(write_failure)
+                    assert "Verify mailbox state before retrying" in json.dumps(write_failure)
                     missing = await client.post("/mcp/", json={})
                     assert missing.status_code == 401
 
