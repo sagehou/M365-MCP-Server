@@ -183,7 +183,7 @@ def test_mail_download_attachment_returns_ticket_without_file_bytes() -> None:
     assert "contentBytes" not in result
 
 
-def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
+def test_attachment_tools_expose_one_contextual_size() -> None:
     payload = b"x" * 42_326
     reported_size = 42_710
     attachment = {
@@ -231,15 +231,15 @@ def test_attachment_tools_distinguish_actual_and_graph_reported_size() -> None:
         service.download_attachment(make_context(), "message-1", "attachment-1")
     )
 
-    assert "size" not in listed["attachments"][0]
-    assert listed["attachments"][0]["reported_size"] == reported_size
+    assert listed["attachments"][0]["size"] == reported_size
+    assert "reported_size" not in listed["attachments"][0]
     assert read["attachment"]["size"] == len(payload)
-    assert read["attachment"]["reported_size"] == reported_size
+    assert "reported_size" not in read["attachment"]
     assert downloaded["attachment"]["size"] == len(payload)
-    assert downloaded["attachment"]["reported_size"] == reported_size
+    assert "reported_size" not in downloaded["attachment"]
 
 
-def test_attachment_list_uses_actual_size_when_content_is_available() -> None:
+def test_attachment_list_keeps_provider_size_when_content_is_available() -> None:
     payload = b"actual bytes"
 
     class InlineContentMailService:
@@ -269,8 +269,8 @@ def test_attachment_list_uses_actual_size_when_content_is_available() -> None:
     result = asyncio.run(service.list_attachments(make_context(), "message-1"))
 
     attachment = result["attachments"][0]
-    assert attachment["size"] == len(payload)
-    assert attachment["reported_size"] == len(payload) + 12
+    assert attachment["size"] == len(payload) + 12
+    assert "reported_size" not in attachment
     assert attachment["has_content"] is True
     assert "contentBytes" not in attachment
 
