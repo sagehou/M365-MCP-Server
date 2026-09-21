@@ -11,7 +11,7 @@ from .errors import (
 )
 from .middleware import BearerAuthMiddleware
 from .models import AuthContext, UserIdentity
-from .obo import MsalOboService
+from .obo import MsalOboService, OboGraphTokenProvider
 from .settings import Settings
 from .validator import JwtValidator
 
@@ -24,6 +24,7 @@ __all__ = [
     "InsufficientScopeError",
     "JwtValidator",
     "MsalOboService",
+    "OboGraphTokenProvider",
     "OboTokenError",
     "Settings",
     "TokenValidationError",

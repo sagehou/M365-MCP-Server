@@ -186,9 +186,9 @@ def test_graph_rejects_noncanonical_paths_before_obo(path):
 def test_obo_runs_outside_the_event_loop_thread():
     event_thread = threading.get_ident()
     class ThreadCheckedObo(StubObo):
-        def acquire_graph_token(self, **kwargs):
+        def acquire_token(self, context):
             assert threading.get_ident() != event_thread
-            return super().acquire_graph_token(**kwargs)
+            return super().acquire_token(context)
     async def exercise():
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(lambda request: httpx.Response(200, json={}))
