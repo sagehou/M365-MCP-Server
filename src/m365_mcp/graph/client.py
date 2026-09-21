@@ -12,9 +12,9 @@ from urllib.parse import unquote, urlsplit
 import httpx
 
 from ..auth.models import AuthContext
-from ..auth.obo import MsalOboService
 from ..auth.settings import Settings
 from .errors import GraphApiError, GraphPathError, GraphTransportError
+from .tokens import GraphTokenProvider
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,13 +35,13 @@ class GraphClient:
     def __init__(
         self,
         settings: Settings,
-        obo_service: MsalOboService,
+        token_provider: GraphTokenProvider,
         http_client: httpx.AsyncClient | None = None,
         sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.settings = settings
-        self.obo_service = obo_service
+        self.token_provider = token_provider
         self._client = http_client or httpx.AsyncClient(timeout=settings.http_timeout_seconds)
         self._owns_client = http_client is None
         self._sleeper = sleeper
@@ -74,9 +74,8 @@ class GraphClient:
         method = method.upper()
         retry_safe = method in {"GET", "HEAD", "OPTIONS"}
         graph_token = await asyncio.to_thread(
-            self.obo_service.acquire_graph_token,
-            user_assertion=context.access_token,
-            tenant_id=context.identity.tenant_id,
+            self.token_provider.acquire_token,
+            context,
         )
         request_headers["Authorization"] = f"Bearer {graph_token}"
 

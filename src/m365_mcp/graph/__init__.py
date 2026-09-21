@@ -3,6 +3,7 @@
 from .client import GraphClient, GraphResponse
 from .errors import GraphApiError, GraphError, GraphPathError, GraphTransportError
 from .mail import MailService
+from .tokens import GraphTokenProvider
 
 __all__ = [
     "GraphApiError",
@@ -11,5 +12,6 @@ __all__ = [
     "GraphPathError",
     "GraphResponse",
     "GraphTransportError",
+    "GraphTokenProvider",
     "MailService",
 ]

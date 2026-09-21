@@ -282,10 +282,12 @@ def register_mail_tools(
     service: MailToolService,
     *,
     audit_logger: AuditLogger | None = None,
+    context_provider: Callable[[], AuthContext] | None = None,
 ) -> None:
     """Register identity-scoped mail tools with safe invocation auditing."""
 
     logger = audit_logger or AuditLogger()
+    provide_context = context_provider or _http_auth_context
 
     async def audited(
         tool_name: str,
@@ -293,7 +295,7 @@ def register_mail_tools(
         *,
         write_operation: bool = False,
     ) -> dict[str, Any]:
-        context = get_auth_context(get_http_request())
+        context = provide_context()
         event_id = uuid.uuid4().hex[:16]
         try:
             return await logger.invoke(
@@ -324,10 +326,12 @@ def register_mail_tools(
         query: str = "",
         limit: int = 25,
         date_from: Annotated[
-            str | None, Field(format="date-time", description="RFC 3339 timestamp")
+            str | None,
+            Field(format="date-time", description="ISO 8601 timestamp with timezone"),
         ] = None,
         date_to: Annotated[
-            str | None, Field(format="date-time", description="RFC 3339 timestamp")
+            str | None,
+            Field(format="date-time", description="ISO 8601 timestamp with timezone"),
         ] = None,
     ) -> dict[str, Any]:
         return await audited(
@@ -460,6 +464,12 @@ def register_mail_tools(
             lambda context: service.set_category(context, message_id, categories),
             write_operation=True,
         )
+
+
+def _http_auth_context() -> AuthContext:
+    """Adapt the authenticated HTTP request to the tool context interface."""
+
+    return get_auth_context(get_http_request())
 
 
 def _moved_id(response: GraphResponse) -> str:

@@ -2,6 +2,20 @@
 
 # Development Plan
 
+## Current Delivery Order
+
+1. Complete the P0 release-hardening gate: pinned CI images and actions, exact
+   audit error correlation, and live WorkBuddy happy-path/failure evidence.
+2. Deliver Windows local mode immediately after P0. It runs beside the agent
+   over MCP stdio, uses public-client sign-in for Microsoft Graph, and ships as
+   a true single executable with no extraction directory. See the
+   [Windows local mode roadmap](windows-local.md).
+3. Resume attachment processing and broader M365 expansion after the local
+   runtime foundation is accepted.
+
+The automated part of P0 is enforced by GitHub Actions. The live WorkBuddy
+acceptance remains a release gate and is not simulated by unit tests.
+
 ## Phase 0 - Bootstrap
 
 - Python project

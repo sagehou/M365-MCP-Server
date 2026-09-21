@@ -11,8 +11,10 @@ from pydantic import ValidationError
 
 from m365_mcp.app import create_app
 from m365_mcp.auth import (
+    AuthContext,
     InsufficientScopeError,
     MsalOboService,
+    OboGraphTokenProvider,
     OboTokenError,
     Settings,
     TokenValidationError,
@@ -170,14 +172,20 @@ def test_obo_uses_allowlisted_tenant_and_configured_graph_scope() -> None:
         return FakeMsalClient()
 
     service = MsalOboService(make_settings(), client_factory=factory)
-
-    assert (
-        service.acquire_graph_token(
-            user_assertion="inbound-access-token",
+    provider = OboGraphTokenProvider(service)
+    context = AuthContext(
+        identity=UserIdentity(
             tenant_id=TENANT_ID,
-        )
-        == "graph-access-token"
+            user_id="user-1",
+            subject="subject-1",
+            issuer=ISSUER,
+            audience="api://api-client-id",
+            scopes=frozenset({"access_as_user"}),
+        ),
+        access_token="inbound-access-token",
     )
+
+    assert provider.acquire_token(context) == "graph-access-token"
     assert calls[0]["authority"].endswith(f"/{TENANT_ID}")
     assert calls[1] == {
         "user_assertion": "inbound-access-token",

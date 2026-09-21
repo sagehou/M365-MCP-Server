@@ -8,7 +8,13 @@ from fastmcp import FastMCP
 from pydantic import BaseModel
 
 from . import __version__
-from .auth import BearerAuthMiddleware, JwtValidator, MsalOboService, Settings
+from .auth import (
+    BearerAuthMiddleware,
+    JwtValidator,
+    MsalOboService,
+    OboGraphTokenProvider,
+    Settings,
+)
 from .auth.middleware import TokenValidator
 from .graph import GraphClient, MailService
 from .extractors import AttachmentExtractorRegistry
@@ -73,7 +79,7 @@ def create_app(
     if mail_service is None:
         graph_client = GraphClient(
             configured_settings,
-            MsalOboService(configured_settings),
+            OboGraphTokenProvider(MsalOboService(configured_settings)),
         )
         mail_service = MailService(graph_client)
     attachment_extractor = AttachmentExtractorRegistry(

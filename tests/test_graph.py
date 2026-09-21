@@ -34,9 +34,12 @@ class StubObo:
     def __init__(self) -> None:
         self.calls: list[dict[str, str]] = []
 
-    def acquire_graph_token(self, *, user_assertion: str, tenant_id: str) -> str:
+    def acquire_token(self, context: AuthContext) -> str:
         self.calls.append(
-            {"user_assertion": user_assertion, "tenant_id": tenant_id}
+            {
+                "user_assertion": context.access_token,
+                "tenant_id": context.identity.tenant_id,
+            }
         )
         return "graph-token"
 

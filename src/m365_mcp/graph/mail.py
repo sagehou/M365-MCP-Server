@@ -196,7 +196,9 @@ class MailService:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError as exc:
             raise InvalidToolInputError(
-                param, "invalid_date_format", "must be an RFC 3339 timestamp"
+                param,
+                "invalid_date_format",
+                "must be an ISO 8601 timestamp with timezone",
             ) from exc
         if parsed.tzinfo is None:
             raise InvalidToolInputError(

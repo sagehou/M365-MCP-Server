@@ -2,12 +2,14 @@ import asyncio
 from typing import Any
 
 import pytest
+from fastmcp import Client, FastMCP
 
 from m365_mcp.auth import AuthContext, UserIdentity
 from m365_mcp.errors import InvalidToolInputError
 from m365_mcp.graph.client import GraphResponse
 from m365_mcp.graph.mail import MailService
-from m365_mcp.mail import MailToolService
+from m365_mcp.mail import MailToolService, register_mail_tools
+from m365_mcp.security import untrusted_content_metadata
 
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
@@ -103,6 +105,43 @@ def test_mail_tool_service_omits_attachment_bytes() -> None:
         ],
         "next_link": "https://example.invalid/next",
     }
+
+
+def test_registered_mail_tools_accept_an_injected_context_without_http() -> None:
+    expected_context = make_context()
+    received_contexts: list[AuthContext] = []
+
+    class StubMailService:
+        async def get_message(
+            self, context: AuthContext, message_id: str
+        ) -> GraphResponse:
+            received_contexts.append(context)
+            return GraphResponse(
+                status_code=200,
+                data={"id": message_id},
+                request_id=None,
+                headers={},
+            )
+
+    mcp = FastMCP("Local mail tools")
+    register_mail_tools(
+        mcp,
+        MailToolService(StubMailService()),  # type: ignore[arg-type]
+        context_provider=lambda: expected_context,
+    )
+
+    async def exercise() -> Any:
+        async with Client(mcp) as client:
+            result = await client.call_tool(
+                "mail_get", {"message_id": "message-1"}
+            )
+            return result.data
+
+    assert asyncio.run(exercise()) == {
+        "message": {"id": "message-1"},
+        "content_metadata": untrusted_content_metadata("email_message"),
+    }
+    assert received_contexts == [expected_context]
 
 
 @pytest.mark.parametrize(

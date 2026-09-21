@@ -7,6 +7,7 @@ from threading import Lock
 import msal
 
 from .errors import ConfigurationError, OboTokenError
+from .models import AuthContext
 from .settings import Settings
 
 
@@ -76,3 +77,16 @@ class MsalOboService:
         )
         self._clients[tenant_id] = client
         return client
+
+
+class OboGraphTokenProvider:
+    """Adapt the remote server's OBO exchange to the Graph token interface."""
+
+    def __init__(self, obo_service: MsalOboService) -> None:
+        self.obo_service = obo_service
+
+    def acquire_token(self, context: AuthContext) -> str:
+        return self.obo_service.acquire_graph_token(
+            user_assertion=context.access_token,
+            tenant_id=context.identity.tenant_id,
+        )

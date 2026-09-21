@@ -3,6 +3,8 @@
 import asyncio
 import base64
 import json
+import logging
+import re
 from dataclasses import replace
 
 import httpx
@@ -10,18 +12,22 @@ import httpx
 from m365_mcp.app import create_app
 from m365_mcp.auth import Settings
 from m365_mcp.graph import GraphClient, MailService
+from m365_mcp.security import AuditLogger
 from test_graph import make_context
 
 
 def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capfd, caplog):
     calls = []
     writes = []
+    failure_refs = []
+    audit_log = logging.getLogger("test.mcp_http.audit")
+    audit_log.setLevel(logging.INFO)
     class Validator:
         async def validate(self, token):
             return replace(make_context().identity, user_id=token, subject=token)
     class Obo:
-        def acquire_graph_token(self, *, user_assertion, tenant_id):
-            return "graph-" + user_assertion
+        def acquire_token(self, context):
+            return "graph-" + context.access_token
     async def handler(request):
         await asyncio.sleep(0)
         calls.append((request.headers["authorization"], request.url.path))
@@ -48,7 +54,12 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
     async def exercise():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as graph_http:
             graph = GraphClient(Settings(), Obo(), http_client=graph_http)
-            app = create_app(settings=Settings(), token_validator=Validator(), mail_service=MailService(graph))
+            app = create_app(
+                settings=Settings(),
+                token_validator=Validator(),
+                mail_service=MailService(graph),
+                audit_logger=AuditLogger(audit_log),
+            )
             async with app.router.lifespan_context(app):
                 async with httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -117,10 +128,13 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     failure = await rpc("alice", "tools/call", {
                         "name": "mail_get", "arguments": {"message_id": "failure"}})
                     assert failure["isError"]
-                    assert "SECRET_PROVIDER_BODY" not in json.dumps(failure)
-                    assert "consult the audit event" in json.dumps(failure)
-                    assert "ref " in json.dumps(failure)
-                    assert "verify mailbox state before retrying" not in json.dumps(failure)
+                    failure_text = json.dumps(failure)
+                    assert "SECRET_PROVIDER_BODY" not in failure_text
+                    assert "consult the audit event" in failure_text
+                    match = re.search(r"\(ref ([0-9a-f]{16})\)", failure_text)
+                    assert match is not None
+                    failure_refs.append(match.group(1))
+                    assert "verify mailbox state before retrying" not in failure_text
                     write_failure = await rpc("alice", "tools/call", {
                         "name": "mail_mark_read",
                         "arguments": {"message_id": "failure", "is_read": True},
@@ -176,6 +190,16 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     modern_payload = json.loads(modern_result["content"][0]["text"])
                     assert modern_payload["message"]["id"] == "Bearer graph-bob"
     asyncio.run(exercise())
+    assert len(failure_refs) == 1
+    matching_audit_records = [
+        record
+        for record in caplog.records
+        if getattr(record, "event_id", None) == failure_refs[0]
+    ]
+    assert len(matching_audit_records) == 1
+    assert matching_audit_records[0].event == "mcp_tool_invocation"
+    assert matching_audit_records[0].outcome == "error"
+    assert matching_audit_records[0].tool_name == "mail_get"
     assert ("Bearer graph-alice", "/v1.0/me/messages/id") in calls
     assert ("Bearer graph-bob", "/v1.0/me/messages/id") in calls
     assert writes == [

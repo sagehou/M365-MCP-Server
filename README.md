@@ -76,7 +76,8 @@ rate limiting and other M365 workloads are not implemented. No live-tenant
 acceptance is implied by mocked Graph/OBO/OAuth tests.
 See [review status](docs/review-status.md), the
 [runtime dependency audit](docs/runtime-dependency-audit.md), and the
-[WorkBuddy OAuth guide](docs/workbuddy-oauth.md).
+[WorkBuddy OAuth guide](docs/workbuddy-oauth.md). After v0.1 release hardening,
+the next delivery track is the [Windows local single-executable roadmap](docs/windows-local.md).
 
 ## Deploy
 
