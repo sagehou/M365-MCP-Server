@@ -10,6 +10,12 @@ from ..errors import InvalidToolInputError
 from .client import GraphClient, GraphResponse
 
 
+MAX_DRAFT_RECIPIENTS_PER_FIELD = 50
+MAX_DRAFT_RECIPIENTS_TOTAL = 100
+MAX_DRAFT_SUBJECT_CHARS = 255
+MAX_DRAFT_BODY_CHARS = 100_000
+
+
 class MailService:
     """Provide identity-scoped mailbox operations for future MCP tools."""
 
@@ -119,6 +125,78 @@ class MailService:
             "GET",
             f"/me/messages/{self._segment(message_id)}/attachments/{self._segment(attachment_id)}",
         )
+
+    async def create_draft(
+        self,
+        context: AuthContext,
+        *,
+        to_recipients: list[str],
+        subject: str,
+        body: str,
+        cc_recipients: list[str] | None = None,
+        bcc_recipients: list[str] | None = None,
+    ) -> GraphResponse:
+        to_payload = self._recipient_payload(
+            to_recipients,
+            "to_recipients",
+            required=True,
+        )
+        cc_payload = self._recipient_payload(cc_recipients, "cc_recipients")
+        bcc_payload = self._recipient_payload(bcc_recipients, "bcc_recipients")
+        recipient_count = len(to_payload) + len(cc_payload) + len(bcc_payload)
+        if recipient_count > MAX_DRAFT_RECIPIENTS_TOTAL:
+            raise InvalidToolInputError(
+                "to_recipients",
+                "too_many_recipients",
+                (
+                    "a draft may contain at most "
+                    f"{MAX_DRAFT_RECIPIENTS_TOTAL} recipients"
+                ),
+            )
+
+        normalized_subject = self._draft_text(
+            subject,
+            "subject",
+            max_chars=MAX_DRAFT_SUBJECT_CHARS,
+            allow_newlines=False,
+        ).strip()
+        normalized_body = self._draft_text(
+            body,
+            "body",
+            max_chars=MAX_DRAFT_BODY_CHARS,
+            allow_newlines=True,
+        )
+        payload: dict[str, Any] = {
+            "subject": normalized_subject,
+            "body": {
+                "contentType": "Text",
+                "content": normalized_body,
+            },
+            "toRecipients": to_payload,
+        }
+        if cc_payload:
+            payload["ccRecipients"] = cc_payload
+        if bcc_payload:
+            payload["bccRecipients"] = bcc_payload
+
+        return await self.graph_client.request(
+            context,
+            "POST",
+            "/me/messages",
+            json_body=payload,
+        )
+
+    async def send_draft(
+        self,
+        context: AuthContext,
+        draft_id: str,
+    ) -> GraphResponse:
+        return await self.graph_client.request(
+            context,
+            "POST",
+            f"/me/messages/{self._segment(draft_id)}/send",
+        )
+
     async def mark_read(
         self,
         context: AuthContext,
@@ -189,6 +267,101 @@ class MailService:
         if not isinstance(value, str) or not value or value in {".", ".."}:
             raise ValueError("A non-empty Graph resource id is required")
         return quote(value, safe="")
+
+    @staticmethod
+    def _recipient_payload(
+        values: list[str] | None,
+        param: str,
+        *,
+        required: bool = False,
+    ) -> list[dict[str, dict[str, str]]]:
+        if values is None:
+            values = []
+        if not isinstance(values, list):
+            raise InvalidToolInputError(
+                param,
+                "invalid_type",
+                "must be a list of email addresses",
+            )
+        if required and not values:
+            raise InvalidToolInputError(
+                param,
+                "missing_recipient",
+                "at least one To recipient is required",
+            )
+        if len(values) > MAX_DRAFT_RECIPIENTS_PER_FIELD:
+            raise InvalidToolInputError(
+                param,
+                "too_many_recipients",
+                (
+                    "must not contain more than "
+                    f"{MAX_DRAFT_RECIPIENTS_PER_FIELD} recipients"
+                ),
+            )
+
+        recipients: list[dict[str, dict[str, str]]] = []
+        for value in values:
+            if not isinstance(value, str):
+                raise InvalidToolInputError(
+                    param,
+                    "invalid_address",
+                    "every recipient must be a plain email address",
+                )
+            address = value.strip()
+            if (
+                not address
+                or len(address) > 320
+                or address.count("@") != 1
+                or any(
+                    character.isspace() or character in ",;<>"
+                    for character in address
+                )
+            ):
+                raise InvalidToolInputError(
+                    param,
+                    "invalid_address",
+                    "every recipient must be a plain email address",
+                )
+            local_part, domain = address.rsplit("@", 1)
+            if not local_part or not domain:
+                raise InvalidToolInputError(
+                    param,
+                    "invalid_address",
+                    "every recipient must be a plain email address",
+                )
+            recipients.append({"emailAddress": {"address": address}})
+        return recipients
+
+    @staticmethod
+    def _draft_text(
+        value: str,
+        param: str,
+        *,
+        max_chars: int,
+        allow_newlines: bool,
+    ) -> str:
+        if not isinstance(value, str):
+            raise InvalidToolInputError(param, "invalid_type", "must be text")
+        if not value.strip():
+            raise InvalidToolInputError(param, "empty", "must not be empty")
+        if len(value) > max_chars:
+            raise InvalidToolInputError(
+                param,
+                "too_long",
+                f"must not exceed {max_chars} characters",
+            )
+        permitted_controls = {"\t", "\r", "\n"} if allow_newlines else set()
+        if any(
+            (ord(character) < 32 and character not in permitted_controls)
+            or ord(character) == 127
+            for character in value
+        ):
+            raise InvalidToolInputError(
+                param,
+                "invalid_characters",
+                "contains unsupported control characters",
+            )
+        return value
 
     @staticmethod
     def _date_value(value: str, param: str) -> str:

@@ -36,7 +36,7 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
 - [ ] Authorization Server Metadata Discovery 成功。
 - [ ] Dynamic Client Registration 成功。
 - [ ] Entra Interactive Sign-in 通过注册的 WorkBuddy Callback 完成。
-- [ ] MCP 初始化成功并列出预期的九个 Mail Tool。
+- [ ] MCP 初始化成功并列出预期的十一个 Mail Tool。
 - [ ] Token 过期后成功 Refresh，并执行一次性 Rotation。
 - [ ] 旧 Refresh Token Replay 被拒绝。
 - [ ] Server 重启后认证状态仍然可用。
@@ -73,6 +73,11 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
 
 - [ ] Search 和 Message Read 成功。
 - [ ] 一个代表性写操作成功，并在邮箱中确认结果。
+- [ ] `mail_create_draft` 按已审核的纯文本收件人、主题和正文创建 Draft，且没有
+  发送邮件。
+- [ ] 另行取得明确确认后才调用 `mail_send_draft`；邮件只在 Sent Items 中出现
+  一次，并且受控测试收件人只收到一次。
+- [ ] 发送结果不明确时没有自动重试。
 - [ ] 验证 PDF、DOCX、XLSX、PPTX、TXT、ZIP 和普通 Binary Attachment。
 - [ ] 超大和不支持的附件安全失败。
 - [ ] Metadata `size` 与解码后的 `content_length` 正确。

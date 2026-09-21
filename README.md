@@ -31,6 +31,8 @@ handling of Outlook mail and attachments.
 |---|---|---|
 | `mail_search` | Search one bounded page of the signed-in user's mailbox | Read |
 | `mail_get` | Read one message | Read |
+| `mail_create_draft` | Create a reviewed plain-text draft without sending it | Write |
+| `mail_send_draft` | Send one explicitly confirmed existing draft | Write |
 | `mail_list_attachments` | List attachment metadata | Read |
 | `mail_read_attachment` | Extract bounded text from a supported attachment | Read |
 | `mail_download_attachment` | Create a short-lived, single-use download link | Read |
@@ -132,7 +134,7 @@ allowlist or `*` for any valid Microsoft tenant; an empty value fails closed.
 
 - Real-client and real-tenant release acceptance.
 - Search continuation cursors and folder discovery.
-- Draft, reply, forward, and send workflows.
+- Reply and forward workflows; HTML and attachment composition.
 - OCR, shared mailboxes, RBAC, read-only mode, dynamic tool exposure, and rate
   limiting.
 - Calendar, OneDrive, SharePoint, and Teams.

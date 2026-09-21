@@ -276,6 +276,38 @@ class MailToolService:
         await self.mail_service.set_categories(context, message_id, categories)
         return {"message_id": message_id, "categories": categories}
 
+    async def create_draft(
+        self,
+        context: AuthContext,
+        *,
+        to_recipients: list[str],
+        subject: str,
+        body: str,
+        cc_recipients: list[str] | None = None,
+        bcc_recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        response = await self.mail_service.create_draft(
+            context,
+            to_recipients=to_recipients,
+            subject=subject,
+            body=body,
+            cc_recipients=cc_recipients,
+            bcc_recipients=bcc_recipients,
+        )
+        return {"draft_id": _created_draft_id(response), "created": True}
+
+    async def send_draft(
+        self,
+        context: AuthContext,
+        draft_id: str,
+    ) -> dict[str, Any]:
+        await self.mail_service.send_draft(context, draft_id)
+        return {
+            "draft_id": draft_id,
+            "send_accepted": True,
+            "delivery_confirmed": False,
+        }
+
 
 def register_mail_tools(
     mcp: FastMCP,
@@ -356,6 +388,48 @@ def register_mail_tools(
         return await audited(
             "mail_get",
             lambda context: service.get(context, message_id),
+        )
+
+    @mcp.tool(
+        name="mail_create_draft",
+        description=(
+            "Create a plain-text Outlook draft after the user has reviewed the "
+            "recipients, subject, and body. This does not send the message."
+        ),
+    )
+    async def mail_create_draft(
+        to_recipients: list[str],
+        subject: str,
+        body: str,
+        cc_recipients: list[str] | None = None,
+        bcc_recipients: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return await audited(
+            "mail_create_draft",
+            lambda context: service.create_draft(
+                context,
+                to_recipients=to_recipients,
+                subject=subject,
+                body=body,
+                cc_recipients=cc_recipients,
+                bcc_recipients=bcc_recipients,
+            ),
+            write_operation=True,
+        )
+
+    @mcp.tool(
+        name="mail_send_draft",
+        description=(
+            "Send one existing Outlook draft only after separate, explicit user "
+            "confirmation. A successful result means Microsoft Graph accepted "
+            "the request; it does not confirm final delivery."
+        ),
+    )
+    async def mail_send_draft(draft_id: str) -> dict[str, Any]:
+        return await audited(
+            "mail_send_draft",
+            lambda context: service.send_draft(context, draft_id),
+            write_operation=True,
         )
 
     @mcp.tool(
@@ -476,6 +550,15 @@ def _moved_id(response: GraphResponse) -> str:
     identifier = response.data.get("id") if isinstance(response.data, Mapping) else None
     if not isinstance(identifier, str) or not identifier:
         raise ValueError("Graph move response has no destination message id")
+    return identifier
+
+
+def _created_draft_id(response: GraphResponse) -> str:
+    identifier = (
+        response.data.get("id") if isinstance(response.data, Mapping) else None
+    )
+    if not isinstance(identifier, str) or not identifier:
+        raise ValueError("Graph draft creation response has no message id")
     return identifier
 
 

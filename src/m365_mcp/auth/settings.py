@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     graph_consent_scopes: tuple[str, ...] = (
         "https://graph.microsoft.com/User.Read",
         "https://graph.microsoft.com/Mail.ReadWrite",
+        "https://graph.microsoft.com/Mail.Send",
     )
     graph_base_url: str = "https://graph.microsoft.com/v1.0"
     graph_max_retries: int = Field(default=3, ge=0, le=5)

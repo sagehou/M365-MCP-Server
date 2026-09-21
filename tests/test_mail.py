@@ -70,6 +70,127 @@ def test_mail_search_builds_agent_friendly_graph_query() -> None:
     assert "$orderby" not in call["params"]
 
 
+def test_mail_create_and_send_draft_build_graph_requests() -> None:
+    graph = StubGraphClient()
+    service = MailService(graph)  # type: ignore[arg-type]
+    context = make_context()
+
+    asyncio.run(
+        service.create_draft(
+            context,
+            to_recipients=[" recipient@example.com "],
+            cc_recipients=["copy@example.com"],
+            bcc_recipients=["audit@example.com"],
+            subject=" Status update ",
+            body="Line one\nLine two",
+        )
+    )
+    asyncio.run(service.send_draft(context, "draft/id"))
+
+    assert graph.calls == [
+        {
+            "context": context,
+            "method": "POST",
+            "path": "/me/messages",
+            "json_body": {
+                "subject": "Status update",
+                "body": {
+                    "contentType": "Text",
+                    "content": "Line one\nLine two",
+                },
+                "toRecipients": [
+                    {"emailAddress": {"address": "recipient@example.com"}}
+                ],
+                "ccRecipients": [
+                    {"emailAddress": {"address": "copy@example.com"}}
+                ],
+                "bccRecipients": [
+                    {"emailAddress": {"address": "audit@example.com"}}
+                ],
+            },
+        },
+        {
+            "context": context,
+            "method": "POST",
+            "path": "/me/messages/draft%2Fid/send",
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    "kwargs, param, code",
+    [
+        (
+            {"to_recipients": [], "subject": "Subject", "body": "Body"},
+            "to_recipients",
+            "missing_recipient",
+        ),
+        (
+            {
+                "to_recipients": ["Display Name <user@example.com>"],
+                "subject": "Subject",
+                "body": "Body",
+            },
+            "to_recipients",
+            "invalid_address",
+        ),
+        (
+            {"to_recipients": ["user@example.com"], "subject": " ", "body": "Body"},
+            "subject",
+            "empty",
+        ),
+        (
+            {
+                "to_recipients": ["user@example.com"],
+                "subject": "Subject\nInjected",
+                "body": "Body",
+            },
+            "subject",
+            "invalid_characters",
+        ),
+        (
+            {"to_recipients": ["user@example.com"], "subject": "Subject", "body": ""},
+            "body",
+            "empty",
+        ),
+        (
+            {
+                "to_recipients": ["user@example.com"],
+                "subject": "Subject",
+                "body": "Body\x00",
+            },
+            "body",
+            "invalid_characters",
+        ),
+        (
+            {
+                "to_recipients": [f"to-{index}@example.com" for index in range(50)],
+                "cc_recipients": [f"cc-{index}@example.com" for index in range(50)],
+                "bcc_recipients": ["bcc@example.com"],
+                "subject": "Subject",
+                "body": "Body",
+            },
+            "to_recipients",
+            "too_many_recipients",
+        ),
+    ],
+)
+def test_create_draft_validation_fails_before_graph(
+    kwargs: dict[str, Any],
+    param: str,
+    code: str,
+) -> None:
+    graph = StubGraphClient()
+    service = MailService(graph)  # type: ignore[arg-type]
+
+    with pytest.raises(InvalidToolInputError) as raised:
+        asyncio.run(service.create_draft(make_context(), **kwargs))
+
+    assert raised.value.param == param
+    assert raised.value.code == code
+    assert graph.calls == []
+
+
 def test_mail_tool_service_omits_attachment_bytes() -> None:
     class StubMailService:
         async def list_attachments(

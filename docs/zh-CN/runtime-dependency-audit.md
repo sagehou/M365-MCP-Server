@@ -39,7 +39,7 @@ Application Factory 接受测试。
 
 GitHub Actions 在同一端点覆盖两代协议：
 
-- Legacy `2025-03-26`：initialize、tools/list、全部 9 个 Mail Tools、
+- Legacy `2025-03-26`：initialize、tools/list、全部 11 个 Mail Tools、
   Sanitized Failure，以及 Alice/Bob 并发身份隔离。
 - Modern `2026-07-28`：携带 Request Metadata 且无 MCP Session ID 的
   server/discover、tools/list 和 tools/call。

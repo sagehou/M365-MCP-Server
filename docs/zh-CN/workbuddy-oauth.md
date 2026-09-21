@@ -99,7 +99,7 @@ Public HTTP Redirect、Malformed Private Scheme、Fragment、Wildcard Match、Pr
 
     http://localhost:8000/oauth/callback
 
-MSAL 会让用户同时授权同一个 App 的 `api://<CLIENT_ID>/access_as_user` Scope 与显式 Graph Delegated Consent Scopes（默认 `User.Read`、`Mail.ReadWrite`）。代码兑换 Authorization Code 时只请求 Token A 的 MCP Resource，因此 WorkBuddy 收到的仍是 MCP API Token，而不是 Graph Token；MCP API 接收 Token A 后继续通过现有 `.default` OBO 链路访问 Graph。不存在第二个 Entra App，也不存在第二套 Client Credential 配置。即使某项 Delegated Permission 默认不要求管理员，Tenant Policy 仍可能要求管理员批准。
+MSAL 会让用户同时授权同一个 App 的 `api://<CLIENT_ID>/access_as_user` Scope 与显式 Graph Delegated Consent Scopes（默认 `User.Read`、`Mail.ReadWrite`、`Mail.Send`）。代码兑换 Authorization Code 时只请求 Token A 的 MCP Resource，因此 WorkBuddy 收到的仍是 MCP API Token，而不是 Graph Token；MCP API 接收 Token A 后继续通过现有 `.default` OBO 链路访问 Graph。不存在第二个 Entra App，也不存在第二套 Client Credential 配置。即使某项 Delegated Permission 默认不要求管理员，Tenant Policy 仍可能要求管理员批准。
 
 ## 自动测试与真实验收边界
 
@@ -109,7 +109,9 @@ GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2
 
 1. 在 WorkBuddy 4.24.0 或更高版本安装 Connector，确认不会出现 Token 填写表单。
 2. 使用干净 WorkBuddy Profile 连接，确认 Browser Launch、Microsoft Login 与 Consent，并通过 `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback` 返回 WorkBuddy。
-3. 初始化 MCP，确认只列出 9 个 Tools；在可丢弃消息上执行 Search、单封读取、附件提取、单次附件下载和有意的 Mutation，并确认 Move/Archive 后继续使用返回的新 ID。
+3. 初始化 MCP，确认只列出 11 个 Tools；执行 Search、单封读取、Draft 创建、另行
+   确认后的 Draft 发送、附件提取、单次附件下载和对可丢弃消息的有意 Mutation，
+   并确认 Move/Archive 后继续使用返回的新 ID。
 4. 使用第二个用户重复测试，确认两个用户都不能访问对方邮箱内容。
 5. 等待 Token A 到期（或使用批准的短期测试策略），确认 WorkBuddy 无需再次填写 Token 即可自动 Refresh 并重试原请求。
 6. 保留 `OAUTH_DATABASE_PATH` 与 `OAUTH_ENCRYPTION_KEY` 后重启 Server，确认 WorkBuddy Session 仍可继续 Refresh。

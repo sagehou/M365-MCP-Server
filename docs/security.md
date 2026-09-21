@@ -15,12 +15,19 @@ Preferred Graph permissions:
 
 - User.Read
 - Mail.ReadWrite
+- Mail.Send
 
 Avoid:
 
 - Mail.Read.All
 - Mail.ReadWrite.All
 - Application permissions
+
+`mail_create_draft` uses delegated `Mail.ReadWrite`; `mail_send_draft` uses
+delegated `Mail.Send`. The server creates a plain-text draft first and sends
+only that existing draft after separate explicit user confirmation. A Graph
+`202 Accepted` response is reported as accepted, not delivered. Ambiguous send
+failures must not be retried automatically.
 
 ## Token validation
 
