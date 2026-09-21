@@ -20,6 +20,12 @@
 - Delivery: exclude credentials from Docker contexts, test configurable-port
   health checks/non-root worker startup, bind Compose privately and smoke-test
   the exact image before publishing it.
+- Release hardening: pin hosted runners and action majors, verify that a safe MCP
+  error reference exactly matches its audit event ID, and describe accepted date
+  inputs as ISO 8601 timestamps with timezones.
+- Local-runtime foundation: isolate Graph token acquisition behind a provider
+  interface and allow tool identity context to be injected without an HTTP
+  request. Existing HTTP/OBO behavior remains the active runtime.
 
 ## What CI proves
 
@@ -51,5 +57,8 @@ data is read or changed by those tests.
   Graph's search ordering/result limits; date-only queries use received time.
 - OCR, drafts, shared mailboxes, enterprise RBAC/rate limiting/observability,
   Calendar, Drive, SharePoint and Teams remain roadmap items.
+- Windows-local packaging, public-client authentication, DPAPI state, signing,
+  and the distributable single executable remain incomplete. No Windows EXE has
+  been published.
 
 These pending items are not marked complete by tasks 001–007 or by this review.
