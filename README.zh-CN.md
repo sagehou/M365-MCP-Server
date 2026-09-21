@@ -137,6 +137,8 @@ OBO 使用 `GRAPH_SCOPES=https://graph.microsoft.com/.default`。
 - [开发计划](docs/zh-CN/development-plan.md)
 - [实现复核状态](docs/zh-CN/review-status.md)
 - [Windows 本地路线图](docs/zh-CN/windows-local.md)
+- [v0.1.0 发布检查清单](docs/zh-CN/release-checklist.md)
+- [v0.1.0 Release Notes](docs/zh-CN/releases/v0.1.0.md)
 - [WorkBuddy OAuth 指南](docs/zh-CN/workbuddy-oauth.md)
 - [Runtime 依赖审计](docs/zh-CN/runtime-dependency-audit.md)
 - [部署清单](docs/zh-CN/deployment.md)

@@ -15,6 +15,8 @@
 
 The automated part of P0 is enforced by GitHub Actions. The live WorkBuddy
 acceptance remains a release gate and is not simulated by unit tests.
+Record both automated and live evidence in the
+[v0.1.0 release checklist](release-checklist.md) before creating the stable tag.
 
 ## Phase 0 - Bootstrap
 

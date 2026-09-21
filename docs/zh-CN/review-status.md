@@ -13,6 +13,9 @@
 - Delivery：从 Docker Context 排除 Credentials；测试可配置端口 Health Check、Non-root Worker Startup；Compose 私有绑定，并在发布前 Smoke-test 精确镜像。
 - 发布加固：固定 Hosted Runner 和 Action 主版本；验证安全 MCP Error Reference 与
   Audit Event ID 完全一致；将接受的日期输入明确为带时区的 ISO 8601 Timestamp。
+- 发布交付：要求 Tag 与 Project Version 一致并存在双语 Notes；Smoke-test 精确
+  Linux x64 Image、校验 Compose、发布明确的 Semantic Image Tag，并只在 Image
+  发布后创建 GitHub Release。
 - 本地 Runtime 基础：使用 Provider Interface 隔离 Graph Token 获取，并允许 Tool
   身份上下文在没有 HTTP Request 时注入。当前实际运行模式仍是现有 HTTP/OBO。
 
