@@ -10,6 +10,12 @@
 
 Microsoft Graph 使用独立的 Desktop/Public Client App 和委托权限。Windows Web Account Manager（WAM）为首选认证方式，系统浏览器 Authorization Code + PKCE 为回退方式。远端 Server 现有的 Confidential Client 与 OBO 流程保持不变。
 
+## 当前实现状态
+
+- P0 自动化加固已经实现；正式发布前仍需取得真实 WorkBuddy 和租户验收证据。
+- W1 已从 Graph Token Provider 边界和可注入的 Tool 身份上下文开始实施。
+- W0 打包可行性和 W2 Windows 认证尚未完成，目前没有已发布的 Windows EXE。
+
 ## 分发约束
 
 - 用户只获取并运行一个 `m365-mcp.exe`。

@@ -78,6 +78,8 @@ See [review status](docs/review-status.md), the
 [runtime dependency audit](docs/runtime-dependency-audit.md), and the
 [WorkBuddy OAuth guide](docs/workbuddy-oauth.md). After v0.1 release hardening,
 the next delivery track is the [Windows local single-executable roadmap](docs/windows-local.md).
+Implementation has started with the Graph token-provider boundary and injectable
+tool authentication context. No Windows executable is published yet.
 
 ## Deploy
 

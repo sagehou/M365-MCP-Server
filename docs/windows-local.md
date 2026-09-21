@@ -18,6 +18,15 @@ delegated permissions. Windows Web Account Manager (WAM) is preferred, with
 system-browser authorization code plus PKCE as the fallback. The remote server's
 confidential-client and OBO flow remains unchanged.
 
+## Implementation status
+
+- The automated P0 hardening changes are implemented; live WorkBuddy and tenant
+  acceptance evidence is still required before release.
+- W1 has started with the Graph token-provider boundary and injectable tool
+  authentication context.
+- W0 packaging feasibility and W2 Windows authentication are not complete. No
+  Windows executable has been published.
+
 ## Distribution contract
 
 - The user receives and executes one `m365-mcp.exe` file.
