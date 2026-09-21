@@ -11,6 +11,10 @@
 - Audit：默认 Logging 下输出真实 JSON Event，包含 Timestamp 与 Identity；进入 Framework 前清理错误信息。
 - Attachments：列表只返回 Metadata；增加 Pre-decode / Expanded Archive Limits；Parser 使用受监督的进程，并配置 Resource、Timeout 和 Cancellation Limits。
 - Delivery：从 Docker Context 排除 Credentials；测试可配置端口 Health Check、Non-root Worker Startup；Compose 私有绑定，并在发布前 Smoke-test 精确镜像。
+- 发布加固：固定 Hosted Runner 和 Action 主版本；验证安全 MCP Error Reference 与
+  Audit Event ID 完全一致；将接受的日期输入明确为带时区的 ISO 8601 Timestamp。
+- 本地 Runtime 基础：使用 Provider Interface 隔离 Graph Token 获取，并允许 Tool
+  身份上下文在没有 HTTP Request 时注入。当前实际运行模式仍是现有 HTTP/OBO。
 
 ## CI 能证明什么
 
@@ -25,5 +29,7 @@ Unit Tests 和 Integration Tests 使用 Mocked Entra Metadata、OBO 和 Graph Tr
 - OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。真实 WorkBuddy Automatic Sign-in/Refresh、Restart、真实邮箱与跨租户验收仍是兼容 WorkBuddy 的 v0.1 Release Blocker。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
 - OCR、Drafts、Shared Mailboxes、Enterprise RBAC / Rate Limiting / Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
+- Windows 本地打包、Public-client 认证、DPAPI 状态、签名和可分发单文件仍未完成，
+  目前没有已发布的 Windows EXE。
 
 Tasks 001–007 或本次 Review 都不能把上述待办视为已完成。
