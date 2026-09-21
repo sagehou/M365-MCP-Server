@@ -23,6 +23,9 @@
 - Release hardening: pin hosted runners and action majors, verify that a safe MCP
   error reference exactly matches its audit event ID, and describe accepted date
   inputs as ISO 8601 timestamps with timezones.
+- Release delivery: require tag/project-version equality and bilingual notes,
+  smoke-test the exact Linux x64 image, validate Compose, publish explicit
+  semantic image tags, and create the GitHub Release only after image publication.
 - Local-runtime foundation: isolate Graph token acquisition behind a provider
   interface and allow tool identity context to be injected without an HTTP
   request. Existing HTTP/OBO behavior remains the active runtime.

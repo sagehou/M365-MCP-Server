@@ -13,6 +13,8 @@
 
 P0 的自动化部分由 GitHub Actions 执行；WorkBuddy 真实联调不能由单元测试替代，
 仍然是发布门禁。
+创建 Stable Tag 前，必须在 [v0.1.0 发布检查清单](release-checklist.md)中记录
+自动化与真实验收证据。
 
 ## Phase 0 - 项目初始化
 

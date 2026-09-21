@@ -143,6 +143,8 @@ allowlist or `*` for any valid Microsoft tenant; an empty value fails closed.
 - [Development plan](docs/development-plan.md)
 - [Implementation review status](docs/review-status.md)
 - [Windows local roadmap](docs/windows-local.md)
+- [v0.1.0 release checklist](docs/release-checklist.md)
+- [v0.1.0 release notes](docs/releases/v0.1.0.md)
 - [WorkBuddy OAuth guide](docs/workbuddy-oauth.md)
 - [Runtime dependency audit](docs/runtime-dependency-audit.md)
 - [Deployment checklist](docs/deployment.md)
