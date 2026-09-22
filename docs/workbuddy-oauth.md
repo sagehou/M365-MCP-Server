@@ -72,8 +72,12 @@ root.
 4. `/oauth/callback` atomically consumes the transaction, lets MSAL exchange
    the Microsoft code, then re-validates Token A through the existing
    `JwtValidator`.
-5. The browser receives only `code=<local-code>&state=<original-state>` at the
-   exact registered redirect.
+5. For a WorkBuddy private redirect, the server returns a no-store,
+   CSP-restricted completion page. It launches the exact registered
+   `workbuddy://` URI, attempts to close a script-opened authorization window,
+   and otherwise shows a bilingual manual-close fallback. Loopback and HTTPS
+   clients retain the normal 302 redirect. The handoff contains only
+   `code=<local-code>&state=<original-state>`.
 6. `/oauth/token` accepts the RFC 8707 `resource` indicator, requires it to match
    `MCP_PUBLIC_URL` when present, and atomically redeems the local code after
    exact client, redirect and PKCE verification. It returns Token A plus a random
