@@ -8,6 +8,7 @@
 - Git Tag：`v0.1.0`
 - Container Platform：`linux/amd64`
 - Stable Image：`ghcr.io/sagehou/m365-mcp-server:v0.1.0`
+- Windows Asset：`m365-mcp-windows-x64.exe`
 
 以下所有 Tag 前检查项必须有证据，之后才能创建或推送 Stable Tag。证据中不得保存
 Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Identifier。
@@ -117,8 +118,11 @@ Tag Workflow 必须完成：
 - [ ] Python Test Suite 通过。
 - [ ] 精确 Production Image 构建成功并通过 Health Smoke Test。
 - [ ] Compose Validation 通过。
+- [ ] Windows x64 NativeAOT EXE 构建成功，并通过最终 Release Smoke Test。
+- [ ] `m365-mcp-windows-x64.exe.sha256` 能正确校验已发布 EXE。
+- [ ] `m365-mcp-windows-x64.exe` 已生成 GitHub Artifact Attestation，且可验证来源为本仓库。
 - [ ] GHCR 包含 `v0.1.0`、`0.1.0`、`0.1` 和 `latest`。
-- [ ] GitHub Release `v0.1.0` 已创建并包含 Review 后的 Notes。
+- [ ] GitHub Release `v0.1.0` 已创建，并包含 Review 后的 Notes 与两个 Windows Release Asset。
 - [ ] 如果 Package 预期公开，Anonymous `docker pull` 成功。
 - [ ] 部署的 Image Digest 与已发布 Candidate 一致。
 
@@ -127,6 +131,8 @@ Tag Workflow 必须完成：
 - Tag Workflow URL：
 - GitHub Release URL：
 - GHCR Digest：
+- Windows EXE SHA-256：
+- Windows Attestation 验证结果：
 - Anonymous Pull Result：
 - Release Operator 与日期（UTC）：
 
