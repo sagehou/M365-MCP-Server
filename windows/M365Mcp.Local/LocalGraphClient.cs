@@ -39,8 +39,8 @@ internal sealed class LocalGraphClient(
         };
         if (!string.IsNullOrWhiteSpace(query))
         {
-            var escaped = query.Replace("\\", "\\\\").Replace(""", "\\"");
-            parameters.Add(new("$search", $""{escaped}""));
+            var escaped = query.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            parameters.Add(new("$search", $"\"{escaped}\""));
         }
 
         var filters = new List<string>();
