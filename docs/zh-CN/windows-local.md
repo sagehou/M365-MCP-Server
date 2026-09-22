@@ -20,9 +20,7 @@
 - Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
   `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
 
-这仍是集成版本，不是已签名的 Stable Release。先通过真实验收判断可选的 WAM
-Broker 是否比更简单的 Browser PKCE Flow 带来足够价值；PDF/Office 附件解析、
-Authenticode 签名、SBOM 和 Clean VM 真实邮箱验收仍需完成。
+在完成 `v0.1.0` 发布门禁前，它仍属于集成版本。首个 Stable Release 可以在没有 Authenticode 签名的情况下发布 EXE，但必须为最终通过 Smoke Test 的同一二进制文件发布 SHA-256 校验文件和 GitHub Artifact Attestation。后续再通过真实验收判断可选的 WAM Broker 是否比更简单的 Browser PKCE Flow 带来足够价值；PDF/Office 附件解析、Authenticode 签名、SBOM 和 Clean VM 真实邮箱验收属于后续加固工作。
 
 ## Runtime 决策
 
@@ -150,8 +148,7 @@ EXE 当前提供：
    `initialize` 和 `tools/list`；
 5. 断言 Ephemeral 运行不会留下文件。
 
-Actions Artifact 不能宣称为 Stable Release。后续必须在干净的受支持 Windows x64
-VM 上验证已签名 EXE，并把精确通过 Smoke Test 的文件发布为 GitHub Release Asset。
+Actions Artifact 不能宣称为 Stable Release。正式 Release Workflow 必须重新构建并 Smoke Test 最终 Windows x64 EXE，为该文件发布 SHA-256 校验文件和 GitHub Artifact Attestation，并把精确通过测试的文件附加到 GitHub Release。
 
 ## 剩余验收门禁
 
@@ -160,5 +157,5 @@ VM 上验证已签名 EXE，并把精确通过 Smoke Test 的文件发布为 Git
 - 在不解压 Runtime 的前提下增加安全的富文档附件解析。
 - 使用真实邮箱验证搜索、读取、草稿、确认发送、受限自动化发送、附件读取和代表性修改。
 - 验证 Refresh、Logout、损坏 State 恢复、双账户隔离和 Tenant Policy。
-- 增加 Authenticode 签名、时间戳、SHA-256 Checksum 和 SBOM。
-- 在干净 Windows x64 VM 上发布并验证精确的已签名 EXE。
+- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.0 必须提供 SHA-256 Checksum 与 GitHub Artifact Attestation。
+- 在干净 Windows x64 VM 上验证已发布的精确 EXE。
