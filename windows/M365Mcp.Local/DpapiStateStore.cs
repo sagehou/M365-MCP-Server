@@ -29,7 +29,17 @@ internal sealed class DpapiStateStore(LocalConfiguration configuration)
             var plaintext = Dpapi.Unprotect(envelope.AsSpan(Magic.Length).ToArray());
             try
             {
-                return TokenState.FromJson(plaintext);
+                var state = TokenState.FromJson(plaintext);
+                return string.Equals(
+                        state.ClientId,
+                        configuration.ClientId,
+                        StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(
+                        state.TenantId,
+                        configuration.TenantId,
+                        StringComparison.OrdinalIgnoreCase)
+                    ? state
+                    : null;
             }
             finally
             {

@@ -269,6 +269,8 @@ internal sealed class PublicClientAuth(
                 accessToken,
                 refreshToken,
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds() + Math.Max(60, expiresIn),
+                configuration.ClientId,
+                configuration.TenantId,
                 previous?.UserId,
                 previous?.DisplayName,
                 previous?.UserPrincipalName);

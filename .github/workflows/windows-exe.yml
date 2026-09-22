@@ -42,9 +42,6 @@ jobs:
           "Built m365-mcp.exe SHA-256 $hash"
       - name: Smoke test without runtime or extraction directory
         shell: pwsh
-        env:
-          M365_LOCAL_CLIENT_ID: 11111111-1111-1111-1111-111111111111
-          M365_LOCAL_TENANT_ID: organizations
         run: |
           $exe = (Resolve-Path 'artifacts/windows-x64/m365-mcp.exe').Path
           $smokeRoot = Join-Path $env:RUNNER_TEMP "m365-local-smoke"
@@ -63,6 +60,25 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or -not $doctor.ok -or -not $doctor.ephemeral) {
             throw 'Ephemeral doctor check failed.'
           }
+          if (
+            -not $doctor.client_id_configured `
+            -or $doctor.client_id -ne '6e35216e-2623-43cc-b867-83bec0865cf3' `
+            -or $doctor.client_id_source -ne 'built_in'
+          ) {
+            throw 'Built-in Windows client ID was not selected by default.'
+          }
+
+          $env:M365_LOCAL_CLIENT_ID = '11111111-1111-1111-1111-111111111111'
+          $overrideDoctor = & $exe doctor --ephemeral | ConvertFrom-Json
+          if (
+            $LASTEXITCODE -ne 0 `
+            -or -not $overrideDoctor.ok `
+            -or $overrideDoctor.client_id -ne '11111111-1111-1111-1111-111111111111' `
+            -or $overrideDoctor.client_id_source -ne 'environment'
+          ) {
+            throw 'M365_LOCAL_CLIENT_ID did not override the built-in client ID.'
+          }
+          Remove-Item Env:M365_LOCAL_CLIENT_ID
 
           $requests = @(
             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}',

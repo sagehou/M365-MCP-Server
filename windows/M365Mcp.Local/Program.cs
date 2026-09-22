@@ -142,10 +142,11 @@ internal static class Program
               m365-mcp.exe version
               m365-mcp.exe --version
 
-            Required environment:
-              M365_LOCAL_CLIENT_ID=<public desktop application id>
+            Built-in Entra public client:
+              6e35216e-2623-43cc-b867-83bec0865cf3
 
             Optional environment:
+              M365_LOCAL_CLIENT_ID=<public desktop application id override>
               M365_LOCAL_TENANT_ID=<tenant id or organizations>
               M365_LOCAL_GRAPH_SCOPES=<space/comma-separated delegated scopes>
 

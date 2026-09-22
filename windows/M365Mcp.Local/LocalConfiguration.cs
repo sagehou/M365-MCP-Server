@@ -7,8 +7,11 @@ internal sealed record LocalConfiguration(
     string TenantId,
     IReadOnlyList<string> Scopes,
     string StateFile,
-    bool Ephemeral)
+    bool Ephemeral,
+    bool ClientIdOverridden)
 {
+    internal const string BuiltInClientId = "6e35216e-2623-43cc-b867-83bec0865cf3";
+
     private static readonly string[] DefaultScopes =
     [
         "openid",
@@ -27,6 +30,8 @@ internal sealed record LocalConfiguration(
         var localAppData = Environment.GetFolderPath(
             Environment.SpecialFolder.LocalApplicationData);
         var stateFile = Path.Combine(localAppData, "M365-MCP-Server", "state.bin");
+        var rawClientId = Environment.GetEnvironmentVariable("M365_LOCAL_CLIENT_ID");
+        var clientIdOverridden = !string.IsNullOrWhiteSpace(rawClientId);
         var rawScopes = Environment.GetEnvironmentVariable("M365_LOCAL_GRAPH_SCOPES");
         var scopes = string.IsNullOrWhiteSpace(rawScopes)
             ? DefaultScopes
@@ -36,11 +41,12 @@ internal sealed record LocalConfiguration(
                 .ToArray();
 
         return new LocalConfiguration(
-            (Environment.GetEnvironmentVariable("M365_LOCAL_CLIENT_ID") ?? string.Empty).Trim(),
+            clientIdOverridden ? rawClientId!.Trim() : BuiltInClientId,
             (Environment.GetEnvironmentVariable("M365_LOCAL_TENANT_ID") ?? "organizations").Trim(),
             scopes,
             stateFile,
-            ephemeral);
+            ephemeral,
+            clientIdOverridden);
     }
 
     internal IReadOnlyList<string> Validate()
@@ -80,7 +86,9 @@ internal sealed record LocalConfiguration(
             ["architecture"] = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
             ["ephemeral"] = Ephemeral,
             ["state_file"] = Ephemeral ? null : StateFile,
+            ["client_id"] = ClientId,
             ["client_id_configured"] = Guid.TryParse(ClientId, out var id) && id != Guid.Empty,
+            ["client_id_source"] = ClientIdOverridden ? "environment" : "built_in",
             ["tenant"] = TenantId,
             ["errors"] = new JsonArray(errors.Select(error => (JsonNode?)error).ToArray()),
         };
