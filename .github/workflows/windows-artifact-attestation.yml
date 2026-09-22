@@ -1,0 +1,32 @@
+name: Windows executable artifact attestation
+
+on:
+  workflow_run:
+    workflows:
+      - Windows local executable
+    types:
+      - completed
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  actions: read
+
+jobs:
+  attest:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows executable artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: m365-mcp-windows-x64
+          path: artifacts
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Generate artifact provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/m365-mcp.exe
