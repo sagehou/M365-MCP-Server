@@ -1,4 +1,4 @@
-name: Release container
+name: Release
 
 on:
   push:
@@ -48,14 +48,158 @@ jobs:
       - name: Run tests
         run: pytest
 
-  publish:
+  windows:
     needs: test
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish native single executable
+        shell: pwsh
+        run: >
+          dotnet publish windows/M365Mcp.Local/M365Mcp.Local.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output artifacts/windows-x64
+          -p:TreatWarningsAsErrors=true
+      - name: Verify single-file output
+        shell: pwsh
+        run: |
+          $publish = (Resolve-Path 'artifacts/windows-x64').Path
+          $files = @(Get-ChildItem -LiteralPath $publish -File)
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'm365-mcp.exe') {
+            throw "Expected exactly one m365-mcp.exe output; found: $($files.Name -join ', ')"
+          }
+          $hash = (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "Built m365-mcp.exe SHA-256 $hash"
+      - name: Smoke test exact Windows release candidate
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $exe = (Resolve-Path 'artifacts/windows-x64/m365-mcp.exe').Path
+          $expectedVersion = $env:RELEASE_TAG -replace '^v', ''
+          $smokeRoot = Join-Path $env:RUNNER_TEMP "m365-local-release-smoke"
+          New-Item -ItemType Directory -Path $smokeRoot -Force | Out-Null
+          $env:TEMP = $smokeRoot
+          $env:TMP = $smokeRoot
+          $env:LOCALAPPDATA = Join-Path $smokeRoot 'local'
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+
+          $version = & $exe --version
+          if ($LASTEXITCODE -ne 0 -or $version -ne "m365-mcp $expectedVersion") {
+            throw "Version option failed: $version"
+          }
+
+          $doctor = & $exe doctor --ephemeral | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or -not $doctor.ok -or -not $doctor.ephemeral) {
+            throw 'Ephemeral doctor check failed.'
+          }
+          if (
+            -not $doctor.client_id_configured `
+            -or $doctor.client_id -ne '6e35216e-2623-43cc-b867-83bec0865cf3' `
+            -or $doctor.client_id_source -ne 'built_in'
+          ) {
+            throw 'Built-in Windows client ID was not selected by default.'
+          }
+
+          $requests = @(
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"release-ci","version":"1"}}}',
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}',
+            '{"jsonrpc":"2.0","id":3,"method":"ping","params":{}}'
+          )
+          $responses = @($requests | & $exe stdio --ephemeral)
+          if ($LASTEXITCODE -ne 0 -or $responses.Count -ne 3) {
+            throw "stdio smoke test failed with $($responses.Count) responses."
+          }
+          $initialize = $responses[0] | ConvertFrom-Json
+          $tools = $responses[1] | ConvertFrom-Json
+          $ping = $responses[2] | ConvertFrom-Json
+          if ($initialize.result.serverInfo.name -ne 'M365 MCP Server (Windows Local)') {
+            throw 'Unexpected MCP server identity.'
+          }
+          if (@($tools.result.tools).Count -ne 10) {
+            throw "Expected 10 local mail tools; found $(@($tools.result.tools).Count)."
+          }
+          if ($ping.id -ne 3 -or $null -eq $ping.result) {
+            throw 'stdio ping failed.'
+          }
+
+          $unexpected = @(Get-ChildItem -LiteralPath $smokeRoot -Recurse -File -ErrorAction SilentlyContinue)
+          if ($unexpected.Count -ne 0) {
+            throw "Ephemeral runtime created undeclared files: $($unexpected.FullName -join ', ')"
+          }
+      - name: Prepare Windows release assets
+        shell: pwsh
+        run: |
+          $releaseDir = New-Item -ItemType Directory -Path 'artifacts/release' -Force
+          $source = (Resolve-Path 'artifacts/windows-x64/m365-mcp.exe').Path
+          $asset = Join-Path $releaseDir.FullName 'm365-mcp-windows-x64.exe'
+          Copy-Item -LiteralPath $source -Destination $asset
+          $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  m365-mcp-windows-x64.exe" | Set-Content -LiteralPath (Join-Path $releaseDir.FullName 'm365-mcp-windows-x64.exe.sha256') -Encoding ascii -NoNewline
+          Write-Host "Release asset SHA-256: $hash"
+      - name: Upload Windows release assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: m365-mcp-windows-x64-release
+          path: |
+            artifacts/release/m365-mcp-windows-x64.exe
+            artifacts/release/m365-mcp-windows-x64.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  attest-windows:
+    needs:
+      - test
+      - windows
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download Windows release assets
+        uses: actions/download-artifact@v5
+        with:
+          name: m365-mcp-windows-x64-release
+          path: release-assets
+      - name: Verify Windows checksum
+        run: |
+          cd release-assets
+          sha256sum -c m365-mcp-windows-x64.exe.sha256
+      - name: Attest Windows release executable
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-assets/m365-mcp-windows-x64.exe
+
+  publish:
+    needs:
+      - test
+      - windows
+      - attest-windows
     runs-on: ubuntu-24.04
     permissions:
       contents: write
       packages: write
     steps:
       - uses: actions/checkout@v7
+      - name: Download Windows release assets
+        uses: actions/download-artifact@v5
+        with:
+          name: m365-mcp-windows-x64-release
+          path: release-assets
+      - name: Verify Windows checksum
+        run: |
+          cd release-assets
+          sha256sum -c m365-mcp-windows-x64.exe.sha256
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
@@ -99,12 +243,14 @@ jobs:
             docker tag m365-mcp-server:release "$tag"
             docker push "$tag"
           done <<< "$IMAGE_TAGS"
-      - name: Create GitHub Release
+      - name: Create GitHub Release with Windows assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           gh release create "$RELEASE_TAG" \
+            release-assets/m365-mcp-windows-x64.exe \
+            release-assets/m365-mcp-windows-x64.exe.sha256 \
             --verify-tag \
             --title "M365 MCP Server $RELEASE_TAG" \
             --notes-file "docs/releases/$RELEASE_TAG.md" \
