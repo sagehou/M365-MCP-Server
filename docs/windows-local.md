@@ -21,9 +21,10 @@ The executable currently provides:
   language runtimes from `PATH` during smoke testing, and fails if the
   ephemeral smoke run creates files
 
-This is an integration build, not yet a signed stable release. WAM broker
-integration, PDF/Office attachment extraction, Authenticode signing, SBOM, and
-clean-VM live mailbox acceptance remain required.
+This is an integration build, not yet a signed stable release. Live validation
+will determine whether optional WAM broker integration adds enough value over
+the simpler browser PKCE flow. PDF/Office attachment extraction, Authenticode
+signing, SBOM, and clean-VM live mailbox acceptance remain required.
 
 ## Runtime decision
 
@@ -57,12 +58,15 @@ a native Windows executable and needs no Python or .NET runtime on the user PC.
 Create a separate App Registration for the Windows-local executable:
 
 1. Add the **Mobile and desktop applications** platform.
-2. Register `http://localhost` as the redirect URI. The executable listens on a
-   random loopback port for each sign-in.
-3. Configure delegated Microsoft Graph permissions:
+2. Register the exact root URI `http://localhost` as the redirect URI. The
+   executable listens on a random loopback port for each sign-in; Microsoft
+   Entra ignores the port when matching localhost native-app redirects, but the
+   path must still match.
+3. Under **Advanced settings**, set **Allow public client flows** to **Yes**.
+4. Configure delegated Microsoft Graph permissions:
    `User.Read`, `Mail.ReadWrite`, and `Mail.Send`.
-4. Do not create or distribute a client secret or certificate.
-5. Record the Application (client) ID and, when required, the tenant ID.
+5. Do not create or distribute a client secret or certificate.
+6. Record the Application (client) ID and, when required, the tenant ID.
 
 The remote server's confidential-client/OBO App Registration is unchanged and
 must not be reused as a public desktop credential.
@@ -143,7 +147,8 @@ the exact tested GitHub Release asset.
 
 ## Remaining acceptance gate
 
-- Add WAM as the preferred sign-in path while retaining browser PKCE fallback.
+- Validate browser PKCE first, then decide whether optional WAM integration is
+  justified by account-selection, SSO, or tenant-policy requirements.
 - Add safe rich attachment extraction without runtime extraction.
 - Exercise search, read, draft, confirmed send, bounded automation send,
   attachment reading, and representative mutations against a real mailbox.
