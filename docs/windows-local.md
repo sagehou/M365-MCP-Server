@@ -23,10 +23,7 @@ The executable currently provides:
   language runtimes from `PATH` during smoke testing, and fails if the
   ephemeral smoke run creates files
 
-This is an integration build, not yet a signed stable release. Live validation
-will determine whether optional WAM broker integration adds enough value over
-the simpler browser PKCE flow. PDF/Office attachment extraction, Authenticode
-signing, SBOM, and clean-VM live mailbox acceptance remain required.
+This is an integration build until the `v0.1.0` release gate is completed. The first stable release may publish the executable without Authenticode signing, but it must publish a SHA-256 checksum and GitHub Artifact Attestation for the exact smoke-tested binary. Live validation will determine whether optional WAM broker integration adds enough value over the simpler browser PKCE flow. PDF/Office attachment extraction, Authenticode signing, SBOM, and clean-VM live mailbox acceptance remain follow-up hardening work.
 
 ## Runtime decision
 
@@ -166,9 +163,7 @@ The `Windows local executable` workflow publishes the
    on `PATH`;
 5. asserts that the ephemeral run leaves no files.
 
-Do not describe an Actions artifact as a stable release. The signed executable
-must later be smoke-tested on a clean supported Windows x64 VM and published as
-the exact tested GitHub Release asset.
+Do not describe an Actions artifact as a stable release. The stable release workflow must rebuild and smoke-test the exact Windows x64 executable, publish its SHA-256 checksum, create GitHub Artifact Attestation for that binary, and attach the exact tested files to the GitHub Release.
 
 ## Remaining acceptance gate
 
@@ -179,5 +174,5 @@ the exact tested GitHub Release asset.
   attachment reading, and representative mutations against a real mailbox.
 - Verify refresh, logout, corrupted-state recovery, two-account isolation, and
   tenant policy behavior.
-- Add Authenticode signing, timestamping, SHA-256 checksums, and an SBOM.
-- Publish and verify the exact signed executable on a clean Windows x64 VM.
+- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation are required for v0.1.0.
+- Validate the published executable on a clean Windows x64 VM.
