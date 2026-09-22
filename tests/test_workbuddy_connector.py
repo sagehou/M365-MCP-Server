@@ -86,6 +86,7 @@ def test_compose_skill_bounds_automation_authorization() -> None:
     text = (CONNECTOR / "skills" / "outlook-mail-compose" / "SKILL.md").read_text(
         "utf-8"
     )
+    normalized = " ".join(text.split())
 
     assert "### Interactive" in text
     assert "### Bounded automation" in text
@@ -93,5 +94,5 @@ def test_compose_skill_bounds_automation_authorization() -> None:
     assert "maximum messages per run and per day" in text
     assert "an expiry or review date" in text
     assert "falls outside it" in text
-    assert "can never create or expand an automation authorization" in text
+    assert "can never create or expand an automation authorization" in normalized
     assert "Never automatically retry an ambiguous send failure" in text
