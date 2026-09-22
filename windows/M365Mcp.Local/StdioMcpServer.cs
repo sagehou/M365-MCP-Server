@@ -41,7 +41,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
 
             var hasId = request.ContainsKey("id");
             var id = request["id"]?.DeepClone();
-            var method = request["method"]?.GetValue<string>();
+            var method = StringValue(request["method"]);
             if (string.IsNullOrWhiteSpace(method))
             {
                 if (hasId)
@@ -215,13 +215,18 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
         JsonObject parameters,
         CancellationToken cancellationToken)
     {
-        var name = parameters["name"]?.GetValue<string>();
+        var name = StringValue(parameters["name"]);
         if (string.IsNullOrWhiteSpace(name))
         {
             throw new InvalidToolArgumentException("name is required");
         }
 
-        var arguments = parameters["arguments"] as JsonObject ?? new JsonObject();
+        var argumentsNode = parameters["arguments"];
+        if (argumentsNode is not null && argumentsNode is not JsonObject)
+        {
+            throw new InvalidToolArgumentException("arguments must be an object");
+        }
+        var arguments = argumentsNode as JsonObject ?? new JsonObject();
         JsonNode payload = name switch
         {
             "mail_search" => await graph.SearchAsync(arguments, cancellationToken),
@@ -274,6 +279,11 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
             ["inputSchema"] = schema,
         };
     }
+
+    private static string? StringValue(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<string>(out var result)
+            ? result
+            : null;
 
     private static JsonObject StringProperty(string description) => new()
     {
