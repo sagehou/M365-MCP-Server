@@ -141,7 +141,7 @@ OBO 使用 `GRAPH_SCOPES=https://graph.microsoft.com/.default`。
 - OCR、Shared Mailbox、RBAC、Read-only Mode、Dynamic Tool Exposure 和 Rate
   Limiting。
 - Calendar、OneDrive、SharePoint 和 Teams。
-- 已签名且通过 Clean VM 验收的 Windows EXE Release；可选 WAM 评估与本地富文档附件解析。
+- Windows EXE 的 Authenticode 签名与 Clean VM 验收；可选 WAM 评估与本地富文档附件解析。
 
 ## 文档
 
