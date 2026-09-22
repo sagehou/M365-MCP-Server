@@ -19,7 +19,8 @@
 - Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
   `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
 
-这仍是集成版本，不是已签名的 Stable Release。WAM Broker、PDF/Office 附件解析、
+这仍是集成版本，不是已签名的 Stable Release。先通过真实验收判断可选的 WAM
+Broker 是否比更简单的 Browser PKCE Flow 带来足够价值；PDF/Office 附件解析、
 Authenticode 签名、SBOM 和 Clean VM 真实邮箱验收仍需完成。
 
 ## Runtime 决策
@@ -50,11 +51,14 @@ NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Ru
 为 Windows 本地 EXE 创建独立的 App Registration：
 
 1. 添加 **移动和桌面应用程序（Mobile and desktop applications）**平台。
-2. 注册 Redirect URI：`http://localhost`。EXE 每次登录会监听随机 Loopback Port。
-3. 配置 Microsoft Graph 委托权限：`User.Read`、`Mail.ReadWrite` 和
+2. 注册精确的根 Redirect URI：`http://localhost`。EXE 每次登录会监听随机
+   Loopback Port；Microsoft Entra 匹配 Native App 的 localhost Redirect 时忽略
+   Port，但 Path 仍必须一致。
+3. 在 **Advanced settings** 中把 **Allow public client flows** 设为 **Yes**。
+4. 配置 Microsoft Graph 委托权限：`User.Read`、`Mail.ReadWrite` 和
    `Mail.Send`。
-4. 不要创建或分发 Client Secret 或证书。
-5. 记录 Application (client) ID；Tenant Policy 要求时同时记录 Tenant ID。
+5. 不要创建或分发 Client Secret 或证书。
+6. 记录 Application (client) ID；Tenant Policy 要求时同时记录 Tenant ID。
 
 远端 Server 现有的 Confidential-client/OBO App Registration 保持不变，不能把
 它的凭据作为 Public Desktop Credential 分发。
@@ -131,7 +135,8 @@ VM 上验证已签名 EXE，并把精确通过 Smoke Test 的文件发布为 Git
 
 ## 剩余验收门禁
 
-- 增加首选 WAM 登录，同时保留 Browser PKCE 回退。
+- 先验证 Browser PKCE，再根据账户选择、SSO 或 Tenant Policy 的实际需要决定
+  是否增加可选 WAM 集成。
 - 在不解压 Runtime 的前提下增加安全的富文档附件解析。
 - 使用真实邮箱验证搜索、读取、草稿、确认发送、受限自动化发送、附件读取和代表性修改。
 - 验证 Refresh、Logout、损坏 State 恢复、双账户隔离和 Tenant Policy。
