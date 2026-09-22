@@ -82,7 +82,7 @@ internal sealed record LocalConfiguration(
             ["state_file"] = Ephemeral ? null : StateFile,
             ["client_id_configured"] = Guid.TryParse(ClientId, out var id) && id != Guid.Empty,
             ["tenant"] = TenantId,
-            ["errors"] = new JsonArray(errors.Select(JsonValue.Create).ToArray()),
+            ["errors"] = new JsonArray(errors.Select(error => (JsonNode?)error).ToArray()),
         };
     }
 
