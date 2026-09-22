@@ -65,7 +65,7 @@ internal sealed class PublicClientAuth(
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start(1);
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var redirectUri = $"http://localhost:{port}/oauth/callback";
+        var redirectUri = $"http://localhost:{port}";
         var authorizationUri = BuildAuthorizationUri(
             redirectUri,
             expectedState,
@@ -319,7 +319,7 @@ internal sealed class PublicClientAuth(
             }
 
             var uri = new Uri($"http://localhost{parts[1]}");
-            if (uri.AbsolutePath != "/oauth/callback")
+            if (uri.AbsolutePath != "/")
             {
                 throw new LocalAuthException("The local sign-in callback path was invalid.");
             }
