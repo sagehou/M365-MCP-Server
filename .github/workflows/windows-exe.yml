@@ -54,6 +54,11 @@ jobs:
           $env:LOCALAPPDATA = Join-Path $smokeRoot 'local'
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
 
+          $version = & $exe --version
+          if ($LASTEXITCODE -ne 0 -or $version -ne 'm365-mcp 0.1.0') {
+            throw "Version option failed: $version"
+          }
+
           $doctor = & $exe doctor --ephemeral | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or -not $doctor.ok -or -not $doctor.ephemeral) {
             throw 'Ephemeral doctor check failed.'
