@@ -283,7 +283,16 @@ internal sealed class LocalGraphClient(
         CancellationToken cancellationToken)
     {
         var messageId = RequiredString(arguments, "message_id");
-        var isRead = arguments["is_read"]?.GetValue<bool>() ?? true;
+        var isRead = true;
+        if (arguments["is_read"] is JsonNode isReadNode)
+        {
+            if (isReadNode is not JsonValue isReadValue
+                || !isReadValue.TryGetValue<bool>(out var parsedIsRead))
+            {
+                throw new InvalidToolArgumentException("is_read must be a boolean");
+            }
+            isRead = parsedIsRead;
+        }
         await RequestAsync(
             HttpMethod.Patch,
             $"/me/messages/{Segment(messageId)}",
@@ -502,7 +511,12 @@ internal sealed class LocalGraphClient(
         var result = new JsonArray();
         foreach (var item in source)
         {
-            var value = item?.GetValue<string>()?.Trim();
+            if (item is not JsonValue itemValue
+                || !itemValue.TryGetValue<string>(out var rawValue))
+            {
+                throw new InvalidToolArgumentException($"{name} contains an invalid value");
+            }
+            var value = rawValue.Trim();
             if (string.IsNullOrEmpty(value))
             {
                 throw new InvalidToolArgumentException($"{name} contains an empty value");
