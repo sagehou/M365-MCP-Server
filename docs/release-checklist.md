@@ -8,6 +8,7 @@ Target:
 - Git tag: `v0.1.0`
 - Container platform: `linux/amd64`
 - Stable image: `ghcr.io/sagehou/m365-mcp-server:v0.1.0`
+- Windows asset: `m365-mcp-windows-x64.exe`
 
 Do not create or push the stable tag until every pre-tag item below has evidence.
 Never store tokens, secrets, mailbox content, attachment content, or unredacted
@@ -122,8 +123,11 @@ The tag workflow must then complete all of the following:
 - [ ] Python test suite passes.
 - [ ] Exact production image builds and passes its health smoke test.
 - [ ] Compose validation passes.
+- [ ] The Windows x64 NativeAOT executable builds and passes the exact release smoke test.
+- [ ] `m365-mcp-windows-x64.exe.sha256` verifies successfully against the published executable.
+- [ ] GitHub Artifact Attestation exists for `m365-mcp-windows-x64.exe` and verifies against this repository.
 - [ ] GHCR contains `v0.1.0`, `0.1.0`, `0.1`, and `latest`.
-- [ ] GitHub Release `v0.1.0` exists with the reviewed notes.
+- [ ] GitHub Release `v0.1.0` exists with the reviewed notes and both Windows release assets.
 - [ ] Anonymous `docker pull` works if the package is intended to be public.
 - [ ] The deployed image digest matches the published candidate.
 
@@ -132,6 +136,8 @@ Evidence:
 - Tag workflow URL:
 - GitHub Release URL:
 - GHCR digest:
+- Windows EXE SHA-256:
+- Windows attestation verification result:
 - Anonymous-pull result:
 - Release operator and date (UTC):
 
