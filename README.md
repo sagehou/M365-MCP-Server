@@ -32,7 +32,7 @@ handling of Outlook mail and attachments.
 | `mail_search` | Search one bounded page of the signed-in user's mailbox | Read |
 | `mail_get` | Read one message | Read |
 | `mail_create_draft` | Create a reviewed plain-text draft without sending it | Write |
-| `mail_send_draft` | Send one explicitly confirmed existing draft | Write |
+| `mail_send_draft` | Send one confirmed or bounded-preauthorized existing draft | Write |
 | `mail_list_attachments` | List attachment metadata | Read |
 | `mail_read_attachment` | Extract bounded text from a supported attachment | Read |
 | `mail_download_attachment` | Create a short-lived, single-use download link | Read |
@@ -40,6 +40,11 @@ handling of Outlook mail and attachments.
 | `mail_archive` | Move a message to Archive | Write |
 | `mail_move` | Move a message to a specified folder ID | Write |
 | `mail_set_category` | Replace message categories | Write |
+
+Interactive sends require per-message confirmation. An unattended automation may
+send without prompting on every run only when the user explicitly pre-authorizes
+its recipients/domains, trigger, content rules, trusted data sources, per-run and
+daily limits, and expiry. Any deviation pauses for confirmation.
 
 Attachment processing supports PDF, DOCX, XLSX, PPTX, text, and guarded archive
 inspection. Parsing runs in supervised worker processes with byte, archive,

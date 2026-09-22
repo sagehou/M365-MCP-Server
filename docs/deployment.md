@@ -158,7 +158,7 @@ and `api://<CLIENT_ID>` audience forms.
    requests those scopes so each user can consent when target-tenant policy permits.
    Tenant-wide admin consent is an optional policy fallback, not the default setup.
    Do not grant application mailbox permissions; sending uses delegated Mail.Send
-   only for the signed-in user's separately confirmed draft.
+   only for the signed-in user's confirmed or bounded-preauthorized draft.
 3. Configure exactly one credential. For a certificate, mount its PEM private key
    read-only into the container, set CLIENT_CERT_PATH to that container path and
    set CLIENT_CERT_THUMBPRINT. Merely setting a host path does not mount the file.
@@ -174,7 +174,7 @@ and `api://<CLIENT_ID>` audience forms.
 6. With two test users, initialize MCP, list the eleven tools and read a known
    message from each mailbox. Verify cross-user message access is denied.
    Exercise updates only on disposable test messages, verify moved IDs, and send
-   only a reviewed draft to a controlled test recipient.
+   only a reviewed or policy-matched draft to a controlled test recipient.
 7. Read representative attachments and redeem a generated download URL exactly
    once; verify expiry/replay returns 404. Verify JSON audit events contain identity,
    tool, outcome and timestamp but no message text, filenames, URL tickets or tokens.
