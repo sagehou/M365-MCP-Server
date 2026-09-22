@@ -57,11 +57,25 @@ internal sealed class LocalGraphClient(
             parameters.Add(new("$filter", string.Join(" and ", filters)));
         }
 
-        return RequestAsync(
+        return SearchCoreAsync(parameters, cancellationToken);
+    }
+
+    private async Task<JsonNode> SearchCoreAsync(
+        List<KeyValuePair<string, string>> parameters,
+        CancellationToken cancellationToken)
+    {
+        var response = await RequestAsync(
             HttpMethod.Get,
             $"/me/messages?{EncodeQuery(parameters)}",
             null,
-            cancellationToken);
+            cancellationToken) as JsonObject
+            ?? throw new GraphOperationException("Message search response was invalid.");
+        return new JsonObject
+        {
+            ["messages"] = response["value"]?.DeepClone() ?? new JsonArray(),
+            ["next_link"] = response["@odata.nextLink"]?.DeepClone(),
+            ["content_metadata"] = UntrustedMetadata("email_message_preview"),
+        };
     }
 
     internal async Task<JsonNode> GetMessageAsync(
@@ -69,13 +83,18 @@ internal sealed class LocalGraphClient(
         CancellationToken cancellationToken)
     {
         var messageId = RequiredString(arguments, "message_id");
-        return await RequestAsync(
+        var message = await RequestAsync(
             HttpMethod.Get,
             $"/me/messages/{Segment(messageId)}"
             + "?%24select=id,subject,from,toRecipients,ccRecipients,bccRecipients,"
             + "receivedDateTime,sentDateTime,isRead,hasAttachments,body,bodyPreview,categories",
             null,
             cancellationToken);
+        return new JsonObject
+        {
+            ["message"] = message,
+            ["content_metadata"] = UntrustedMetadata("email_message"),
+        };
     }
 
     internal async Task<JsonNode> CreateDraftAsync(
@@ -134,11 +153,41 @@ internal sealed class LocalGraphClient(
         CancellationToken cancellationToken)
     {
         var messageId = RequiredString(arguments, "message_id");
-        return RequestAsync(
+        return ListAttachmentsCoreAsync(messageId, cancellationToken);
+    }
+
+    private async Task<JsonNode> ListAttachmentsCoreAsync(
+        string messageId,
+        CancellationToken cancellationToken)
+    {
+        var response = await RequestAsync(
             HttpMethod.Get,
             $"/me/messages/{Segment(messageId)}/attachments",
             null,
-            cancellationToken);
+            cancellationToken) as JsonObject
+            ?? throw new GraphOperationException("Attachment list response was invalid.");
+        var attachments = new JsonArray();
+        if (response["value"] is JsonArray values)
+        {
+            foreach (var value in values)
+            {
+                if (value is JsonObject item)
+                {
+                    var metadata = (JsonObject)item.DeepClone();
+                    var hadContent = metadata.Remove("contentBytes");
+                    if (hadContent)
+                    {
+                        metadata["has_content"] = true;
+                    }
+                    attachments.Add((JsonNode?)metadata);
+                }
+            }
+        }
+        return new JsonObject
+        {
+            ["attachments"] = attachments,
+            ["next_link"] = response["@odata.nextLink"]?.DeepClone(),
+        };
     }
 
     internal async Task<JsonNode> ReadAttachmentAsync(
@@ -513,6 +562,12 @@ internal sealed class LocalGraphClient(
             "&",
             values.Select(pair =>
                 $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"));
+
+    private static JsonObject UntrustedMetadata(string source) => new()
+    {
+        ["trusted"] = false,
+        ["source"] = source,
+    };
 
     private static bool IsTextContent(string contentType)
     {
