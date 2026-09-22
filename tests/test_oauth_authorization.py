@@ -595,7 +595,8 @@ def test_upstream_state_is_single_use(tmp_path: Path) -> None:
         first = complete_authorization(client, upstream_state)
         replay = complete_authorization(client, upstream_state)
 
-    assert first.status_code == 302
+    assert first.status_code == 200
+    assert callback_redirect_uri(first).startswith(REDIRECT_URI)
     assert replay.status_code == 400
     assert replay.json()["error"] == "invalid_request"
 
