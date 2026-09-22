@@ -420,7 +420,7 @@ internal sealed class LocalGraphClient(
             {
                 throw new InvalidToolArgumentException($"{name} contains an invalid address");
             }
-            recipients.Add(new JsonObject
+            recipients.Add((JsonNode?)new JsonObject
             {
                 ["emailAddress"] = new JsonObject { ["address"] = address },
             });
@@ -458,7 +458,7 @@ internal sealed class LocalGraphClient(
             {
                 throw new InvalidToolArgumentException($"{name} contains an empty value");
             }
-            result.Add(value);
+            result.Add((JsonNode?)value);
         }
         return result;
     }
