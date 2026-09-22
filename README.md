@@ -78,7 +78,7 @@ Agent on Windows
         v
 m365-mcp.exe
         |
-        | Public-client delegated sign-in (browser PKCE; WAM planned)
+        | Public-client delegated sign-in (browser PKCE; optional WAM after live evaluation)
         v
 Microsoft Graph / signed-in Windows user
 ```
@@ -91,8 +91,8 @@ must publish exactly one `m365-mcp.exe`, run it without a language runtime on
 
 The remote Python server remains unchanged. Normal local stdio execution does not
 install services or create registry, startup, scheduled-task, extraction, or log
-files. WAM, rich PDF/Office attachment parsing, signing, and clean-VM live
-acceptance remain open. See the
+files. Optional WAM evaluation, rich PDF/Office attachment parsing, signing, and
+clean-VM live acceptance remain open. See the
 [Windows local single-executable guide](docs/windows-local.md).
 
 ## Release and validation status
@@ -147,7 +147,7 @@ allowlist or `*` for any valid Microsoft tenant; an empty value fails closed.
 - OCR, shared mailboxes, RBAC, read-only mode, dynamic tool exposure, and rate
   limiting.
 - Calendar, OneDrive, SharePoint, and Teams.
-- A signed, clean-VM-accepted Windows EXE release; WAM and rich local attachment parsing.
+- A signed, clean-VM-accepted Windows EXE release; optional WAM evaluation and rich local attachment parsing.
 
 ## Documentation
 
