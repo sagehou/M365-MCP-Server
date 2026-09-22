@@ -7,8 +7,8 @@
 
 > **当前状态：**远端 Streamable HTTP Server 是 Outlook Mail v0.1 Release
 > Candidate。自动化 CI 已通过，但首个稳定版发布前仍需完成真实 WorkBuddy、真实
-> Tenant、真实邮箱、重启和跨租户验收。Windows 本地单文件版本已经开始实施，
-> 目前没有已发布的 EXE。
+> Tenant、真实邮箱、重启和跨租户验收。Windows x64 NativeAOT 集成版本现已在
+> Actions 中生成一个无外部依赖的 `m365-mcp.exe`；它还不是已签名的稳定版本。
 
 ## 当前已经可用
 
@@ -73,18 +73,20 @@ Windows 上的 Agent
         v
 m365-mcp.exe
         |
-        | Public-client 委托登录（优先 WAM，浏览器 PKCE 回退）
+        | Public-client 委托登录（当前浏览器 PKCE；后续增加 WAM）
         v
 Microsoft Graph / 当前 Windows 登录用户
 ```
 
-第一批本地模式基础已经实现：Graph 访问改为小型 Token Provider Interface，
-Tool 的身份上下文可以在不依赖 HTTP Request 的情况下注入。打包可行性、Windows
-Public Client 认证、DPAPI 状态存储、签名以及实际 EXE 尚未完成。
+首个本地集成版本使用独立的 .NET 8 NativeAOT Host，已经提供 Public-client
+Browser PKCE、当前用户 DPAPI State、`login/logout/status/doctor/stdio` 和
+10 个本地邮件工具。GitHub Actions 必须只生成一个 `m365-mcp.exe`，在
+`PATH` 中没有语言 Runtime 的条件下运行，并证明 Ephemeral Smoke Run 不留下文件。
 
-分发约束是真正的单文件，并且不能解压 Python Runtime Tree。正常 stdio 运行不得
-安装 Service，也不得产生 Registry、Startup、Scheduled Task 或日志文件副作用。
-详见 [Windows 本地单文件路线图](docs/zh-CN/windows-local.md)。
+远端 Python Server 保持不变。本地 stdio 正常运行不会安装 Service，也不会创建
+Registry、Startup、Scheduled Task、Runtime 解压目录或日志。WAM、PDF/Office
+富文档解析、签名和 Clean VM 真实验收仍待完成。详见
+[Windows 本地单文件指南](docs/zh-CN/windows-local.md)。
 
 ## 发布与验证状态
 
@@ -97,7 +99,7 @@ Public Client 认证、DPAPI 状态存储、签名以及实际 EXE 尚未完成�
 | Mock WorkBuddy OAuth 与 Refresh Flow | CI 覆盖 |
 | 真实 WorkBuddy 与真实邮箱验收 | 待完成的发布门禁 |
 | 首个稳定 `v0.1.0` GitHub Release | 尚未发布 |
-| Windows 单文件 EXE | 实施中，尚未发布 |
+| Windows 单文件 EXE | NativeAOT Actions 集成产物；未签名、未正式发布 |
 
 GitHub Actions 是本仓库唯一的构建与测试环境。存在 Release Workflow 或 Docker
 Image 构建成功，并不代表已经发布稳定镜像。
@@ -136,7 +138,7 @@ OBO 使用 `GRAPH_SCOPES=https://graph.microsoft.com/.default`。
 - OCR、Shared Mailbox、RBAC、Read-only Mode、Dynamic Tool Exposure 和 Rate
   Limiting。
 - Calendar、OneDrive、SharePoint 和 Teams。
-- 可分发的 Windows EXE。
+- 已签名且通过 Clean VM 验收的 Windows EXE Release；WAM 与本地富文档附件解析。
 
 ## 文档
 
