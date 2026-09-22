@@ -9,7 +9,9 @@ handling of Outlook mail and attachments.
 > **Current status:** the remote Streamable HTTP server is an Outlook Mail v0.1
 > release candidate. Automated CI is green, but real WorkBuddy, tenant, mailbox,
 > restart, and cross-tenant acceptance is still required before the first stable
-> release. Windows local single-executable work has started; no EXE is published.
+> release. A Windows x64 NativeAOT integration build now produces one
+> dependency-free `m365-mcp.exe` in Actions; it is not yet a signed stable
+> release.
 
 ## What works today
 
@@ -76,20 +78,22 @@ Agent on Windows
         v
 m365-mcp.exe
         |
-        | Public-client delegated sign-in (WAM preferred, browser PKCE fallback)
+        | Public-client delegated sign-in (browser PKCE; WAM planned)
         v
 Microsoft Graph / signed-in Windows user
 ```
 
-The first local-mode foundation is implemented: Graph access now uses a small
-token-provider interface, and tool authentication context can be injected without
-an HTTP request. Packaging feasibility, Windows public-client authentication,
-DPAPI state storage, signing, and the actual executable are not complete.
+The first local integration build is implemented as a separate .NET 8 NativeAOT
+host. It provides public-client browser PKCE, current-user DPAPI state,
+`login/logout/status/doctor/stdio`, and ten local mail tools. GitHub Actions
+must publish exactly one `m365-mcp.exe`, run it without a language runtime on
+`PATH`, and prove that an ephemeral smoke run leaves no files.
 
-The distribution contract is a true single file that does not unpack a Python
-runtime tree. Normal stdio execution must not install services or create registry,
-startup, scheduled-task, or log-file side effects. See the
-[Windows local single-executable roadmap](docs/windows-local.md).
+The remote Python server remains unchanged. Normal local stdio execution does not
+install services or create registry, startup, scheduled-task, extraction, or log
+files. WAM, rich PDF/Office attachment parsing, signing, and clean-VM live
+acceptance remain open. See the
+[Windows local single-executable guide](docs/windows-local.md).
 
 ## Release and validation status
 
@@ -102,7 +106,7 @@ startup, scheduled-task, or log-file side effects. See the
 | Mock WorkBuddy OAuth and refresh flow | CI-covered |
 | Real WorkBuddy and real mailbox acceptance | Pending release gate |
 | First stable `v0.1.0` GitHub release | Not published |
-| Windows single executable | In development; not published |
+| Windows single executable | NativeAOT Actions integration artifact; unsigned and not released |
 
 GitHub Actions is the only build and test environment for this repository.
 A configured release workflow or successful image build does not mean a stable
@@ -143,7 +147,7 @@ allowlist or `*` for any valid Microsoft tenant; an empty value fails closed.
 - OCR, shared mailboxes, RBAC, read-only mode, dynamic tool exposure, and rate
   limiting.
 - Calendar, OneDrive, SharePoint, and Teams.
-- A distributable Windows EXE.
+- A signed, clean-VM-accepted Windows EXE release; WAM and rich local attachment parsing.
 
 ## Documentation
 
