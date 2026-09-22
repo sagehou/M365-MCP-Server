@@ -46,7 +46,11 @@ Package 明确不包含 `auth_mode`、Request Header、Token 字段或 `token-sc
 2. `/oauth/authorize` 校验 Client、Redirect、Scope、Resource、Response Type 与 S256 Challenge。
 3. Server 保存 WorkBuddy State，并生成不同的 Cryptographically Random Entra State，再启动 MSAL Authorization。
 4. `/oauth/callback` 原子消费 Transaction，由 MSAL 兑换 Microsoft Code，再通过现有 `JwtValidator` 复验 Token A。
-5. Browser 只会把 `code=<local-code>&state=<original-state>` 发送到 Exact Registered Redirect。
+5. 对 WorkBuddy Private Redirect，Server 返回带 `no-store` 和严格 CSP 的完成页：
+   页面会唤起精确注册的 `workbuddy://` URI，尝试关闭由脚本打开的认证窗口；如果
+   浏览器不允许自动关闭，则显示中英双语的手动关闭提示。Loopback 与 HTTPS Client
+   仍保持普通 302 Redirect。交接内容只有
+   `code=<local-code>&state=<original-state>`。
 6. `/oauth/token` 接受 RFC 8707 `resource` Indicator；提供时必须与 `MCP_PUBLIC_URL` 精确匹配，并在 Exact Client、Redirect 与 PKCE 校验通过后原子兑换 Local Code，返回 Token A 与 Random Local Refresh Token；第二次兑换返回 `invalid_grant`。
 
 ## Refresh Flow
