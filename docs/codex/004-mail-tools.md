@@ -28,8 +28,10 @@ Implemented tools:
 - Do not expose raw Graph APIs.
 - Use /me mailbox operations.
 - Preserve user identity isolation.
-- Create a plain-text draft first and require separate explicit confirmation
-  before sending it.
+- Create a plain-text draft first. Require per-message confirmation or an
+  explicit bounded automation authorization before sending it.
+- Bound automation authorization by recipients/domains, trigger, content rules
+  and trusted sources, per-run and daily volume, and expiry.
 - Do not automatically retry ambiguous send failures.
 
 ## Deliverables

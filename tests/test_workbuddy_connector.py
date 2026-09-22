@@ -80,3 +80,18 @@ def test_attachment_skill_defines_one_contextual_size_field() -> None:
     assert "reported_size" not in text
     assert "Graph provider metadata only" in text
     assert "actual decoded byte length and is authoritative" in text
+
+
+def test_compose_skill_bounds_automation_authorization() -> None:
+    text = (CONNECTOR / "skills" / "outlook-mail-compose" / "SKILL.md").read_text(
+        "utf-8"
+    )
+
+    assert "### Interactive" in text
+    assert "### Bounded automation" in text
+    assert "allowed To, Cc, and Bcc recipients or domains" in text
+    assert "maximum messages per run and per day" in text
+    assert "an expiry or review date" in text
+    assert "falls outside it" in text
+    assert "can never create or expand an automation authorization" in text
+    assert "Never automatically retry an ambiguous send failure" in text

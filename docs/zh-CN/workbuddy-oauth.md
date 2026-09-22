@@ -109,9 +109,10 @@ GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2
 
 1. 在 WorkBuddy 4.24.0 或更高版本安装 Connector，确认不会出现 Token 填写表单。
 2. 使用干净 WorkBuddy Profile 连接，确认 Browser Launch、Microsoft Login 与 Consent，并通过 `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback` 返回 WorkBuddy。
-3. 初始化 MCP，确认只列出 11 个 Tools；执行 Search、单封读取、Draft 创建、另行
-   确认后的 Draft 发送、附件提取、单次附件下载和对可丢弃消息的有意 Mutation，
-   并确认 Move/Archive 后继续使用返回的新 ID。
+3. 初始化 MCP，确认只列出 11 个 Tools；执行 Search、单封读取、Draft 创建、逐封
+   确认后的 Draft 发送、一次受限自动化发送、一次被阻止的越界自动化尝试、附件
+   提取、单次附件下载和对可丢弃消息的有意 Mutation，并确认 Move/Archive 后继续
+   使用返回的新 ID。
 4. 使用第二个用户重复测试，确认两个用户都不能访问对方邮箱内容。
 5. 等待 Token A 到期（或使用批准的短期测试策略），确认 WorkBuddy 无需再次填写 Token 即可自动 Refresh 并重试原请求。
 6. 保留 `OAUTH_DATABASE_PATH` 与 `OAUTH_ENCRYPTION_KEY` 后重启 Server，确认 WorkBuddy Session 仍可继续 Refresh。

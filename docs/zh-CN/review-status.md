@@ -31,8 +31,8 @@ Unit Tests 和 Integration Tests 使用 Mocked Entra Metadata、OBO 和 Graph Tr
 - 配置 Entra Applications/Consent，并使用两个真实用户、受支持 MCP Clients、Certificate 或 Secret Credential 以及代表性附件做验证。
 - OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。真实 WorkBuddy Automatic Sign-in/Refresh、Restart、真实邮箱与跨租户验收仍是兼容 WorkBuddy 的 v0.1 Release Blocker。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
-- 已实现纯文本 Draft 创建以及另行确认后的 Draft 发送。v0.1 契约有意不提供一步式
-  Direct Send、HTML/附件撰写和自动重试。
+- 已实现纯文本 Draft 创建和发送。Client/Agent 层必须逐封确认或具有明确的受限
+  自动化授权。v0.1 契约有意不提供一步式 Direct Send、HTML/附件撰写和自动重试。
 - OCR、Reply、Forward、Shared Mailboxes、Enterprise RBAC / Rate Limiting / Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
 - Windows 本地打包、Public-client 认证、DPAPI 状态、签名和可分发单文件仍未完成，
   目前没有已发布的 Windows EXE。

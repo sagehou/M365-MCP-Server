@@ -58,9 +58,10 @@ data is read or changed by those tests.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.
-- Plain-text draft creation and separately confirmed draft sending are implemented.
-  Direct send, HTML/attachment composition, and automatic retry are intentionally
-  excluded from the v0.1 contract.
+- Plain-text draft creation and draft sending are implemented. Sending requires
+  per-message confirmation or explicit bounded automation authorization at the
+  client/agent layer. Direct send, HTML/attachment composition, and automatic
+  retry are intentionally excluded from the v0.1 contract.
 - OCR, replies, forwarding, shared mailboxes, enterprise RBAC/rate limiting/observability,
   Calendar, Drive, SharePoint and Teams remain roadmap items.
 - Windows-local packaging, public-client authentication, DPAPI state, signing,

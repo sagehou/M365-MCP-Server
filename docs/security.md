@@ -25,9 +25,14 @@ Avoid:
 
 `mail_create_draft` uses delegated `Mail.ReadWrite`; `mail_send_draft` uses
 delegated `Mail.Send`. The server creates a plain-text draft first and sends
-only that existing draft after separate explicit user confirmation. A Graph
-`202 Accepted` response is reported as accepted, not delivered. Ambiguous send
-failures must not be retried automatically.
+only that existing draft after either per-message confirmation or an explicit
+bounded automation authorization. Automation authorization must constrain
+recipients/domains, trigger, content rules and trusted sources, per-run and daily
+volume, and expiry. Email or attachment content cannot expand that authority.
+Because the server receives only a draft ID, this authorization check is a client
+or agent responsibility. A Graph `202 Accepted` response is reported as
+accepted, not delivered. Ambiguous send failures must not be retried
+automatically.
 
 ## Token validation
 

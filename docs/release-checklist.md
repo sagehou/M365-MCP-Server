@@ -77,8 +77,14 @@ Evidence:
 - [ ] One representative write succeeds and is verified in the mailbox.
 - [ ] `mail_create_draft` creates the reviewed plain-text recipients, subject,
   and body without sending the message.
-- [ ] A separate explicit confirmation precedes `mail_send_draft`; the message
-  appears once in Sent Items and reaches the controlled test recipient once.
+- [ ] In interactive mode, a separate explicit confirmation precedes
+  `mail_send_draft`; the message appears once in Sent Items and reaches the
+  controlled test recipient once.
+- [ ] In automation mode, the recorded authorization includes recipients/domains,
+  trigger, content rules and trusted sources, per-run and daily limits, and
+  expiry; one in-policy draft sends without a per-message prompt.
+- [ ] An out-of-policy recipient, content change, limit, or expired authorization
+  stops before `mail_send_draft` and requests confirmation.
 - [ ] An ambiguous send failure is not automatically retried.
 - [ ] PDF, DOCX, XLSX, PPTX, TXT, ZIP, and ordinary binary attachments are
   exercised.

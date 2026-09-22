@@ -31,15 +31,19 @@
 - `bcc_recipients`：可选的纯邮件地址列表
 
 每个收件人字段最多 50 个地址，一封草稿总计最多 100 个收件人。结果返回新的
-`draft_id` 和 `created=true`。Caller 必须先展示完整草稿供用户审核，再另行取得
-明确发送确认。
+`draft_id` 和 `created=true`。交互 Client 必须展示完整草稿供用户审核；自动化
+必须把完整草稿与用户已经记录的受限授权逐项比较。
 
 ### mail_send_draft
 
-只在用户另行明确确认后，按 `draft_id` 发送一封现有草稿。
-`send_accepted=true` 表示 Microsoft Graph 已接受请求；
-`delivery_confirmed=false` 明确表示尚未证明最终投递成功。对结果不明确的失败
-不得自动重试。
+在用户逐封明确确认，或已经明确授予有边界的自动化授权后，按 `draft_id` 发送
+一封现有草稿。自动化授权必须约束收件人/域名、触发条件、内容生成规则与可信数据
+源、单次和每日发送量以及到期时间；任何越界都需要确认。
+
+Server 只接收 `draft_id`，无法证明 Client 使用了哪种授权路径；集成 Client 或
+Agent 必须在调用前执行该策略。`send_accepted=true` 表示 Microsoft Graph 已接受
+请求；`delivery_confirmed=false` 明确表示尚未证明最终投递成功。对结果不明确的
+失败不得自动重试。
 
 ### mail_list_attachments
 

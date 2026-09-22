@@ -111,13 +111,13 @@ OAuth Module 已提供 Discovery Metadata、Dynamic Public-client Registration�
    Interactive Sign-in 会请求这三个 Scope；目标 Tenant Policy 允许时，每个用户
    自行 Consent。Tenant-wide Admin Consent 只是策略兜底，不是默认配置。不要授予
    Application Mailbox Permissions；发送只使用当前登录用户的 Delegated
-   `Mail.Send`，且只发送另行确认的 Draft。
+   `Mail.Send`，且只发送逐封确认或符合受限预授权策略的 Draft。
 3. 只配置一种 Credential。使用证书时，将 PEM Private Key 以只读方式挂载进容器，把 `CLIENT_CERT_PATH` 设置为容器内路径，并设置 `CLIENT_CERT_THUMBPRINT`。只填写宿主机路径并不会自动挂载文件。Compose Override 可使用：`./secrets/client.pem:/run/secrets/client.pem:ro`。
 4. 在同一 App Registration 中增加 `https://<your-host>/oauth/callback` Web Callback。Interactive Sign-in 复用现有 `CLIENT_ID` 和 Client Credential，不存在第二个 Registration 或第二套 Credential 配置。Interactive Sign-in、Local Authorization-code Exchange 与 Persistent Refresh 仍位于默认关闭的 Feature Flag 后；真实 WorkBuddy 验收仍是 Release Blocker。
 5. 确认 `/healthz` 返回 200，未带 Bearer Token 的 `/mcp/` 返回 401。这两个检查不能证明 Tenant Credential、Graph Consent 或 OBO 已正确工作。
 6. 使用两个测试用户分别初始化 MCP、列出 11 个工具并读取各自邮箱中的已知消息，
    确认无法跨用户访问消息。写操作只对可丢弃测试消息执行，检查 Move 后的新 ID，
-   并且只把已经审核的 Draft 发送给受控测试收件人。
+   并且只把已经审核或符合预授权策略的 Draft 发送给受控测试收件人。
 7. 读取代表性附件，并确认生成的 Download URL 只能兑换一次，过期或 Replay 返回 404；确认 JSON Audit Event 包含 Identity、Tool、Outcome 和 Timestamp，但不包含邮件正文、文件名、URL Ticket 或 Token。若 OBO/Tool 调用失败，应查看 Audit Error Type 与 Entra Sign-in Diagnostics，禁止开启 Payload/Token Logging。
 
 附件 Worker 默认限制：512 MiB Address Space、15 CPU Seconds、20 Seconds Wall Time，并且每个 Server Process 最多两个 Active Workers。Office Archive 最多允许 64 MiB 解压数据和 2048 个 Entries。这些限制用于资源隔离，并不等价于 Filesystem/Network Sandbox。生产环境还应在反向代理配置 Request Size / Concurrency Limits，并设置 Container Memory/PID Limits。

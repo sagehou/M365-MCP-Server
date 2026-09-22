@@ -96,6 +96,12 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     )
                     assert search_schema["date_from"].get("format") == "date-time"
                     assert search_schema["date_to"].get("format") == "date-time"
+                    send_description = next(
+                        tool["description"]
+                        for tool in listed["tools"]
+                        if tool["name"] == "mail_send_draft"
+                    )
+                    assert "bounded automation authorization" in send_description
                     results = await asyncio.gather(*[
                         rpc(user, "tools/call", {"name": "mail_get", "arguments": {"message_id": "id"}})
                         for user in ("alice", "bob")

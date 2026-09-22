@@ -32,15 +32,22 @@ Input:
 
 Each recipient field accepts at most 50 addresses and the draft accepts at most
 100 recipients in total. The result contains the new `draft_id` and
-`created=true`. The caller must present the exact draft for review before
-requesting a separate confirmation to send it.
+`created=true`. Interactive clients must present the exact draft for review.
+Automations must compare it with the user's recorded bounded authorization.
 
 ### mail_send_draft
 
-Send one existing draft by `draft_id`, only after separate explicit user
-confirmation. `send_accepted=true` means Microsoft Graph accepted the request;
-`delivery_confirmed=false` makes clear that final delivery is not proven. Do
-not automatically retry an ambiguous failure.
+Send one existing draft by `draft_id` after either per-message explicit user
+confirmation or an explicit bounded automation authorization. The automation
+authorization must constrain recipients/domains, trigger, content-generation
+rules and trusted sources, per-run and daily volume, and expiry. Any deviation
+requires confirmation.
+
+The server receives only the `draft_id` and cannot prove which client-side
+authorization path was used; the integrating client or agent is responsible for
+enforcing it before this call. `send_accepted=true` means Microsoft Graph
+accepted the request; `delivery_confirmed=false` makes clear that final delivery
+is not proven. Do not automatically retry an ambiguous failure.
 
 ### mail_list_attachments
 

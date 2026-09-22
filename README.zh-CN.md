@@ -31,7 +31,7 @@
 | `mail_search` | 搜索当前登录用户邮箱中的一个有边界页面 | 读取 |
 | `mail_get` | 读取一封邮件 | 读取 |
 | `mail_create_draft` | 创建已审核的纯文本草稿，但不发送 | 写入 |
-| `mail_send_draft` | 发送一封已经另行明确确认的现有草稿 | 写入 |
+| `mail_send_draft` | 发送一封已确认或已被受限自动化预授权的现有草稿 | 写入 |
 | `mail_list_attachments` | 列出附件元数据 | 读取 |
 | `mail_read_attachment` | 从受支持附件中提取有边界的文本 | 读取 |
 | `mail_download_attachment` | 创建短时、单次使用的下载链接 | 读取 |
@@ -39,6 +39,10 @@
 | `mail_archive` | 将邮件移动到 Archive | 写入 |
 | `mail_move` | 将邮件移动到指定 Folder ID | 写入 |
 | `mail_set_category` | 替换邮件分类 | 写入 |
+
+交互发送需要逐封确认。无人值守自动化只有在用户预先明确授权收件人/域名、触发条件、
+内容规则、可信数据源、单次与每日限额以及到期时间后，才可免除逐封确认；任何越界
+都必须暂停并请求确认。
 
 附件处理支持 PDF、DOCX、XLSX、PPTX、文本和受保护的压缩包检查。解析在受监督
 Worker Process 中运行，并设置 Byte、Archive、Resource 和 Timeout 限制。邮件与

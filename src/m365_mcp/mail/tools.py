@@ -420,9 +420,10 @@ def register_mail_tools(
     @mcp.tool(
         name="mail_send_draft",
         description=(
-            "Send one existing Outlook draft only after separate, explicit user "
-            "confirmation. A successful result means Microsoft Graph accepted "
-            "the request; it does not confirm final delivery."
+            "Send one existing Outlook draft after per-message user confirmation "
+            "or an explicit bounded automation authorization. A successful result "
+            "means Microsoft Graph accepted the request; it does not confirm final "
+            "delivery."
         ),
     )
     async def mail_send_draft(draft_id: str) -> dict[str, Any]:
