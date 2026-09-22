@@ -2,7 +2,9 @@ import asyncio
 import base64
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import json
 import logging
+import re
 from pathlib import Path
 import sqlite3
 from threading import Barrier
@@ -281,6 +283,13 @@ def complete_authorization(client: TestClient, upstream_state: str):
     )
 
 
+def callback_redirect_uri(response: Any) -> str:
+    assert response.status_code == 200
+    match = re.search(r'const callbackUri = (?P<uri>".*?");', response.text)
+    assert match is not None
+    return json.loads(match.group("uri"))
+
+
 def local_code_from_redirect(location: str) -> str:
     parsed = urlsplit(location)
     assert parsed.scheme == "workbuddy"
@@ -342,8 +351,8 @@ def authorize_and_redeem(
         "state"
     ][0]
     callback = complete_authorization(client, upstream_state)
-    assert callback.status_code == 302
-    local_code = local_code_from_redirect(callback.headers["location"])
+    assert callback.status_code == 200
+    local_code = local_code_from_redirect(callback_redirect_uri(callback))
     token = redeem_code(client, client_id, local_code)
     assert token.status_code == 200
     return token.json()
@@ -367,8 +376,8 @@ def test_authorization_code_flow_uses_separate_state_and_one_time_code(
                 "SELECT protected_upstream_flow FROM oauth_transactions"
             ).fetchone()[0]
         callback = complete_authorization(client, upstream_state)
-        assert callback.status_code == 302
-        local_code = local_code_from_redirect(callback.headers["location"])
+        assert callback.status_code == 200
+        local_code = local_code_from_redirect(callback_redirect_uri(callback))
         with sqlite3.connect(database_path) as connection:
             protected = connection.execute(
                 "SELECT encrypted_msal_cache FROM oauth_codes"
@@ -430,7 +439,7 @@ def test_wrong_pkce_or_client_does_not_consume_valid_code(tmp_path: Path) -> Non
             "state"
         ][0]
         callback = complete_authorization(client, upstream_state)
-        local_code = local_code_from_redirect(callback.headers["location"])
+        local_code = local_code_from_redirect(callback_redirect_uri(callback))
 
         wrong_pkce = redeem_code(client, client_id, local_code, verifier="x" * 64)
         wrong_client = redeem_code(client, "other-client", local_code)
@@ -463,7 +472,7 @@ def test_wrong_token_resource_does_not_consume_code_or_refresh_token(
             urlsplit(authorization.headers["location"]).query
         )["state"][0]
         callback = complete_authorization(client, upstream_state)
-        local_code = local_code_from_redirect(callback.headers["location"])
+        local_code = local_code_from_redirect(callback_redirect_uri(callback))
 
         wrong_code_resource = redeem_code(
             client,
@@ -511,9 +520,7 @@ def test_new_authorization_reclaims_terminal_transaction_and_code_rows(
             urlsplit(first_authorization.headers["location"]).query
         )["state"][0]
         first_callback = complete_authorization(client, first_upstream_state)
-        first_local_code = local_code_from_redirect(
-            first_callback.headers["location"]
-        )
+        first_local_code = local_code_from_redirect(callback_redirect_uri(first_callback))
         assert redeem_code(client, client_id, first_local_code).status_code == 200
 
         second_authorization = begin_authorization(client, client_id)
@@ -636,8 +643,8 @@ def test_upstream_denial_returns_safe_error_to_registered_redirect(
                 follow_redirects=False,
             )
 
-    assert callback.status_code == 302
-    query = parse_qs(urlsplit(callback.headers["location"]).query)
+    assert callback.status_code == 200
+    query = parse_qs(urlsplit(callback_redirect_uri(callback)).query)
     assert query == {"error": ["access_denied"], "state": ["workbuddy-state"]}
     assert entra_client.completed_flows == []
     assert validator.tokens == []
@@ -670,8 +677,8 @@ def test_upstream_or_token_validation_failure_returns_safe_error(
             )["state"][0]
             callback = complete_authorization(client, upstream_state)
 
-        assert callback.status_code == 302
-        query = parse_qs(urlsplit(callback.headers["location"]).query)
+        assert callback.status_code == 200
+        query = parse_qs(urlsplit(callback_redirect_uri(callback)).query)
         assert query == {
             "error": ["server_error"],
             "state": ["workbuddy-state"],
@@ -688,7 +695,7 @@ def test_expired_or_unknown_authorization_code_is_rejected(tmp_path: Path) -> No
             urlsplit(authorization.headers["location"]).query
         )["state"][0]
         callback = complete_authorization(client, upstream_state)
-        local_code = local_code_from_redirect(callback.headers["location"])
+        local_code = local_code_from_redirect(callback_redirect_uri(callback))
         with sqlite3.connect(database_path) as connection:
             connection.execute("UPDATE oauth_codes SET expires_at = 0")
         expired = redeem_code(client, client_id, local_code)
@@ -710,7 +717,7 @@ def test_corrupt_authorization_code_bundle_is_rejected(tmp_path: Path) -> None:
             urlsplit(authorization.headers["location"]).query
         )["state"][0]
         callback = complete_authorization(client, upstream_state)
-        local_code = local_code_from_redirect(callback.headers["location"])
+        local_code = local_code_from_redirect(callback_redirect_uri(callback))
         with sqlite3.connect(database_path) as connection:
             connection.execute(
                 "UPDATE oauth_codes SET encrypted_msal_cache = ?",
@@ -736,7 +743,7 @@ def test_authorization_code_ciphertext_is_bound_to_its_record(
                 urlsplit(authorization.headers["location"]).query
             )["state"][0]
             callback = complete_authorization(client, upstream_state)
-            codes.append(local_code_from_redirect(callback.headers["location"]))
+            codes.append(local_code_from_redirect(callback_redirect_uri(callback)))
 
         first_hash = hashlib.sha256(codes[0].encode("utf-8")).hexdigest()
         second_hash = hashlib.sha256(codes[1].encode("utf-8")).hexdigest()
@@ -811,7 +818,7 @@ def test_token_validation_failure_emits_safe_structured_audit(
                 urlsplit(authorization.headers["location"]).query
             )["state"][0]
             callback = complete_authorization(client, upstream_state)
-            local_code = local_code_from_redirect(callback.headers["location"])
+            local_code = local_code_from_redirect(callback_redirect_uri(callback))
             rejected = client.post(
                 "/oauth/token",
                 data={
@@ -1020,7 +1027,7 @@ def test_authorization_flow_emits_safe_audit_metadata(
                 urlsplit(authorization.headers["location"]).query
             )["state"][0]
             callback = complete_authorization(client, upstream_state)
-            local_code = local_code_from_redirect(callback.headers["location"])
+            local_code = local_code_from_redirect(callback_redirect_uri(callback))
             token = redeem_code(client, client_id, local_code)
 
     assert token.status_code == 200
