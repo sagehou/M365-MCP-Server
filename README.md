@@ -88,6 +88,11 @@ host. It provides public-client browser PKCE, current-user DPAPI state,
 `login/logout/status/doctor/stdio`, and ten local mail tools. GitHub Actions
 must publish exactly one `m365-mcp.exe`, run it without a language runtime on
 `PATH`, and prove that an ephemeral smoke run leaves no files.
+The executable defaults to the project `M365-MCP-Localhost` public client
+(`6e35216e-2623-43cc-b867-83bec0865cf3`), so users do not need to create an
+Entra application first. Enterprises can override it with
+`M365_LOCAL_CLIENT_ID` and `M365_LOCAL_TENANT_ID`; tenant-admin consent rules
+still apply.
 
 The remote Python server remains unchanged. Normal local stdio execution does not
 install services or create registry, startup, scheduled-task, extraction, or log

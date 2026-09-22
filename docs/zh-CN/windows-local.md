@@ -13,6 +13,7 @@
 - `doctor`、`login`、`logout`、`status` 和 `stdio` 命令；
 - 面向独立 Entra Desktop/Public Client App 的系统浏览器 Authorization Code +
   S256 PKCE 登录；
+- 默认内置项目公共客户端 `M365-MCP-Localhost`，并允许企业覆盖 Client ID；
 - 使用当前 Windows 用户 DPAPI 保护可选持久 Token State；
 - 通过 MCP stdio 提供 10 个有边界的 Outlook Mail 工具；
 - `--ephemeral` 模式，不读取也不写入持久状态；
@@ -48,7 +49,15 @@ NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Ru
 
 ## Entra Public Client 配置
 
-为 Windows 本地 EXE 创建独立的 App Registration：
+Windows 本地 EXE 默认使用项目维护的独立公共客户端：
+
+```text
+应用名称：M365-MCP-Localhost
+Application (client) ID：6e35216e-2623-43cc-b867-83bec0865cf3
+Authority：organizations
+```
+
+默认客户端使用以下 Entra 配置：
 
 1. 添加 **移动和桌面应用程序（Mobile and desktop applications）**平台。
 2. 注册精确的根 Redirect URI：`http://localhost`。EXE 每次登录会监听随机
@@ -57,8 +66,16 @@ NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Ru
 3. 在 **Advanced settings** 中把 **Allow public client flows** 设为 **Yes**。
 4. 配置 Microsoft Graph 委托权限：`User.Read`、`Mail.ReadWrite` 和
    `Mail.Send`。
-5. 不要创建或分发 Client Secret 或证书。
-6. 记录 Application (client) ID；Tenant Policy 要求时同时记录 Tenant ID。
+5. 不创建或分发 Client Secret 或证书。
+
+用户不需要为了运行默认版本自行创建 App Registration。目标租户的策略仍可能要求
+管理员针对此应用和当前权限集合完成一次同意；新增权限或撤销同意后需要重新批准。
+
+企业也可以创建自己的 Desktop/Public Client App，并通过
+`M365_LOCAL_CLIENT_ID` 覆盖内置 Client ID。自定义应用必须遵循上面相同的平台、
+Redirect URI、Public Client Flow 和委托权限配置；需要限制到单一租户时，再同时设置
+`M365_LOCAL_TENANT_ID`。Client ID 或 Tenant ID 变更后，已有 DPAPI State 不会跨应用
+复用，需要重新执行 `login`。
 
 远端 Server 现有的 Confidential-client/OBO App Registration 保持不变，不能把
 它的凭据作为 Public Desktop Credential 分发。
@@ -68,12 +85,16 @@ NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Ru
 在 PowerShell 中：
 
 ```powershell
-$env:M365_LOCAL_CLIENT_ID = "<desktop-public-client-id>"
-$env:M365_LOCAL_TENANT_ID = "organizations"
-
 .\m365-mcp.exe doctor
 .\m365-mcp.exe login
 .\m365-mcp.exe status
+```
+
+默认运行不需要设置环境变量。使用企业自己的 App Registration 时再覆盖：
+
+```powershell
+$env:M365_LOCAL_CLIENT_ID = "<custom-desktop-public-client-id>"
+$env:M365_LOCAL_TENANT_ID = "<tenant-id-or-organizations>"
 ```
 
 `login` 会打开系统浏览器，通过 Loopback 完成 PKCE，然后保存 DPAPI 保护的 State。
@@ -86,15 +107,14 @@ MCP Client 配置示例：
   "mcpServers": {
     "m365-local": {
       "command": "C:\\Tools\\m365-mcp.exe",
-      "args": ["stdio"],
-      "env": {
-        "M365_LOCAL_CLIENT_ID": "<desktop-public-client-id>",
-        "M365_LOCAL_TENANT_ID": "organizations"
-      }
+      "args": ["stdio"]
     }
   }
 }
 ```
+
+使用自定义 Entra 应用时，在该 Server 配置的 `env` 中增加
+`M365_LOCAL_CLIENT_ID`；需要时同时增加 `M365_LOCAL_TENANT_ID`。
 
 如果没有可用状态，首次 Tool Call 也可以触发交互登录；Agent 必须给用户留出足够
 时间完成浏览器流程。

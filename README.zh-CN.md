@@ -82,6 +82,9 @@ Microsoft Graph / 当前 Windows 登录用户
 Browser PKCE、当前用户 DPAPI State、`login/logout/status/doctor/stdio` 和
 10 个本地邮件工具。GitHub Actions 必须只生成一个 `m365-mcp.exe`，在
 `PATH` 中没有语言 Runtime 的条件下运行，并证明 Ephemeral Smoke Run 不留下文件。
+EXE 默认内置 `M365-MCP-Localhost` 公共客户端
+（`6e35216e-2623-43cc-b867-83bec0865cf3`），无需用户先创建 Entra 应用；企业可用
+`M365_LOCAL_CLIENT_ID` 和 `M365_LOCAL_TENANT_ID` 覆盖。租户管理员同意要求不变。
 
 远端 Python Server 保持不变。本地 stdio 正常运行不会安装 Service，也不会创建
 Registry、Startup、Scheduled Task、Runtime 解压目录或日志。可选 WAM 评估、

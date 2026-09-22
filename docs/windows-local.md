@@ -14,6 +14,8 @@ The executable currently provides:
 - `doctor`, `login`, `logout`, `status`, and `stdio` commands
 - system-browser authorization code plus S256 PKCE for a dedicated Entra
   desktop/public-client application
+- the project `M365-MCP-Localhost` public client built in by default, with an
+  enterprise client-ID override
 - current-user DPAPI protection for the optional persistent token state
 - MCP stdio with ten bounded Outlook mail tools
 - an `--ephemeral` mode that neither reads nor writes persistent state
@@ -55,7 +57,15 @@ a native Windows executable and needs no Python or .NET runtime on the user PC.
 
 ## Entra public-client setup
 
-Create a separate App Registration for the Windows-local executable:
+The Windows-local executable uses this project-managed public client by default:
+
+```text
+Application name: M365-MCP-Localhost
+Application (client) ID: 6e35216e-2623-43cc-b867-83bec0865cf3
+Authority: organizations
+```
+
+The built-in client uses this Entra configuration:
 
 1. Add the **Mobile and desktop applications** platform.
 2. Register the exact root URI `http://localhost` as the redirect URI. The
@@ -66,7 +76,18 @@ Create a separate App Registration for the Windows-local executable:
 4. Configure delegated Microsoft Graph permissions:
    `User.Read`, `Mail.ReadWrite`, and `Mail.Send`.
 5. Do not create or distribute a client secret or certificate.
-6. Record the Application (client) ID and, when required, the tenant ID.
+
+Users do not need to create an App Registration to run the default build. The
+target tenant policy can still require an administrator to consent once for this
+application and its current permission set. New permissions or revoked consent
+require another approval.
+
+An enterprise can instead create its own desktop/public-client application and
+override the built-in client ID with `M365_LOCAL_CLIENT_ID`. The custom app must
+use the same platform, redirect URI, public-client-flow, and delegated-permission
+configuration above. Set `M365_LOCAL_TENANT_ID` as well when the app must be
+restricted to one tenant. Existing DPAPI state is never reused across a client-ID
+or tenant-ID change; run `login` again after changing either value.
 
 The remote server's confidential-client/OBO App Registration is unchanged and
 must not be reused as a public desktop credential.
@@ -76,12 +97,17 @@ must not be reused as a public desktop credential.
 In PowerShell:
 
 ```powershell
-$env:M365_LOCAL_CLIENT_ID = "<desktop-public-client-id>"
-$env:M365_LOCAL_TENANT_ID = "organizations"
-
 .\m365-mcp.exe doctor
 .\m365-mcp.exe login
 .\m365-mcp.exe status
+```
+
+The default build needs no environment variables. Override it only when using
+an enterprise-owned App Registration:
+
+```powershell
+$env:M365_LOCAL_CLIENT_ID = "<custom-desktop-public-client-id>"
+$env:M365_LOCAL_TENANT_ID = "<tenant-id-or-organizations>"
 ```
 
 `login` opens the system browser, completes PKCE on loopback, then saves the
@@ -95,15 +121,14 @@ Example MCP client configuration:
   "mcpServers": {
     "m365-local": {
       "command": "C:\\Tools\\m365-mcp.exe",
-      "args": ["stdio"],
-      "env": {
-        "M365_LOCAL_CLIENT_ID": "<desktop-public-client-id>",
-        "M365_LOCAL_TENANT_ID": "organizations"
-      }
+      "args": ["stdio"]
     }
   }
 }
 ```
+
+For a custom Entra application, add `M365_LOCAL_CLIENT_ID` to this server's
+`env` block and add `M365_LOCAL_TENANT_ID` when required.
 
 The first tool call can also start interactive sign-in if no usable state exists.
 The agent must allow enough time for the user to finish the browser flow.
