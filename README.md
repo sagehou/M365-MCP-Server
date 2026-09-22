@@ -152,7 +152,7 @@ allowlist or `*` for any valid Microsoft tenant; an empty value fails closed.
 - OCR, shared mailboxes, RBAC, read-only mode, dynamic tool exposure, and rate
   limiting.
 - Calendar, OneDrive, SharePoint, and Teams.
-- A signed, clean-VM-accepted Windows EXE release; optional WAM evaluation and rich local attachment parsing.
+- Authenticode signing and clean-VM acceptance for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
 
 ## Documentation
 
