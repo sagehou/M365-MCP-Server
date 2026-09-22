@@ -1,80 +1,139 @@
 [English](../windows-local.md) | **简体中文**
 
-# Windows 本地单文件版本路线图
+# Windows 本地单文件版本
 
-## 决策
+## 当前状态
 
-完成 v0.1 发布加固门禁后，下一条交付线是 Windows 本地 MCP Server。在该交付线通过验收前，不开始 Calendar、Drive、SharePoint 和 Teams 扩展。
+首个 Windows 本地实现位于 `windows/M365Mcp.Local`，只通过 GitHub Actions
+构建。它使用 .NET 8 NativeAOT，发布结果严格为一个 `m365-mcp.exe`；用户电脑
+不需要 Python、.NET、Docker、Git 或安装器。
 
-本地 Server 与 Agent 运行在同一台 PC。Agent 把 Server 作为子进程启动，并通过 MCP stdio 通信。Agent 与本地 Server 之间不使用 HTTP、OAuth、JWT、OBO、Client Secret 或证书。
+当前 EXE 已提供：
 
-Microsoft Graph 使用独立的 Desktop/Public Client App 和委托权限。Windows Web Account Manager（WAM）为首选认证方式，系统浏览器 Authorization Code + PKCE 为回退方式。远端 Server 现有的 Confidential Client 与 OBO 流程保持不变。
+- `doctor`、`login`、`logout`、`status` 和 `stdio` 命令；
+- 面向独立 Entra Desktop/Public Client App 的系统浏览器 Authorization Code +
+  S256 PKCE 登录；
+- 使用当前 Windows 用户 DPAPI 保护可选持久 Token State；
+- 通过 MCP stdio 提供 10 个有边界的 Outlook Mail 工具；
+- `--ephemeral` 模式，不读取也不写入持久状态；
+- Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
+  `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
 
-## 当前实现状态
+这仍是集成版本，不是已签名的 Stable Release。WAM Broker、PDF/Office 附件解析、
+Authenticode 签名、SBOM 和 Clean VM 真实邮箱验收仍需完成。
 
-- P0 自动化加固已经实现；正式发布前仍需取得真实 WorkBuddy 和租户验收证据。
-- W1 已从 Graph Token Provider 边界和可注入的 Tool 身份上下文开始实施。
-- W0 打包可行性和 W2 Windows 认证尚未完成，目前没有已发布的 Windows EXE。
+## Runtime 决策
+
+远端/容器 Server 继续使用 Python 3.12。Windows 本地 Host 是一个小型、独立的
+.NET NativeAOT 边界，只负责本地认证、MCP stdio 和受控 Graph/Mail 工具面。
+
+这取代了早期 PyOxidizer 候选方案。PyOxidizer 最新稳定版内置 CPython 3.10，
+不适合作为当前 Python 3.12 项目的可维护交付基础；PyInstaller 和 Nuitka 的
+One-file 模式会在启动时解压 Runtime Tree，也不满足“不产生解压目录”的约束。
+NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Runtime。
 
 ## 分发约束
 
-- 用户只获取并运行一个 `m365-mcp.exe`。
-- Python、原生扩展和应用模块必须直接从 EXE 加载，不能在临时目录解压 Runtime Tree。
-- 首选验证 PyOxidizer。会在运行时解包的 PyInstaller/Nuitka One-file 不视为满足本约束。
-- 正常 stdio 运行不得创建 Service、Registry、Scheduled Task、Startup Entry、日志文件或 Runtime 解压目录。
-- 诊断信息只写 `stderr`；`stdout` 只能输出 MCP 消息。
-- 持久模式最多创建一个有明确说明、受 DPAPI 保护的 `%LOCALAPPDATA%\M365-MCP-Server\state.bin`。
-- `--ephemeral` 不得持久化认证或应用状态。
-- 安装系统服务只能由显式兼容命令触发，不能成为正常运行的副作用。
+- 用户只接收并运行一个 `m365-mcp.exe`。
+- 正常运行不解压 Runtime Tree。
+- `stdio` 不安装 Service，不创建 Registry、Startup、Scheduled Task 或日志文件。
+- stdout 只输出 MCP JSON-RPC；诊断信息只写 stderr。
+- 持久模式最多创建一个已声明的当前用户文件：
+  `%LOCALAPPDATA%\M365-MCP-Server\state.bin`。
+- State 中的 OAuth Token 使用当前 Windows 用户 DPAPI 保护。
+- `--ephemeral` 不读取、新建或修改 State 文件。
+- Agent 将 `stdio` 作为子进程启动。当前版本不提供 Windows Service 安装，
+  因为 Service 无法拥有 Agent 的 stdio 通道。
 
-## 交付顺序
+## Entra Public Client 配置
 
-### P0 — 发布加固
+为 Windows 本地 EXE 创建独立的 App Registration：
 
-- Linux Workflow 固定到 `ubuntu-24.04`，Action 升级到兼容 Node 24 的主版本。
-- 断言工具失败响应中的 Reference 与安全审计事件 ID 完全一致。
-- 发布首个稳定服务端版本前，完成真实 WorkBuddy、真实邮箱、双用户、重启和跨租户验收。
+1. 添加 **移动和桌面应用程序（Mobile and desktop applications）**平台。
+2. 注册 Redirect URI：`http://localhost`。EXE 每次登录会监听随机 Loopback Port。
+3. 配置 Microsoft Graph 委托权限：`User.Read`、`Mail.ReadWrite` 和
+   `Mail.Send`。
+4. 不要创建或分发 Client Secret 或证书。
+5. 记录 Application (client) ID；Tenant Policy 要求时同时记录 Tenant ID。
 
-### W0 — 打包可行性
+远端 Server 现有的 Confidential-client/OBO App Registration 保持不变，不能把
+它的凭据作为 Public Desktop Credential 分发。
 
-- 增加仅 Windows 使用的可选依赖/构建 Profile，不扩大远端容器的 Runtime Surface。
-- 只在 GitHub Actions 构建 x64 EXE。
-- 验证 `cryptography`、`pydantic-core`、`lxml`、FastMCP、MSAL 和受支持附件解析器可从内存加载。
-- 在 PATH 中没有 Python 的干净 Windows Runner 上运行 EXE。
-- 正常退出或强制终止后只要残留 Runtime 解压产物，门禁即失败。
+## 运行
 
-### W1 — 本地 Runtime 边界
+在 PowerShell 中：
 
-- 增加明确的 `stdio` 入口；现有 HTTP 入口调整为 `serve`。
-- Tool 通过注入获得认证用户上下文，不再在 Tool 内部直接读取 FastAPI Request。
-- 引入 Graph Token Provider 边界，让远端 OBO 和本地 Public Client 复用同一套有边界的 Graph/Mail Service。
-- 两种模式都保留 `/me` 路径约束、响应大小限制、脱敏、审计关联、写操作不确定性警告和附件隔离。
+```powershell
+$env:M365_LOCAL_CLIENT_ID = "<desktop-public-client-id>"
+$env:M365_LOCAL_TENANT_ID = "organizations"
 
-### W2 — Windows 委托认证
+.\m365-mcp.exe doctor
+.\m365-mcp.exe login
+.\m365-mcp.exe status
+```
 
-- 使用 MSAL `PublicClientApplication`，不得分发 Client Secret 或私钥。
-- 优先使用当前 Windows 用户的 WAM，系统浏览器 PKCE 作为回退。
-- 可选持久 Token Cache 使用 Current-user DPAPI，并放入唯一的 `state.bin`。
-- 支持 `login`、`logout`、`status`、`doctor`、`stdio` 和 `--ephemeral`。
+`login` 会打开系统浏览器，通过 Loopback 完成 PKCE，然后保存 DPAPI 保护的 State。
+不允许认证状态跨进程保留时，对 `login` 或 `stdio` 增加 `--ephemeral`。
 
-### W3 — 签名发布
+MCP Client 配置示例：
 
-- 仅通过 GitHub Actions 和固定 Windows Runner 生成 EXE。
-- 增加 Authenticode 签名、时间戳、SHA-256 校验和 SBOM。
-- 将实际通过 Smoke Test 的同一个 EXE 作为 GitHub Release Asset 发布。
-- 提供使用绝对 EXE 路径与 stdio 的 Agent 配置说明。
+```json
+{
+  "mcpServers": {
+    "m365-local": {
+      "command": "C:\\Tools\\m365-mcp.exe",
+      "args": ["stdio"],
+      "env": {
+        "M365_LOCAL_CLIENT_ID": "<desktop-public-client-id>",
+        "M365_LOCAL_TENANT_ID": "organizations"
+      }
+    }
+  }
+}
+```
 
-## 验收门禁
+如果没有可用状态，首次 Tool Call 也可以触发交互登录；Agent 必须给用户留出足够
+时间完成浏览器流程。
 
-在没有安装 Python、Docker、Git 或开发工具的干净 Windows x64 VM 上：
+## 当前本地工具面
 
-1. 单个 EXE 以 MCP stdio Server 启动，并列出预期邮件工具。
-2. 第一次访问 Graph 时登录当前 Windows 用户且不需要应用密钥；选择持久模式后，后续调用使用受保护 Cache。
-3. 使用委托权限对真实邮箱完成搜索、读取、附件解析和一个代表性写操作。
-4. EXE 不创建未声明文件或系统改动；持久模式只创建约定的状态文件，临时模式不留下状态。
-5. Token、邮件正文、附件内容和 Provider Error Detail 不得进入日志、stderr 诊断或 MCP Error Text。
-6. 远端/容器回归保持绿色，证明本地模式没有削弱 HTTP/OBO 隔离。
+EXE 当前提供：
 
-## 停止条件
+- `mail_search`
+- `mail_get`
+- `mail_create_draft`
+- `mail_send_draft`
+- `mail_list_attachments`
+- `mail_read_attachment`：支持有边界的 UTF-8 Text、CSV、JSON 和 XML
+- `mail_mark_read`
+- `mail_archive`
+- `mail_move`
+- `mail_set_category`
 
-如果必需的原生扩展不能可靠地从 EXE 加载，必须替换不兼容依赖，或使用 Windows 原生技术实现本地 Host。不得静默引入 Runtime 解压并将其描述为真正的单文件构建。
+本地 stdio Runtime 没有 HTTP Download Endpoint，并且不得任意写文件，因此暂不
+提供 `mail_download_attachment`。PDF/DOCX/XLSX/PPTX 解析仍在验收待办中。邮件
+发送仍必须在 Client/Agent 层逐封确认，或具有明确的受限自动化授权。
+
+## 构建与取得集成产物
+
+`Windows local executable` Workflow 会上传
+`m365-mcp-windows-x64` Actions Artifact。该 Workflow：
+
+1. 使用固定 Windows Runner；
+2. 通过 NativeAOT 发布 `windows/M365Mcp.Local/M365Mcp.Local.csproj`；
+3. 断言输出目录中只有 `m365-mcp.exe`；
+4. 在 `PATH` 中没有语言 Runtime 的条件下执行 `doctor`、MCP
+   `initialize` 和 `tools/list`；
+5. 断言 Ephemeral 运行不会留下文件。
+
+Actions Artifact 不能宣称为 Stable Release。后续必须在干净的受支持 Windows x64
+VM 上验证已签名 EXE，并把精确通过 Smoke Test 的文件发布为 GitHub Release Asset。
+
+## 剩余验收门禁
+
+- 增加首选 WAM 登录，同时保留 Browser PKCE 回退。
+- 在不解压 Runtime 的前提下增加安全的富文档附件解析。
+- 使用真实邮箱验证搜索、读取、草稿、确认发送、受限自动化发送、附件读取和代表性修改。
+- 验证 Refresh、Logout、损坏 State 恢复、双账户隔离和 Tenant Policy。
+- 增加 Authenticode 签名、时间戳、SHA-256 Checksum 和 SBOM。
+- 在干净 Windows x64 VM 上发布并验证精确的已签名 EXE。
