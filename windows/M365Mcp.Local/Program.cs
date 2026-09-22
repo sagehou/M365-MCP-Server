@@ -13,7 +13,10 @@ internal static class Program
 
         var ephemeral = args.Any(
             argument => argument.Equals("--ephemeral", StringComparison.OrdinalIgnoreCase));
-        var command = args.FirstOrDefault(argument => !argument.StartsWith("--", StringComparison.Ordinal))
+        var command = args.FirstOrDefault(
+                argument => !argument.Equals(
+                    "--ephemeral",
+                    StringComparison.OrdinalIgnoreCase))
             ?? "help";
         var configuration = LocalConfiguration.Load(ephemeral);
         using var cancellation = new CancellationTokenSource();
@@ -137,6 +140,7 @@ internal static class Program
               m365-mcp.exe logout [--ephemeral]
               m365-mcp.exe stdio [--ephemeral]
               m365-mcp.exe version
+              m365-mcp.exe --version
 
             Required environment:
               M365_LOCAL_CLIENT_ID=<public desktop application id>
