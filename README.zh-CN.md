@@ -73,7 +73,7 @@ Windows 上的 Agent
         v
 m365-mcp.exe
         |
-        | Public-client 委托登录（当前浏览器 PKCE；后续增加 WAM）
+        | Public-client 委托登录（当前浏览器 PKCE；实测后再决定可选 WAM）
         v
 Microsoft Graph / 当前 Windows 登录用户
 ```
@@ -84,8 +84,8 @@ Browser PKCE、当前用户 DPAPI State、`login/logout/status/doctor/stdio` 和
 `PATH` 中没有语言 Runtime 的条件下运行，并证明 Ephemeral Smoke Run 不留下文件。
 
 远端 Python Server 保持不变。本地 stdio 正常运行不会安装 Service，也不会创建
-Registry、Startup、Scheduled Task、Runtime 解压目录或日志。WAM、PDF/Office
-富文档解析、签名和 Clean VM 真实验收仍待完成。详见
+Registry、Startup、Scheduled Task、Runtime 解压目录或日志。可选 WAM 评估、
+PDF/Office 富文档解析、签名和 Clean VM 真实验收仍待完成。详见
 [Windows 本地单文件指南](docs/zh-CN/windows-local.md)。
 
 ## 发布与验证状态
@@ -138,7 +138,7 @@ OBO 使用 `GRAPH_SCOPES=https://graph.microsoft.com/.default`。
 - OCR、Shared Mailbox、RBAC、Read-only Mode、Dynamic Tool Exposure 和 Rate
   Limiting。
 - Calendar、OneDrive、SharePoint 和 Teams。
-- 已签名且通过 Clean VM 验收的 Windows EXE Release；WAM 与本地富文档附件解析。
+- 已签名且通过 Clean VM 验收的 Windows EXE Release；可选 WAM 评估与本地富文档附件解析。
 
 ## 文档
 
