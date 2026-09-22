@@ -163,15 +163,20 @@ Add:
 ```text
 User.Read
 Mail.ReadWrite
+Mail.Send
 ```
 
 Do **not** add application mailbox permissions.
 
-In particular, do not add application-permission variants for mailbox access. `Mail.ReadWrite` delegated permission acts only in the signed-in user's delegated context and does not include mail sending.
+In particular, do not add application-permission variants for mailbox access.
+`Mail.ReadWrite` delegated permission creates and updates the draft in the
+signed-in user's mailbox; delegated `Mail.Send` permits sending that reviewed
+draft as the same signed-in user.
 
 Microsoft Graph currently supports the delegated `Mail.ReadWrite` permission for both work/school accounts and personal Microsoft accounts. Shared-mailbox-specific delegated permissions are a separate capability and are not part of the current MVP.
 
-`Mail.Send` is deliberately not required by the current MVP. Add the **delegated** `Mail.Send` permission only if the project later implements an approved send-mail tool.
+Do not add the application form of `Mail.Send`. The v0.1 implementation uses
+only delegated `Mail.Send` and exposes no app-only or arbitrary-mailbox path.
 
 Do not grant tenant-wide admin consent merely to complete the baseline setup. The
 server includes these explicit delegated scopes in the interactive authorization
@@ -260,6 +265,7 @@ For this project the expected Graph delegated permissions are:
 ```text
 User.Read
 Mail.ReadWrite
+Mail.Send
 ```
 
 Do not approve unexpected application permissions.
@@ -279,7 +285,7 @@ AUDIENCE=
 ALLOWED_TENANTS=<TARGET-TENANT-ID>
 REQUIRED_SCOPES=access_as_user
 GRAPH_SCOPES=https://graph.microsoft.com/.default
-GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
+GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite,https://graph.microsoft.com/Mail.Send
 GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 ```
 
@@ -325,6 +331,7 @@ A client must first obtain token A for:
 api://<MCP_API_CLIENT_ID>/access_as_user
 https://graph.microsoft.com/User.Read
 https://graph.microsoft.com/Mail.ReadWrite
+https://graph.microsoft.com/Mail.Send
 ```
 
 MSAL redeems the authorization code only for the MCP scope, so Token A remains an
@@ -355,7 +362,7 @@ Current repository status:
 4. Confirm **Expose an API** contains
    `api://<MCP_API_CLIENT_ID>/access_as_user`.
 5. Confirm **API permissions** contains only the required Microsoft Graph
-   delegated permissions (`User.Read` and `Mail.ReadWrite`), with no mailbox
+   delegated permissions (`User.Read`, `Mail.ReadWrite`, and `Mail.Send`), with no mailbox
    application permissions.
 6. Configure the one registration and one credential:
 
@@ -367,7 +374,7 @@ Current repository status:
    OAUTH_ENABLED=true
    OAUTH_DATABASE_PATH=/data/oauth.db
    OAUTH_ENCRYPTION_KEY=<base64-encoded-32-random-bytes>
-   GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
+   GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite,https://graph.microsoft.com/Mail.Send
    ```
 
 MSAL automatically manages its reserved OpenID scopes. The returned Token A is
@@ -441,7 +448,8 @@ For organizational tenants check:
 
 - `access_as_user` is enabled under **Expose an API**
 - M365-MCP-Server enterprise application exists in the target tenant
-- `GRAPH_CONSENT_SCOPES` contains explicit `User.Read` and `Mail.ReadWrite`
+- `GRAPH_CONSENT_SCOPES` contains explicit `User.Read`, `Mail.ReadWrite`,
+  and `Mail.Send`
 - the user reconnected after this interactive-consent behavior was deployed
 - target-tenant user-consent policy permits these delegated permissions
 

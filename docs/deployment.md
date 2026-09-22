@@ -154,10 +154,11 @@ and `api://<CLIENT_ID>` audience forms.
    to the actual API registration. Use a comma-separated tenant allowlist or `*`
    intentionally. Leave AUDIENCE empty unless an explicit audience override is
    required.
-2. Configure delegated Graph User.Read and Mail.ReadWrite. Interactive sign-in
+2. Configure delegated Graph User.Read, Mail.ReadWrite and Mail.Send. Interactive sign-in
    requests those scopes so each user can consent when target-tenant policy permits.
    Tenant-wide admin consent is an optional policy fallback, not the default setup.
-   Do not grant application mailbox permissions or Mail.Send; there is no send tool.
+   Do not grant application mailbox permissions; sending uses delegated Mail.Send
+   only for the signed-in user's separately confirmed draft.
 3. Configure exactly one credential. For a certificate, mount its PEM private key
    read-only into the container, set CLIENT_CERT_PATH to that container path and
    set CLIENT_CERT_THUMBPRINT. Merely setting a host path does not mount the file.
@@ -170,9 +171,10 @@ and `api://<CLIENT_ID>` audience forms.
    disabled feature flag; live acceptance remains a release blocker.
 5. Confirm /healthz returns 200 and /mcp/ without a bearer token returns 401.
    These checks do not validate tenant credentials, Graph consent or OBO.
-6. With two test users, initialize MCP, list the nine tools and read a known
+6. With two test users, initialize MCP, list the eleven tools and read a known
    message from each mailbox. Verify cross-user message access is denied.
-   Exercise updates only on disposable test messages and verify moved IDs.
+   Exercise updates only on disposable test messages, verify moved IDs, and send
+   only a reviewed draft to a controlled test recipient.
 7. Read representative attachments and redeem a generated download URL exactly
    once; verify expiry/replay returns 404. Verify JSON audit events contain identity,
    tool, outcome and timestamp but no message text, filenames, URL tickets or tokens.

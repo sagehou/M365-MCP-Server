@@ -2,9 +2,9 @@
   "name": "Microsoft 365 Mail",
   "name_zh": "Microsoft 365 邮件",
   "name_en": "Microsoft 365 Mail",
-  "description": "Search, read, and manage the signed-in user's Outlook mail securely.",
-  "description_zh": "安全搜索、读取和管理当前登录用户的 Outlook 邮件。",
-  "description_en": "Search, read, and manage the signed-in user's Outlook mail securely.",
+  "description": "Search, read, draft, send, and manage the signed-in user's Outlook mail securely.",
+  "description_zh": "安全搜索、读取、起草、发送和管理当前登录用户的 Outlook 邮件。",
+  "description_en": "Search, read, draft, send, and manage the signed-in user's Outlook mail securely.",
   "source": "sagehou-m365-mcp-server",
   "type": "mcp",
   "version": "0.1.0",
@@ -12,11 +12,13 @@
   "examples_zh": [
     "查找本周关于项目验收的邮件",
     "读取刚才搜索结果中的第一封邮件",
+    "起草一封项目进展邮件，确认后发送",
     "把指定邮件归档"
   ],
   "examples_en": [
     "Find messages about project acceptance from this week",
     "Read the first message from the previous search results",
+    "Draft a project update email and send it after confirmation",
     "Archive the specified message"
   ]
 }

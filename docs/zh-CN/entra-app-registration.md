@@ -161,15 +161,18 @@ api://<MCP_API_CLIENT_ID>/access_as_user
 ```text
 User.Read
 Mail.ReadWrite
+Mail.Send
 ```
 
 不要添加 Application Mailbox Permissions。
 
-Delegated `Mail.ReadWrite` 只允许应用在当前登录用户的委托上下文中操作邮箱，并不包含发送邮件能力。
+Delegated `Mail.ReadWrite` 用于在当前登录用户邮箱中创建和更新 Draft；Delegated
+`Mail.Send` 用于以同一当前登录用户身份发送已经审核的 Draft。
 
 Microsoft Graph 当前明确支持个人 Microsoft 账户对 Delegated `Mail.ReadWrite` 进行 Consent，因此个人 Outlook.com 类邮箱本身并不是这里的阻碍。Shared Mailbox 相关 Delegated Permission 是另一类能力，不属于当前 MVP。
 
-当前 MVP 不需要 `Mail.Send`。未来只有在项目正式实现并批准发信工具后，才增加 **Delegated** `Mail.Send`。
+不要添加 Application 形式的 `Mail.Send`。v0.1 只使用 Delegated `Mail.Send`，
+不提供 App-only 或任意邮箱发送路径。
 
 基础配置不需要仅为此点击 Tenant-wide Admin Consent。Server 会在 Interactive Authorization Request 中加入这些显式 Delegated Scopes；Tenant Policy 允许时，当前登录用户可以自行 Consent。**状态**列为空只表示尚未 Consent；当**需要管理员同意**为“否”时，并不表示必须点击管理员按钮。
 
@@ -247,6 +250,7 @@ https://login.microsoftonline.com/<TARGET-TENANT-ID>/adminconsent?client_id=<MCP
 ```text
 User.Read
 Mail.ReadWrite
+Mail.Send
 ```
 
 不要批准意外出现的 Application Permissions。
@@ -266,7 +270,7 @@ AUDIENCE=
 ALLOWED_TENANTS=<TARGET-TENANT-ID>
 REQUIRED_SCOPES=access_as_user
 GRAPH_SCOPES=https://graph.microsoft.com/.default
-GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
+GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite,https://graph.microsoft.com/Mail.Send
 GRAPH_BASE_URL=https://graph.microsoft.com/v1.0
 ```
 
@@ -310,6 +314,7 @@ Client 必须先取得 Token A：
 api://<MCP_API_CLIENT_ID>/access_as_user
 https://graph.microsoft.com/User.Read
 https://graph.microsoft.com/Mail.ReadWrite
+https://graph.microsoft.com/Mail.Send
 ```
 
 MSAL 兑换 Authorization Code 时只请求 MCP Scope，因此 Token A 仍是 MCP API Token。WorkBuddy 把 Token A 作为 Bearer Token 发送给 `/mcp/`，Server 验证后再对 Graph 执行 `.default` OBO。额外 Graph Scopes 只用于在 Authorization Request 中取得用户 Consent，不会把 Graph Token 返回给 WorkBuddy。
@@ -334,7 +339,9 @@ MSAL 兑换 Authorization Code 时只请求 MCP Scope，因此 Token A 仍是 MC
 
 3. 只有需要本地 Loopback 测试时，才另加 `http://localhost:8000/oauth/callback` Web Redirect URI。
 4. 确认 **Expose an API** 包含 `api://<MCP_API_CLIENT_ID>/access_as_user`。
-5. 确认 **API permissions** 只包含必需的 Microsoft Graph Delegated Permissions（`User.Read` 和 `Mail.ReadWrite`），不存在 Mailbox Application Permission。
+5. 确认 **API permissions** 只包含必需的 Microsoft Graph Delegated Permissions
+   （`User.Read`、`Mail.ReadWrite` 和 `Mail.Send`），不存在 Mailbox
+   Application Permission。
 6. 配置唯一 Registration 和唯一 Credential：
 
    ```env
@@ -345,7 +352,7 @@ MSAL 兑换 Authorization Code 时只请求 MCP Scope，因此 Token A 仍是 MC
    OAUTH_ENABLED=true
    OAUTH_DATABASE_PATH=/data/oauth.db
    OAUTH_ENCRYPTION_KEY=<32-random-bytes-base64>
-   GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite
+   GRAPH_CONSENT_SCOPES=https://graph.microsoft.com/User.Read,https://graph.microsoft.com/Mail.ReadWrite,https://graph.microsoft.com/Mail.Send
    ```
 
 MSAL 会自动管理 Reserved OpenID Scopes。返回的 Token A 仍必须通过现有 JWT Validator 复验。系统不再使用第二个 App Registration、Client ID、Secret 或 Authority Setting。
@@ -412,7 +419,8 @@ Graph Layer 使用 `/me` 和 OBO Delegated Token。实际访问权限同时受�
 
 - **Expose an API** 中的 `access_as_user` 是否已启用
 - 目标 Tenant 中是否存在 `M365-MCP-Server` Enterprise Application
-- `GRAPH_CONSENT_SCOPES` 是否包含显式 `User.Read` 和 `Mail.ReadWrite`
+- `GRAPH_CONSENT_SCOPES` 是否包含显式 `User.Read`、`Mail.ReadWrite` 和
+  `Mail.Send`
 - 是否在部署本次 Interactive Consent 行为后重新连接 WorkBuddy
 - 目标 Tenant 的 User Consent Policy 是否允许这些 Delegated Permissions
 

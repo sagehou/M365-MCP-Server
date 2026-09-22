@@ -31,10 +31,11 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
     async def handler(request):
         await asyncio.sleep(0)
         calls.append((request.headers["authorization"], request.url.path))
-        if request.url.path.endswith("/failure"):
+        if "/failure" in request.url.path:
             raise RuntimeError("SECRET_PROVIDER_BODY")
         if request.method in {"POST", "PATCH"}:
-            writes.append((request.method, request.url.path, json.loads(request.content)))
+            payload = json.loads(request.content) if request.content else None
+            writes.append((request.method, request.url.path, payload))
         if request.url.path.endswith("/attachments/attachment"):
             return httpx.Response(200, json={
                 "@odata.type": "#microsoft.graph.fileAttachment", "id": "attachment",
@@ -43,7 +44,11 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
             })
         if request.url.path.endswith("/attachments"):
             return httpx.Response(200, json={"value": [{"id": "attachment", "name": "notes.txt"}]})
-        if request.url.path == "/v1.0/me/messages":
+        if request.method == "POST" and request.url.path == "/v1.0/me/messages":
+            return httpx.Response(201, json={"id": "draft-id"})
+        if request.url.path == "/v1.0/me/messages/draft-id/send":
+            return httpx.Response(202)
+        if request.method == "GET" and request.url.path == "/v1.0/me/messages":
             assert "$search" in request.url.params
             assert "$filter" not in request.url.params and "$orderby" not in request.url.params
             return httpx.Response(200, json={"value": [{"id": "id", "subject": "test"}]})
@@ -80,7 +85,8 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     assert initialized["serverInfo"]["name"] == "M365 MCP Server"
                     listed = await rpc("alice", "tools/list", {})
                     assert {tool["name"] for tool in listed["tools"]} == {
-                        "mail_search", "mail_get", "mail_list_attachments", "mail_read_attachment",
+                        "mail_search", "mail_get", "mail_create_draft", "mail_send_draft",
+                        "mail_list_attachments", "mail_read_attachment",
                         "mail_mark_read", "mail_archive", "mail_move", "mail_set_category",
                     }
                     search_schema = next(
@@ -100,6 +106,16 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         assert payload["message"]["id"] == "Bearer graph-" + user
                     cases = [
                         ("mail_search", {"query": "test"}, "messages"),
+                        (
+                            "mail_create_draft",
+                            {
+                                "to_recipients": ["recipient@example.com"],
+                                "subject": "Status",
+                                "body": "Ready for review.",
+                            },
+                            "created",
+                        ),
+                        ("mail_send_draft", {"draft_id": "draft-id"}, "send_accepted"),
                         ("mail_list_attachments", {"message_id": "id"}, "attachments"),
                         ("mail_read_attachment", {"message_id": "id", "attachment_id": "attachment"}, "content"),
                         ("mail_mark_read", {"message_id": "id", "is_read": False}, "is_read"),
@@ -141,6 +157,12 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     })
                     assert write_failure["isError"]
                     assert "Verify mailbox state before retrying" in json.dumps(write_failure)
+                    send_failure = await rpc("alice", "tools/call", {
+                        "name": "mail_send_draft",
+                        "arguments": {"draft_id": "failure"},
+                    })
+                    assert send_failure["isError"]
+                    assert "Verify mailbox state before retrying" in json.dumps(send_failure)
                     missing = await client.post("/mcp/", json={})
                     assert missing.status_code == 401
 
@@ -179,7 +201,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     modern_tools = await modern_rpc(
                         "alice", "tools/list", {"_meta": modern_meta}
                     )
-                    assert len(modern_tools["tools"]) == 8
+                    assert len(modern_tools["tools"]) == 10
                     modern_result = await modern_rpc(
                         "bob",
                         "tools/call",
@@ -202,7 +224,22 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
     assert matching_audit_records[0].tool_name == "mail_get"
     assert ("Bearer graph-alice", "/v1.0/me/messages/id") in calls
     assert ("Bearer graph-bob", "/v1.0/me/messages/id") in calls
+    assert calls.count(
+        ("Bearer graph-alice", "/v1.0/me/messages/failure/send")
+    ) == 1
     assert writes == [
+        (
+            "POST",
+            "/v1.0/me/messages",
+            {
+                "subject": "Status",
+                "body": {"contentType": "Text", "content": "Ready for review."},
+                "toRecipients": [
+                    {"emailAddress": {"address": "recipient@example.com"}}
+                ],
+            },
+        ),
+        ("POST", "/v1.0/me/messages/draft-id/send", None),
         ("PATCH", "/v1.0/me/messages/id", {"isRead": False}),
         ("POST", "/v1.0/me/messages/id/move", {"destinationId": "archive"}),
         ("POST", "/v1.0/me/messages/id/move", {"destinationId": "folder"}),

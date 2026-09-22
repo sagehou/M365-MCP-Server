@@ -875,6 +875,7 @@ def test_msal_entra_client_requests_graph_consent_but_redeems_api_token(
                 f"api://{API_CLIENT_ID}/access_as_user",
                 "https://graph.microsoft.com/User.Read",
                 "https://graph.microsoft.com/Mail.ReadWrite",
+                "https://graph.microsoft.com/Mail.Send",
             ]
             assert redirect_uri == f"{ISSUER}/oauth/callback"
             return {

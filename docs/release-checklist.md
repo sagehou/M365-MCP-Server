@@ -38,7 +38,7 @@ Use a clean WorkBuddy profile and the candidate deployment.
 - [ ] Dynamic Client Registration succeeds.
 - [ ] Entra interactive sign-in completes through the registered WorkBuddy
   callback.
-- [ ] MCP initializes and lists the expected nine mail tools.
+- [ ] MCP initializes and lists the expected eleven mail tools.
 - [ ] Token expiry triggers a successful refresh and one-time rotation.
 - [ ] Replaying the old refresh token is rejected.
 - [ ] Authentication remains usable after a server restart.
@@ -75,6 +75,11 @@ Evidence:
 
 - [ ] Search and message read succeed.
 - [ ] One representative write succeeds and is verified in the mailbox.
+- [ ] `mail_create_draft` creates the reviewed plain-text recipients, subject,
+  and body without sending the message.
+- [ ] A separate explicit confirmation precedes `mail_send_draft`; the message
+  appears once in Sent Items and reaches the controlled test recipient once.
+- [ ] An ambiguous send failure is not automatically retried.
 - [ ] PDF, DOCX, XLSX, PPTX, TXT, ZIP, and ordinary binary attachments are
   exercised.
 - [ ] Oversized and unsupported attachments fail safely.

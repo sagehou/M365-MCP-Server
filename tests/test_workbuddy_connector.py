@@ -47,6 +47,7 @@ def test_connector_uses_official_oauth_package_shape_without_credentials() -> No
 def test_connector_skills_expose_only_their_scoped_mail_tools() -> None:
     expected = {
         "outlook-mail": {"mail_search", "mail_get"},
+        "outlook-mail-compose": {"mail_create_draft", "mail_send_draft"},
         "outlook-attachments": {
             "mail_list_attachments",
             "mail_read_attachment",

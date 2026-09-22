@@ -319,6 +319,8 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
         assert {tool["name"] for tool in tools["tools"]} == {
             "mail_search",
             "mail_get",
+            "mail_create_draft",
+            "mail_send_draft",
             "mail_list_attachments",
             "mail_read_attachment",
             "mail_download_attachment",

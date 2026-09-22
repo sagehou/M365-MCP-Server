@@ -8,11 +8,15 @@ Implement enterprise Outlook mail MCP tools.
 
 ## Tools
 
-Initial tools:
+Implemented tools:
 
 - mail_search
 - mail_get
+- mail_create_draft
+- mail_send_draft
 - mail_list_attachments
+- mail_read_attachment
+- mail_download_attachment
 - mail_mark_read
 - mail_archive
 - mail_move
@@ -24,6 +28,9 @@ Initial tools:
 - Do not expose raw Graph APIs.
 - Use /me mailbox operations.
 - Preserve user identity isolation.
+- Create a plain-text draft first and require separate explicit confirmation
+  before sending it.
+- Do not automatically retry ambiguous send failures.
 
 ## Deliverables
 
@@ -33,5 +40,5 @@ Initial tools:
 
 ## Non goals
 
-- No send mail.
+- No one-step direct-send tool, HTML/attachment composition, reply, or forward.
 - No shared mailbox support.

@@ -14,12 +14,18 @@ Server 在接受任何 MCP Request 前，通过 OpenID Connect Discovery Documen
 
 - User.Read
 - Mail.ReadWrite
+- Mail.Send
 
 避免：
 
 - Mail.Read.All
 - Mail.ReadWrite.All
 - Application Permissions
+
+`mail_create_draft` 使用 Delegated `Mail.ReadWrite`；`mail_send_draft` 使用
+Delegated `Mail.Send`。Server 先创建纯文本 Draft，只有在另行取得用户明确确认后
+才发送该现有 Draft。Graph 的 `202 Accepted` 只报告为“已接受”，不代表“已投递”。
+结果不明确的发送失败不得自动重试。
 
 ## Token 校验
 

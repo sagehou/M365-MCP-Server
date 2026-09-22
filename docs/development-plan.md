@@ -40,6 +40,8 @@ Tools:
 
 - mail_search
 - mail_get
+- mail_create_draft
+- mail_send_draft
 - mail_list_attachments
 - mail_read_attachment
 - mail_download_attachment

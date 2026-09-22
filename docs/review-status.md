@@ -39,7 +39,7 @@ The mocked WorkBuddy client flow follows the 401 discovery challenge through
 DCR, S256 authorization, an Entra callback, local token exchange, authenticated
 MCP initialization, refresh-token rotation and another authenticated MCP call.
 Connector-package tests also enforce the official directory shape, OAuth mode
-without embedded credentials and the three scoped Skills. No production mailbox
+without embedded credentials and the four scoped Skills. No production mailbox
 data is read or changed by those tests.
 
 ## Still required before production
@@ -58,7 +58,10 @@ data is read or changed by those tests.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.
-- OCR, drafts, shared mailboxes, enterprise RBAC/rate limiting/observability,
+- Plain-text draft creation and separately confirmed draft sending are implemented.
+  Direct send, HTML/attachment composition, and automatic retry are intentionally
+  excluded from the v0.1 contract.
+- OCR, replies, forwarding, shared mailboxes, enterprise RBAC/rate limiting/observability,
   Calendar, Drive, SharePoint and Teams remain roadmap items.
 - Windows-local packaging, public-client authentication, DPAPI state, signing,
   and the distributable single executable remain incomplete. No Windows EXE has

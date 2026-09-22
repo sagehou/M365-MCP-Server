@@ -30,6 +30,8 @@
 |---|---|---|
 | `mail_search` | 搜索当前登录用户邮箱中的一个有边界页面 | 读取 |
 | `mail_get` | 读取一封邮件 | 读取 |
+| `mail_create_draft` | 创建已审核的纯文本草稿，但不发送 | 写入 |
+| `mail_send_draft` | 发送一封已经另行明确确认的现有草稿 | 写入 |
 | `mail_list_attachments` | 列出附件元数据 | 读取 |
 | `mail_read_attachment` | 从受支持附件中提取有边界的文本 | 读取 |
 | `mail_download_attachment` | 创建短时、单次使用的下载链接 | 读取 |
@@ -126,7 +128,7 @@ OBO 使用 `GRAPH_SCOPES=https://graph.microsoft.com/.default`。
 
 - 真实 Client 与真实 Tenant 的发布验收。
 - Search Continuation Cursor 与 Folder Discovery。
-- Draft、Reply、Forward 和 Send 工作流。
+- Reply、Forward 工作流，以及 HTML 和附件撰写。
 - OCR、Shared Mailbox、RBAC、Read-only Mode、Dynamic Tool Exposure 和 Rate
   Limiting。
 - Calendar、OneDrive、SharePoint 和 Teams。

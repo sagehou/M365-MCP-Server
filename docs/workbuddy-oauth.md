@@ -156,7 +156,7 @@ For local development, register this separate loopback Web redirect URI:
 
 MSAL asks the user to authorize the same app's
 `api://<CLIENT_ID>/access_as_user` scope together with the explicit delegated
-Graph consent scopes (`User.Read` and `Mail.ReadWrite` by default). The code
+Graph consent scopes (`User.Read`, `Mail.ReadWrite`, and `Mail.Send` by default). The code
 redeems the authorization code only for Token A's MCP resource, so WorkBuddy
 still receives an MCP API token rather than a Graph token. After Token A is
 accepted, the MCP API performs the existing `.default` OBO exchange. There is no
@@ -181,8 +181,9 @@ of these live checks with the exact release image and connector archive:
 2. Connect from a clean WorkBuddy profile. Verify browser launch, Microsoft login
    and consent, then return to WorkBuddy through
    `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback`.
-3. Initialize MCP, list exactly nine tools, then exercise search, single-message
-   read, attachment extraction, one-time attachment download and deliberate mutations on disposable messages.
+3. Initialize MCP, list exactly eleven tools, then exercise search, single-message
+   read, draft creation, separately confirmed draft sending, attachment extraction,
+   one-time attachment download and deliberate mutations on disposable messages.
    Verify the new IDs returned by move and archive are used afterward.
 4. Repeat with a second user and verify that neither user can access the other's
    mailbox content.
