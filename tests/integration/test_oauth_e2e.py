@@ -259,9 +259,18 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
             params={"code": "mock-entra-code", "state": entra_state},
             follow_redirects=False,
         )
-        assert callback.status_code == 302
-        workbuddy_callback = urlsplit(callback.headers["location"])
-        assert f"{workbuddy_callback.scheme}://{workbuddy_callback.netloc}{workbuddy_callback.path}" == WORKBUDDY_REDIRECT
+        assert callback.status_code == 200
+        callback_match = re.search(
+            r'const callbackUri = (?P<uri>".*?");',
+            callback.text,
+        )
+        assert callback_match is not None
+        workbuddy_callback = urlsplit(json.loads(callback_match.group("uri")))
+        assert (
+            f"{workbuddy_callback.scheme}://"
+            f"{workbuddy_callback.netloc}{workbuddy_callback.path}"
+            == WORKBUDDY_REDIRECT
+        )
         callback_parameters = parse_qs(workbuddy_callback.query)
         assert callback_parameters["state"] == [workbuddy_state]
         assert "access_token" not in callback_parameters

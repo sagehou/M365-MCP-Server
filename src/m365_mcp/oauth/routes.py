@@ -9,10 +9,12 @@ from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.responses import Response
 from pydantic import ValidationError
 
 from ..auth.settings import Settings
 from .authorization import OAuthAuthorizationService
+from .completion import authorization_completion_response
 from .errors import OAuthProtocolError
 from .models import (
     OAuthAuthorizationCodeTokenRequest,
@@ -172,7 +174,7 @@ def create_oauth_router(
         )
 
     @router.get("/oauth/callback", response_model=None)
-    async def entra_callback(request: Request) -> JSONResponse | RedirectResponse:
+    async def entra_callback(request: Request) -> Response:
         try:
             parameters = _single_value_parameters(
                 list(request.query_params.multi_items())
@@ -206,11 +208,7 @@ def create_oauth_router(
                 },
                 headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
             )
-        return RedirectResponse(
-            redirect_uri,
-            status_code=302,
-            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
-        )
+        return authorization_completion_response(redirect_uri)
 
     @router.post("/oauth/token")
     async def token(request: Request) -> JSONResponse:
