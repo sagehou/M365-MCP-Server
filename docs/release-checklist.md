@@ -20,6 +20,7 @@ tenant/user identifiers in the evidence.
 - [ ] The candidate commit is identified by its full SHA.
 - [ ] Required PR checks are green.
 - [ ] `pyproject.toml` reports version `0.1.0`.
+- [ ] The repository `LICENSE` and Python package metadata both declare MIT.
 - [ ] English and Chinese `v0.1.0` Release Notes are reviewed.
 - [ ] Supported scope and known limitations match the README.
 

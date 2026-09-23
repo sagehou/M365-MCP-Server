@@ -19,6 +19,7 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
 - [ ] 已记录 Candidate Commit 的完整 SHA。
 - [ ] Required PR Check 全部为绿色。
 - [ ] `pyproject.toml` 中的版本是 `0.1.0`。
+- [ ] 仓库 `LICENSE` 与 Python 包元数据均声明 MIT 许可证。
 - [ ] 中英文 `v0.1.0` Release Notes 已 Review。
 - [ ] 支持范围和已知限制与 README 一致。
 

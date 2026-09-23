@@ -63,3 +63,8 @@ GitHub Actions is the only build and test environment for this repository.
 - Authenticode signing and clean-VM acceptance for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
 
 See the [v0.1.0 release checklist](docs/release-checklist.md) before deployment.
+
+## License
+
+The project source code and documentation are released under the [MIT License](LICENSE).
+Third-party dependencies retain their own licenses.

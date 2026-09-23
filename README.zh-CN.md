@@ -61,3 +61,7 @@ GitHub Actions 是本仓库唯一的构建与测试环境。
 - Windows EXE 的 Authenticode 签名与 Clean VM 验收；可选 WAM 评估与本地富文档附件解析。
 
 发布前请阅读 [v0.1.0 发布检查清单](docs/zh-CN/release-checklist.md)。
+
+## 许可证
+
+项目源代码与文档按 [MIT 许可证](LICENSE)发布。第三方依赖仍适用其各自的许可证。
