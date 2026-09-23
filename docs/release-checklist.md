@@ -139,7 +139,7 @@ The tag workflow must then complete all of the following:
 - [ ] `m365-mcp-windows-x64.exe.sha256` verifies successfully against the published executable.
 - [ ] GitHub Artifact Attestation exists for `m365-mcp-windows-x64.exe` and verifies against this repository.
 - [ ] GHCR contains `v0.1.0`, `0.1.0`, `0.1`, and `latest`.
-- [ ] GitHub Release `v0.1.0` exists with the reviewed notes and both Windows release assets.
+- [ ] GitHub Release `v0.1.0` exists with the reviewed notes, Windows EXE, checksum, and MIT `LICENSE` asset.
 - [ ] Anonymous `docker pull` works if the package is intended to be public.
 - [ ] The deployed image digest matches the published candidate.
 

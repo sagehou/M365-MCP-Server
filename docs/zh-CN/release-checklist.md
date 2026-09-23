@@ -131,7 +131,7 @@ Tag Workflow 必须完成：
 - [ ] `m365-mcp-windows-x64.exe.sha256` 能正确校验已发布 EXE。
 - [ ] `m365-mcp-windows-x64.exe` 已生成 GitHub Artifact Attestation，且可验证来源为本仓库。
 - [ ] GHCR 包含 `v0.1.0`、`0.1.0`、`0.1` 和 `latest`。
-- [ ] GitHub Release `v0.1.0` 已创建，并包含 Review 后的 Notes 与两个 Windows Release Asset。
+- [ ] GitHub Release `v0.1.0` 已创建，并包含 Review 后的 Notes、Windows EXE、Checksum 与 MIT `LICENSE` 文件。
 - [ ] 如果 Package 预期公开，Anonymous `docker pull` 成功。
 - [ ] 部署的 Image Digest 与已发布 Candidate 一致。
 

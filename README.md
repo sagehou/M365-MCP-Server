@@ -34,6 +34,7 @@ The release pipeline publishes:
 - `m365-mcp-windows-x64.exe`
 - SHA-256 checksum
 - GitHub Artifact Attestation provenance
+- `LICENSE` legal notice (not a runtime dependency)
 
 The executable does not require Python, .NET runtime, Docker, or an installer on
 the target PC. Authenticode signing remains a future hardening item. If security

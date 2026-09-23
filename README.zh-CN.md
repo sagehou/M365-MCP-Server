@@ -32,6 +32,7 @@ Release 流程会发布：
 - `m365-mcp-windows-x64.exe`
 - SHA-256 校验文件
 - GitHub Artifact Attestation 来源证明
+- `LICENSE` 许可声明文件（不是运行依赖）
 
 目标机器无需安装 Python、.NET Runtime、Docker 或安装器。Authenticode
 签名属于后续加固项。如安全软件隔离未签名 EXE，请按

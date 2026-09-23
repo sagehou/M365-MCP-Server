@@ -9,7 +9,7 @@ RUN addgroup --system app \
     && mkdir --parents /data \
     && chown app:app /data
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 
 RUN pip install --no-cache-dir .

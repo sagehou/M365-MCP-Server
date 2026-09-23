@@ -44,7 +44,12 @@ done
 # Exercise the installed worker from the non-root production image.
 docker exec "$container" python -c '
 import asyncio
+from importlib.metadata import distribution
 from m365_mcp.extractors import AttachmentExtractorRegistry, AttachmentInput
+installed = distribution("m365-mcp-server")
+assert installed.metadata["License-Expression"] == "MIT"
+license_files = [path for path in installed.files or () if path.name == "LICENSE"]
+assert license_files and all(installed.locate_file(path).is_file() for path in license_files)
 result = asyncio.run(AttachmentExtractorRegistry().extract_async(
     AttachmentInput(name="smoke.txt", content=b"container worker works")))
 assert result.content == "container worker works"
