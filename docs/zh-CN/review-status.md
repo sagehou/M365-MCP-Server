@@ -45,22 +45,23 @@ Tools，并检查隔离 Data Root 没有产生文件。
 行为，但不能证明真实 Tenant Consent、真实 Graph 行为、代码签名信任或目标
 Agent 兼容性。
 
-## 生产前仍需完成
+## 当前发布状态与后续部署工作
 
-- 选择并发布第一个批准的 Release Version；验证 GHCR Visibility 与 Pull Access。Docker Build 成功不等于已经发布镜像。
-- 配置 Entra Applications/Consent，并使用两个真实用户、受支持 MCP Clients、Certificate 或 Secret Credential 以及代表性附件做验证。
-- OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。真实 WorkBuddy Automatic Sign-in/Refresh、Restart、真实邮箱与跨租户验收仍是兼容 WorkBuddy 的 v0.1 Release Blocker。
+- `v0.1.0` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)；
+  四个 GHCR 标签均允许匿名读取 Manifest。每个部署仍需单独核对 Entra 配置和同意。
+- 维护者报告双用户、跨租户、WorkBuddy 和代表性邮箱验收已完成；详细记录保存在
+  仓库外。
+- OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。受限自动发送仍属于 Client/Agent 契约支持范围，但在 v0.1.0 未完成真实验收；具体部署启用前须验证符合策略的发送与越界阻止。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
 - 已实现纯文本 Draft 创建和发送。Client/Agent 层必须逐封确认或具有明确的受限
   自动化授权。v0.1 契约有意不提供一步式 Direct Send、HTML/附件撰写和自动重试。
 - OCR、Reply、Forward、Shared Mailboxes、Enterprise RBAC / Rate Limiting /
   Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
-- Windows EXE 目前是未签名的 Integration Artifact，而不是 Stable Release。
-  真实 Public-client 登录、Refresh/Restart/Logout、真实邮箱 Tools、目标 Agent
-  生命周期、Authenticode 签名、扫描、Provenance/SBOM 和 Stable Release 发布
-  仍未完成。
+- 稳定版 Windows EXE 已作为未签名文件发布，并附有 SHA-256 与 GitHub 构建来源
+  证明。Clean VM 真实邮箱验收、目标 Agent 生命周期检查、杀毒误报申诉、可选签名
+  和 SBOM 仍属于后续工作。
 - Windows 本地模式有意不提供 `mail_download_attachment` 和丰富二进制文档提取。
   它不会安装 Windows Service：stdio 进程由 Agent 启动并管理。Service Mode
   需要独立 IPC 与安全设计。
 
-Tasks 001–007 或本次 Review 都不能把上述待办视为已完成。
+原始 Review 与 Mock CI 不能证明真实验收；上文另列维护者后续确认和发布流程结果。

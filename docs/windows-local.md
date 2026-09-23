@@ -23,7 +23,13 @@ The executable currently provides:
   language runtimes from `PATH` during smoke testing, and fails if the
   ephemeral smoke run creates files
 
-This is an integration build until the `v0.1.0` release gate is completed. The first stable release may publish the executable without Authenticode signing, but it must publish a SHA-256 checksum and GitHub Artifact Attestation for the exact smoke-tested binary. Live validation will determine whether optional WAM broker integration adds enough value over the simpler browser PKCE flow. PDF/Office attachment extraction, Authenticode signing, SBOM, and clean-VM live mailbox acceptance remain follow-up hardening work.
+The [v0.1.0 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+contains the stable Windows asset, its SHA-256 checksum, MIT notice, and GitHub
+Artifact Attestation for the exact smoke-tested binary. Actions artifacts from
+ordinary branch builds remain integration builds. The released EXE is unsigned;
+Authenticode signing, SBOM, rich local attachment extraction, and clean-VM
+live-mailbox validation remain follow-up hardening work. Optional WAM remains
+subject to real deployment evidence.
 
 ## Runtime decision
 
@@ -199,9 +205,12 @@ The `Windows local executable` workflow publishes the
    on `PATH`;
 5. asserts that the ephemeral run leaves no files.
 
-Do not describe an Actions artifact as a stable release. The stable release workflow must rebuild and smoke-test the exact Windows x64 executable, publish its SHA-256 checksum, create GitHub Artifact Attestation for that binary, and attach the exact tested files to the GitHub Release.
+Do not describe an Actions artifact as a stable release. The tagged release
+workflow rebuilds and smoke-tests the Windows x64 executable, publishes its
+SHA-256 checksum and MIT notice, records GitHub Artifact Attestation for that
+binary, and attaches the exact tested files to the GitHub Release.
 
-## Remaining acceptance gate
+## Follow-up hardening and deployment checks
 
 - Validate browser PKCE first, then decide whether optional WAM integration is
   justified by account-selection, SSO, or tenant-policy requirements.

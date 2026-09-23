@@ -10,6 +10,11 @@ Target:
 - Stable image: `ghcr.io/sagehou/m365-mcp-server:v0.1.0`
 - Windows asset: `m365-mcp-windows-x64.exe`
 
+`v0.1.0` was [published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+on 2026-09-23. This checklist remains the release-audit template; the maintainer
+keeps detailed live-test evidence outside the repository. The automation-send
+exception below remains unverified for this release.
+
 Do not create or push the stable tag until every item in sections 1–4 below has
 evidence. The automation-send checks after section 4 are a deployment gate for
 that mode, not a v0.1.0 tag gate; they remain explicitly unverified for this
