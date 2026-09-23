@@ -1,0 +1,46 @@
+name: Backfill v0.1.0 Windows hashes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the exact published Windows asset on the GitHub runner
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p release-assets
+          gh release download v0.1.0 \
+            --pattern 'm365-mcp-windows-x64.exe*' \
+            --dir release-assets
+          test -f release-assets/m365-mcp-windows-x64.exe
+          test -f release-assets/m365-mcp-windows-x64.exe.sha256
+      - name: Verify published asset and prepare updated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view v0.1.0 --json body --jq .body > current-release-notes.md
+          python3 scripts/render_windows_release_hashes.py \
+            --binary release-assets/m365-mcp-windows-x64.exe \
+            --sha256-file release-assets/m365-mcp-windows-x64.exe.sha256 \
+            --expected-sha256 1be8799f6d8c53dcab98a12118fa0afcd99b5fd8abf9021115b6887f3733ab9e \
+            --notes-in current-release-notes.md \
+            --notes-out updated-release-notes.md \
+            --release-tag v0.1.0
+      - name: Update release description without replacing assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if cmp -s current-release-notes.md updated-release-notes.md; then
+            echo 'Release description already contains the exact hashes.'
+          else
+            gh release edit v0.1.0 --notes-file updated-release-notes.md
+          fi
