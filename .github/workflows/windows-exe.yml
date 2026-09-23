@@ -37,6 +37,14 @@ jobs:
           if ($files.Count -ne 1 -or $files[0].Name -ne 'm365-mcp.exe') {
             throw "Expected exactly one m365-mcp.exe output; found: $($files.Name -join ', ')"
           }
+          $versionInfo = $files[0].VersionInfo
+          if (
+            $versionInfo.FileDescription -ne 'M365 MCP Server (Windows Local)' `
+            -or $versionInfo.ProductName -ne 'M365 MCP Server' `
+            -or $versionInfo.FileVersion -ne '0.1.0.0'
+          ) {
+            throw "Unexpected Windows version resource: $($versionInfo | Format-List | Out-String)"
+          }
           $hash = (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "sha256=$hash" >> $env:GITHUB_OUTPUT
           "Built m365-mcp.exe SHA-256 $hash"

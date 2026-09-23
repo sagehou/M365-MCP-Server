@@ -70,11 +70,22 @@ jobs:
           -p:TreatWarningsAsErrors=true
       - name: Verify single-file output
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $publish = (Resolve-Path 'artifacts/windows-x64').Path
           $files = @(Get-ChildItem -LiteralPath $publish -File)
           if ($files.Count -ne 1 -or $files[0].Name -ne 'm365-mcp.exe') {
             throw "Expected exactly one m365-mcp.exe output; found: $($files.Name -join ', ')"
+          }
+          $expectedVersion = ($env:RELEASE_TAG -replace '^v', '') + '.0'
+          $versionInfo = $files[0].VersionInfo
+          if (
+            $versionInfo.FileDescription -ne 'M365 MCP Server (Windows Local)' `
+            -or $versionInfo.ProductName -ne 'M365 MCP Server' `
+            -or $versionInfo.FileVersion -ne $expectedVersion
+          ) {
+            throw "Unexpected Windows version resource: $($versionInfo | Format-List | Out-String)"
           }
           $hash = (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "Built m365-mcp.exe SHA-256 $hash"
