@@ -52,6 +52,42 @@ a native Windows executable and needs no Python or .NET runtime on the user PC.
   is not part of this build because a service cannot own the agent's stdio
   channel.
 
+## Antivirus false positives
+
+The unsigned NativeAOT executable may be quarantined by endpoint security
+software. No build option, ZIP wrapper, checksum, or GitHub attestation can
+guarantee an antivirus allow decision. The Windows build embeds the product
+name, file description, and version; these help identify a sample but are not
+a publisher signature.
+
+If a security product blocks the EXE:
+
+1. Obtain the exact EXE and `.sha256` file from the project's GitHub Release.
+   Compare `Get-FileHash .\m365-mcp-windows-x64.exe -Algorithm SHA256` with the
+   published checksum and, if GitHub CLI is available, run
+   `gh attestation verify m365-mcp-windows-x64.exe --repo sagehou/M365-MCP-Server`.
+   Stop if either verification fails.
+2. Record the security product and definition versions, detection name, SHA-256,
+   source Release URL, and the step that triggered detection. Do not include
+   tokens, mail content, or unredacted user/tenant IDs.
+3. Submit the *exact detected binary* as a suspected false positive to that
+   vendor. For Qianxin, use its official
+   [sample upload form](https://www.qianxin.com/other/sample-upload); the form
+   has a 100 MB file limit and asks for a contact email and CAPTCHA. Include
+   the repository and Release URL, build provenance, and a short explanation:
+   this is a single-file MCP stdio process, opens the system browser for Entra
+   PKCE, listens only on loopback during sign-in, calls Microsoft Graph, and
+   optionally stores DPAPI-protected state at the documented path.
+4. Wait for the vendor's determination and updated definitions, then retest
+   the same SHA-256 on the affected endpoint. If a managed business endpoint
+   needs an interim exception, let its security administrator assess a narrow,
+   time-limited rule for the verified exact file hash. Do not disable the
+   security product or exempt a whole directory or process family.
+
+Repeat the sample review for a changed binary hash; a prior verdict does not
+automatically cover new builds. GitHub attestation proves build provenance,
+not that the binary is malware-free or trusted by every antivirus engine.
+
 ## Entra public-client setup
 
 The Windows-local executable uses this project-managed public client by default:

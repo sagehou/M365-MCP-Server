@@ -35,7 +35,11 @@ The release pipeline publishes:
 - GitHub Artifact Attestation provenance
 
 The executable does not require Python, .NET runtime, Docker, or an installer on
-the target PC. Authenticode signing remains a future hardening item.
+the target PC. Authenticode signing remains a future hardening item. If security
+software quarantines the unsigned EXE, follow the
+[false-positive handling guide](docs/windows-local.md#antivirus-false-positives);
+the checksum and attestation establish provenance but do not override antivirus
+decisions.
 
 ## Release and validation status
 

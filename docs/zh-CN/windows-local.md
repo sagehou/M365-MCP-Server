@@ -45,6 +45,34 @@ NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Ru
 - Agent 将 `stdio` 作为子进程启动。当前版本不提供 Windows Service 安装，
   因为 Service 无法拥有 Agent 的 stdio 通道。
 
+## 杀毒软件误报
+
+未签名的 NativeAOT EXE 可能被终端安全软件隔离。构建参数、ZIP 包、Checksum 或
+GitHub Attestation 都不能保证杀毒软件放行。Windows 构建已写入产品名称、文件描述
+和版本号，有助于识别样本，但不等于发布者签名。
+
+如果 EXE 被拦截：
+
+1. 从项目 GitHub Release 获取精确的 EXE 和 `.sha256` 文件。用
+   `Get-FileHash .\m365-mcp-windows-x64.exe -Algorithm SHA256` 与发布的校验值
+   对比；如已安装 GitHub CLI，再运行
+   `gh attestation verify m365-mcp-windows-x64.exe --repo sagehou/M365-MCP-Server`。
+   任一验证失败都不要继续运行。
+2. 记录安全产品及病毒库版本、检出名称、SHA-256、Release 来源链接和触发步骤。
+   不要包含 Token、邮件内容或未经脱敏的用户/租户标识。
+3. 将*被检出的那份二进制文件*作为疑似误报提交给对应厂商。奇安信使用其官方
+   [样本上报页面](https://www.qianxin.com/other/sample-upload)；页面限制文件不
+   超过 100 MB，并要求联系邮箱和验证码。附上仓库、Release 链接、构建来源证明
+   和简要行为说明：这是单文件 MCP stdio 进程；登录时打开系统浏览器完成 Entra
+   PKCE、仅监听本机 Loopback；访问 Microsoft Graph；可选地在已声明路径保存
+   DPAPI 保护的状态。
+4. 等待厂商判定和病毒库更新，再用同一 SHA-256 在受影响终端复测。企业受管终端
+   如需临时例外，应由安全管理员评估对已验证的*精确文件哈希*设置窄范围、限时
+   规则。不要关闭安全软件，也不要放行整个目录或同名进程家族。
+
+二进制哈希改变后需重新核验；旧版本的判定不自动覆盖新构建。GitHub Attestation
+证明构建来源，不证明文件绝对安全，也不代表所有杀毒引擎都会信任它。
+
 ## Entra Public Client 配置
 
 Windows 本地 EXE 默认使用项目维护的独立公共客户端：
