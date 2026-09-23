@@ -10,7 +10,11 @@ Target:
 - Stable image: `ghcr.io/sagehou/m365-mcp-server:v0.1.0`
 - Windows asset: `m365-mcp-windows-x64.exe`
 
-Do not create or push the stable tag until every pre-tag item below has evidence.
+Do not create or push the stable tag until every item in sections 1–4 below has
+evidence. The automation-send checks after section 4 are a deployment gate for
+that mode, not a v0.1.0 tag gate; they remain explicitly unverified for this
+release.
+
 Never store tokens, secrets, mailbox content, attachment content, or unredacted
 tenant/user identifiers in the evidence.
 
@@ -82,11 +86,6 @@ Evidence:
 - [ ] In interactive mode, a separate explicit confirmation precedes
   `mail_send_draft`; the message appears once in Sent Items and reaches the
   controlled test recipient once.
-- [ ] In automation mode, the recorded authorization includes recipients/domains,
-  trigger, content rules and trusted sources, per-run and daily limits, and
-  expiry; one in-policy draft sends without a per-message prompt.
-- [ ] An out-of-policy recipient, content change, limit, or expired authorization
-  stops before `mail_send_draft` and requests confirmation.
 - [ ] An ambiguous send failure is not automatically retried.
 - [ ] PDF, DOCX, XLSX, PPTX, TXT, ZIP, and ordinary binary attachments are
   exercised.
@@ -105,6 +104,18 @@ Evidence:
 - Sanitized audit/event references:
 - Result/evidence URL:
 - Tester and date (UTC):
+
+## Automation-send deployment gate (not verified for v0.1.0)
+
+The bounded automation-send contract remains supported at the client/agent
+layer, but the following real-client checks were not completed for v0.1.0.
+Do not claim they passed. Before enabling automated sending in a deployment:
+
+- [ ] The recorded authorization includes recipients/domains, trigger, content
+  rules and trusted sources, per-run and daily limits, and expiry; one in-policy
+  draft sends without a per-message prompt.
+- [ ] An out-of-policy recipient, content change, limit, or expired authorization
+  stops before `mail_send_draft` and requests confirmation.
 
 ## 5. Create and verify the release
 

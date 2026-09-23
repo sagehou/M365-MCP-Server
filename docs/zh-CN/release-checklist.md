@@ -10,8 +10,10 @@
 - Stable Image：`ghcr.io/sagehou/m365-mcp-server:v0.1.0`
 - Windows Asset：`m365-mcp-windows-x64.exe`
 
-以下所有 Tag 前检查项必须有证据，之后才能创建或推送 Stable Tag。证据中不得保存
-Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Identifier。
+以下第 1–4 节 Tag 前检查项必须有证据，之后才能创建或推送 Stable Tag。自动发送
+检查属于该模式的部署门禁，不是 v0.1.0 Tag 门禁；本版本明确未完成该项真实验收。
+
+证据中不得保存 Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Identifier。
 
 ## 1. 已 Review 的 Candidate
 
@@ -79,10 +81,6 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
   发送邮件。
 - [ ] 交互模式另行取得明确确认后才调用 `mail_send_draft`；邮件只在 Sent Items
   中出现一次，并且受控测试收件人只收到一次。
-- [ ] 自动化模式记录的授权包含收件人/域名、触发条件、内容规则与可信数据源、单次
-  和每日限额以及到期时间；一封符合策略的 Draft 无需逐封提示即可发送。
-- [ ] 收件人越界、内容改变、超过限额或授权过期时，在 `mail_send_draft` 前停止
-  并请求确认。
 - [ ] 发送结果不明确时没有自动重试。
 - [ ] 验证 PDF、DOCX、XLSX、PPTX、TXT、ZIP 和普通 Binary Attachment。
 - [ ] 超大和不支持的附件安全失败。
@@ -100,6 +98,16 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
 - 已脱敏 Audit/Event Reference：
 - Result/Evidence URL：
 - Tester 与日期（UTC）：
+
+## 自动发送部署门禁（v0.1.0 尚未完成真实验收）
+
+Client/Agent 层仍支持受限自动发送契约，但以下真实客户端检查在 v0.1.0 未完成，
+不得宣称已通过。部署中启用自动发送前必须完成：
+
+- [ ] 已记录的授权包含收件人/域名、触发条件、内容规则与可信数据源、单次和每日
+  限额以及到期时间；一封符合策略的 Draft 无需逐封提示即可发送。
+- [ ] 收件人越界、内容改变、超过限额或授权过期时，在 `mail_send_draft` 前停止
+  并请求确认。
 
 ## 5. 创建并验证 Release
 

@@ -5,9 +5,10 @@
 一个自托管的 Microsoft 365 MCP Gateway，采用受控工具面、Microsoft Entra
 委托身份和按用户隔离，并重点保护 Outlook 邮件与附件处理边界。
 
-> **当前状态：**正在准备 `v0.1.0` Release。自动化 CI 已覆盖发布流程，包括
-> Container Image 和 Windows x64 NativeAOT EXE 构建。正式发布仍需完成真实
-> WorkBuddy、Tenant、邮箱、重启和跨租户验收证据。
+> **发布状态：**请在 [GitHub Releases](https://github.com/sagehou/M365-MCP-Server/releases)
+> 查看已发布的 `v0.1.0` 产物。CI 覆盖 Container Image 与 Windows x64 NativeAOT
+> EXE。维护者报告核心流程已通过真实客户端验收；受限自动发送尚未完成真实客户端
+> 测试，具体部署启用前必须验收。
 
 ## 当前已经可用
 
@@ -45,8 +46,8 @@ Release 流程会发布：
 | Docker Compose 校验 | CI 覆盖 |
 | Windows NativeAOT EXE 构建 | CI 覆盖 |
 | Windows SHA-256 与 Provenance Attestation | 纳入 v0.1.0 Release 流程 |
-| 真实 WorkBuddy 与真实邮箱验收 | 待完成的发布门禁 |
-| 稳定版 `v0.1.0` GitHub Release | 待发布门禁完成 |
+| 真实 WorkBuddy 与真实邮箱验收 | 维护者报告除受限自动发送外已完成；记录保存在仓库外 |
+| 稳定版 `v0.1.0` GitHub Release | 见 [Releases 页面](https://github.com/sagehou/M365-MCP-Server/releases) |
 
 GitHub Actions 是本仓库唯一的构建与测试环境。
 

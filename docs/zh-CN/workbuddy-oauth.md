@@ -114,7 +114,7 @@ GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2
 1. 在 WorkBuddy 4.24.0 或更高版本安装 Connector，确认不会出现 Token 填写表单。
 2. 使用干净 WorkBuddy Profile 连接，确认 Browser Launch、Microsoft Login 与 Consent，并通过 `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback` 返回 WorkBuddy。
 3. 初始化 MCP，确认只列出 11 个 Tools；执行 Search、单封读取、Draft 创建、逐封
-   确认后的 Draft 发送、一次受限自动化发送、一次被阻止的越界自动化尝试、附件
+   确认后的 Draft 发送、附件
    提取、单次附件下载和对可丢弃消息的有意 Mutation，并确认 Move/Archive 后继续
    使用返回的新 ID。
 4. 使用第二个用户重复测试，确认两个用户都不能访问对方邮箱内容。
@@ -124,3 +124,6 @@ GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2
 8. 确认 Application、Proxy 与 Platform Logs 不含 Authorization Code、Access/Refresh Token、MSAL Cache、Client Secret、Code Verifier、Message Body 或 Attachment Content。
 
 这些 Live Checks 是 Manual Release Gates。Mock CI Flow 通过不能把它们标记为已完成。
+
+受限自动发送仍属于 Client/Agent 契约支持的功能，但在 v0.1.0 尚未完成真实验收。
+具体部署启用该模式前，必须在受控邮箱测试一次符合策略的发送和一次越界阻止。
