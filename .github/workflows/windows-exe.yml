@@ -41,6 +41,7 @@ jobs:
           if (
             $versionInfo.FileDescription -ne 'M365 MCP Server (Windows Local)' `
             -or $versionInfo.ProductName -ne 'M365 MCP Server' `
+            -or $versionInfo.LegalCopyright -ne 'Copyright (c) 2026 sagehou' `
             -or $versionInfo.FileVersion -ne '0.1.0.0'
           ) {
             throw "Unexpected Windows version resource: $($versionInfo | Format-List | Out-String)"

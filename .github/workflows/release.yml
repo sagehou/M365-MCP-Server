@@ -83,6 +83,7 @@ jobs:
           if (
             $versionInfo.FileDescription -ne 'M365 MCP Server (Windows Local)' `
             -or $versionInfo.ProductName -ne 'M365 MCP Server' `
+            -or $versionInfo.LegalCopyright -ne 'Copyright (c) 2026 sagehou' `
             -or $versionInfo.FileVersion -ne $expectedVersion
           ) {
             throw "Unexpected Windows version resource: $($versionInfo | Format-List | Out-String)"
@@ -153,6 +154,7 @@ jobs:
           $source = (Resolve-Path 'artifacts/windows-x64/m365-mcp.exe').Path
           $asset = Join-Path $releaseDir.FullName 'm365-mcp-windows-x64.exe'
           Copy-Item -LiteralPath $source -Destination $asset
+          Copy-Item -LiteralPath 'LICENSE' -Destination (Join-Path $releaseDir.FullName 'LICENSE')
           $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  m365-mcp-windows-x64.exe" | Set-Content -LiteralPath (Join-Path $releaseDir.FullName 'm365-mcp-windows-x64.exe.sha256') -Encoding ascii -NoNewline
           Write-Host "Release asset SHA-256: $hash"
@@ -163,6 +165,7 @@ jobs:
           path: |
             artifacts/release/m365-mcp-windows-x64.exe
             artifacts/release/m365-mcp-windows-x64.exe.sha256
+            artifacts/release/LICENSE
           if-no-files-found: error
           retention-days: 14
 
@@ -262,6 +265,7 @@ jobs:
           gh release create "$RELEASE_TAG" \
             release-assets/m365-mcp-windows-x64.exe \
             release-assets/m365-mcp-windows-x64.exe.sha256 \
+            release-assets/LICENSE \
             --verify-tag \
             --title "M365 MCP Server $RELEASE_TAG" \
             --notes-file "docs/releases/$RELEASE_TAG.md" \

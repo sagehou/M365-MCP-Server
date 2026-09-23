@@ -12,6 +12,7 @@
     <AssemblyTitle>M365 MCP Server (Windows Local)</AssemblyTitle>
     <Product>M365 MCP Server</Product>
     <Description>Windows local MCP server for Microsoft 365 mail</Description>
+    <Copyright>Copyright (c) 2026 sagehou</Copyright>
     <Version>0.1.0</Version>
     <RootNamespace>M365Mcp.Local</RootNamespace>
     <DebugType>none</DebugType>

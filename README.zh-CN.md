@@ -5,9 +5,10 @@
 一个自托管的 Microsoft 365 MCP Gateway，采用受控工具面、Microsoft Entra
 委托身份和按用户隔离，并重点保护 Outlook 邮件与附件处理边界。
 
-> **当前状态：**正在准备 `v0.1.0` Release。自动化 CI 已覆盖发布流程，包括
-> Container Image 和 Windows x64 NativeAOT EXE 构建。正式发布仍需完成真实
-> WorkBuddy、Tenant、邮箱、重启和跨租户验收证据。
+> **发布状态：**请在 [GitHub Releases](https://github.com/sagehou/M365-MCP-Server/releases)
+> 查看已发布的 `v0.1.0` 产物。CI 覆盖 Container Image 与 Windows x64 NativeAOT
+> EXE。维护者报告核心流程已通过真实客户端验收；受限自动发送尚未完成真实客户端
+> 测试，具体部署启用前必须验收。
 
 ## 当前已经可用
 
@@ -31,6 +32,7 @@ Release 流程会发布：
 - `m365-mcp-windows-x64.exe`
 - SHA-256 校验文件
 - GitHub Artifact Attestation 来源证明
+- `LICENSE` 许可声明文件（不是运行依赖）
 
 目标机器无需安装 Python、.NET Runtime、Docker 或安装器。Authenticode
 签名属于后续加固项。如安全软件隔离未签名 EXE，请按
@@ -47,8 +49,8 @@ Attestation 可核验来源，但不会覆盖杀毒软件的判定。
 | Docker Compose 校验 | CI 覆盖 |
 | Windows NativeAOT EXE 构建 | CI 覆盖 |
 | Windows SHA-256 与 Provenance Attestation | 纳入 v0.1.0 Release 流程 |
-| 真实 WorkBuddy 与真实邮箱验收 | 待完成的发布门禁 |
-| 稳定版 `v0.1.0` GitHub Release | 待发布门禁完成 |
+| 真实 WorkBuddy 与真实邮箱验收 | 维护者报告除受限自动发送外已完成；记录保存在仓库外 |
+| 稳定版 `v0.1.0` GitHub Release | 见 [Releases 页面](https://github.com/sagehou/M365-MCP-Server/releases) |
 
 GitHub Actions 是本仓库唯一的构建与测试环境。
 
@@ -63,3 +65,7 @@ GitHub Actions 是本仓库唯一的构建与测试环境。
 - Windows EXE 的 Authenticode 签名与 Clean VM 验收；可选 WAM 评估与本地富文档附件解析。
 
 发布前请阅读 [v0.1.0 发布检查清单](docs/zh-CN/release-checklist.md)。
+
+## 许可证
+
+项目源代码与文档按 [MIT 许可证](LICENSE)发布。第三方依赖仍适用其各自的许可证。

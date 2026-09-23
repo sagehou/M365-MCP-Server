@@ -186,8 +186,7 @@ of these live checks with the exact release image and connector archive:
    and consent, then return to WorkBuddy through
    `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback`.
 3. Initialize MCP, list exactly eleven tools, then exercise search, single-message
-   read, draft creation, separately confirmed draft sending, one bounded-automation
-   send and one blocked out-of-policy automation attempt, attachment extraction,
+   read, draft creation, separately confirmed draft sending, attachment extraction,
    one-time attachment download and deliberate mutations on disposable messages.
    Verify the new IDs returned by move and archive are used afterward.
 4. Repeat with a second user and verify that neither user can access the other's
@@ -205,3 +204,7 @@ of these live checks with the exact release image and connector archive:
 
 These live checks are manual release gates. Passing the mocked CI flow does not
 mark them complete.
+
+Bounded automation sending remains supported by the client/agent contract but
+was not live-validated for v0.1.0. Before enabling it in a deployment, test one
+in-policy send and one blocked out-of-policy attempt against a controlled mailbox.

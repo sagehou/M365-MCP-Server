@@ -10,8 +10,10 @@
 - Stable Image：`ghcr.io/sagehou/m365-mcp-server:v0.1.0`
 - Windows Asset：`m365-mcp-windows-x64.exe`
 
-以下所有 Tag 前检查项必须有证据，之后才能创建或推送 Stable Tag。证据中不得保存
-Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Identifier。
+以下第 1–4 节 Tag 前检查项必须有证据，之后才能创建或推送 Stable Tag。自动发送
+检查属于该模式的部署门禁，不是 v0.1.0 Tag 门禁；本版本明确未完成该项真实验收。
+
+证据中不得保存 Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Identifier。
 
 ## 1. 已 Review 的 Candidate
 
@@ -19,6 +21,7 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
 - [ ] 已记录 Candidate Commit 的完整 SHA。
 - [ ] Required PR Check 全部为绿色。
 - [ ] `pyproject.toml` 中的版本是 `0.1.0`。
+- [ ] 仓库 `LICENSE` 与 Python 包元数据均声明 MIT 许可证。
 - [ ] 中英文 `v0.1.0` Release Notes 已 Review。
 - [ ] 支持范围和已知限制与 README 一致。
 
@@ -78,10 +81,6 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
   发送邮件。
 - [ ] 交互模式另行取得明确确认后才调用 `mail_send_draft`；邮件只在 Sent Items
   中出现一次，并且受控测试收件人只收到一次。
-- [ ] 自动化模式记录的授权包含收件人/域名、触发条件、内容规则与可信数据源、单次
-  和每日限额以及到期时间；一封符合策略的 Draft 无需逐封提示即可发送。
-- [ ] 收件人越界、内容改变、超过限额或授权过期时，在 `mail_send_draft` 前停止
-  并请求确认。
 - [ ] 发送结果不明确时没有自动重试。
 - [ ] 验证 PDF、DOCX、XLSX、PPTX、TXT、ZIP 和普通 Binary Attachment。
 - [ ] 超大和不支持的附件安全失败。
@@ -99,6 +98,16 @@ Token、Secret、邮件正文、附件内容或未经脱敏的 Tenant/User Ident
 - 已脱敏 Audit/Event Reference：
 - Result/Evidence URL：
 - Tester 与日期（UTC）：
+
+## 自动发送部署门禁（v0.1.0 尚未完成真实验收）
+
+Client/Agent 层仍支持受限自动发送契约，但以下真实客户端检查在 v0.1.0 未完成，
+不得宣称已通过。部署中启用自动发送前必须完成：
+
+- [ ] 已记录的授权包含收件人/域名、触发条件、内容规则与可信数据源、单次和每日
+  限额以及到期时间；一封符合策略的 Draft 无需逐封提示即可发送。
+- [ ] 收件人越界、内容改变、超过限额或授权过期时，在 `mail_send_draft` 前停止
+  并请求确认。
 
 ## 5. 创建并验证 Release
 
@@ -122,7 +131,7 @@ Tag Workflow 必须完成：
 - [ ] `m365-mcp-windows-x64.exe.sha256` 能正确校验已发布 EXE。
 - [ ] `m365-mcp-windows-x64.exe` 已生成 GitHub Artifact Attestation，且可验证来源为本仓库。
 - [ ] GHCR 包含 `v0.1.0`、`0.1.0`、`0.1` 和 `latest`。
-- [ ] GitHub Release `v0.1.0` 已创建，并包含 Review 后的 Notes 与两个 Windows Release Asset。
+- [ ] GitHub Release `v0.1.0` 已创建，并包含 Review 后的 Notes、Windows EXE、Checksum 与 MIT `LICENSE` 文件。
 - [ ] 如果 Package 预期公开，Anonymous `docker pull` 成功。
 - [ ] 部署的 Image Digest 与已发布 Candidate 一致。
 

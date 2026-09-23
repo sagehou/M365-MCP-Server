@@ -6,10 +6,11 @@ A self-hosted Microsoft 365 MCP gateway with a deliberately bounded tool surface
 delegated Microsoft Entra identity, per-user isolation, and security-focused
 handling of Outlook mail and attachments.
 
-> **Current status:** `v0.1.0` release preparation is in progress. Automated CI
-> validates the release pipeline, including the container image and Windows x64
-> NativeAOT executable. Stable publication remains gated by real WorkBuddy,
-> tenant, mailbox, restart, and cross-tenant acceptance evidence.
+> **Release status:** See [GitHub Releases](https://github.com/sagehou/M365-MCP-Server/releases)
+> for published `v0.1.0` artifacts. CI validates the container image and Windows
+> x64 NativeAOT executable. The maintainer reports real-client acceptance for
+> the core flows; bounded automation sending remains untested in a live client
+> and requires deployment-specific validation before it is enabled.
 
 ## What works today
 
@@ -33,6 +34,7 @@ The release pipeline publishes:
 - `m365-mcp-windows-x64.exe`
 - SHA-256 checksum
 - GitHub Artifact Attestation provenance
+- `LICENSE` legal notice (not a runtime dependency)
 
 The executable does not require Python, .NET runtime, Docker, or an installer on
 the target PC. Authenticode signing remains a future hardening item. If security
@@ -51,8 +53,8 @@ decisions.
 | Docker Compose validation | CI-covered |
 | Windows NativeAOT executable build | CI-covered |
 | Windows SHA-256 and provenance attestation | Included in v0.1.0 release pipeline |
-| Real WorkBuddy and real mailbox acceptance | Pending release gate |
-| Stable `v0.1.0` GitHub release | Pending release gate |
+| Real WorkBuddy and real mailbox acceptance | Maintainer-reported complete except bounded automation send; records retained outside this repository |
+| Stable `v0.1.0` GitHub release | Check the [Releases page](https://github.com/sagehou/M365-MCP-Server/releases) |
 
 GitHub Actions is the only build and test environment for this repository.
 
@@ -67,3 +69,8 @@ GitHub Actions is the only build and test environment for this repository.
 - Authenticode signing and clean-VM acceptance for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
 
 See the [v0.1.0 release checklist](docs/release-checklist.md) before deployment.
+
+## License
+
+The project source code and documentation are released under the [MIT License](LICENSE).
+Third-party dependencies retain their own licenses.
