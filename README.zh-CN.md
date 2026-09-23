@@ -34,7 +34,9 @@ Release 流程会发布：
 - GitHub Artifact Attestation 来源证明
 
 目标机器无需安装 Python、.NET Runtime、Docker 或安装器。Authenticode
-签名属于后续加固项。
+签名属于后续加固项。如安全软件隔离未签名 EXE，请按
+[误报处置说明](docs/zh-CN/windows-local.md#杀毒软件误报)处理；Checksum 与
+Attestation 可核验来源，但不会覆盖杀毒软件的判定。
 
 ## 发布与验证状态
 
