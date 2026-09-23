@@ -214,6 +214,16 @@ jobs:
         run: |
           cd release-assets
           sha256sum -c m365-mcp-windows-x64.exe.sha256
+      - name: Add exact Windows asset hashes to release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 scripts/render_windows_release_hashes.py \
+            --binary release-assets/m365-mcp-windows-x64.exe \
+            --sha256-file release-assets/m365-mcp-windows-x64.exe.sha256 \
+            --notes-in "docs/releases/$RELEASE_TAG.md" \
+            --notes-out release-assets/release-notes.md \
+            --release-tag "$RELEASE_TAG"
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
@@ -268,5 +278,5 @@ jobs:
             release-assets/LICENSE \
             --verify-tag \
             --title "M365 MCP Server $RELEASE_TAG" \
-            --notes-file "docs/releases/$RELEASE_TAG.md" \
+            --notes-file release-assets/release-notes.md \
             --latest

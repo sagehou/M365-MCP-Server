@@ -30,6 +30,7 @@ Windows x64 NativeAOT 本地 Runtime 已包含在 v0.1.0 中。Release 提供：
 
 - `m365-mcp-windows-x64.exe`
 - SHA-256 校验文件
+- Release 说明中的 MD5 和 SHA-1，供按精确文件哈希加杀毒软件白名单
 - GitHub Artifact Attestation 来源证明
 - `LICENSE` 许可声明文件（不是运行依赖）
 
@@ -37,6 +38,8 @@ Windows x64 NativeAOT 本地 Runtime 已包含在 v0.1.0 中。Release 提供：
 签名属于后续加固项。如安全软件隔离未签名 EXE，请按
 [误报处置说明](docs/zh-CN/windows-local.md#杀毒软件误报)处理；Checksum 与
 Attestation 可核验来源，但不会覆盖杀毒软件的判定。
+MD5 和 SHA-1 仅用于兼容旧式白名单表单，不是可信性验证；EXE 改变后须重新计算
+哈希并审核白名单。
 
 ## 发布与验证状态
 

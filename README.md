@@ -33,6 +33,7 @@ provides:
 
 - `m365-mcp-windows-x64.exe`
 - SHA-256 checksum
+- MD5 and SHA-1 in the Release description for exact-file antivirus allowlisting
 - GitHub Artifact Attestation provenance
 - `LICENSE` legal notice (not a runtime dependency)
 
@@ -41,7 +42,8 @@ the target PC. Authenticode signing remains a future hardening item. If security
 software quarantines the unsigned EXE, follow the
 [false-positive handling guide](docs/windows-local.md#antivirus-false-positives);
 the checksum and attestation establish provenance but do not override antivirus
-decisions.
+decisions. MD5 and SHA-1 are only identifiers for legacy allowlist forms, not
+authenticity checks; a changed EXE needs new hashes and a new allowlist review.
 
 ## Release and validation status
 

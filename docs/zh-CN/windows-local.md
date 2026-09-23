@@ -77,6 +77,11 @@ GitHub Attestation 都不能保证杀毒软件放行。Windows 构建已写入�
 二进制哈希改变后需重新核验；旧版本的判定不自动覆盖新构建。GitHub Attestation
 证明构建来源，不证明文件绝对安全，也不代表所有杀毒引擎都会信任它。
 
+若奇安信或其他受管终端安全产品要求提供 MD5 和 SHA-1 以按精确文件哈希加白，
+请使用同一 GitHub Release 说明中 `m365-mcp-windows-x64.exe` 对应的值。先用
+发布的 `.sha256` 文件核对 EXE 的 SHA-256，再由安全管理员评估窄范围白名单。
+MD5 和 SHA-1 不是可信性证明；任何 EXE 变更都必须重新计算并审核白名单。
+
 ## Entra Public Client 配置
 
 Windows 本地 EXE 默认使用项目维护的独立公共客户端：

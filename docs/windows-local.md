@@ -94,6 +94,13 @@ Repeat the sample review for a changed binary hash; a prior verdict does not
 automatically cover new builds. GitHub attestation proves build provenance,
 not that the binary is malware-free or trusted by every antivirus engine.
 
+For Qianxin or another managed endpoint product that requests MD5 and SHA-1
+for exact-file allowlisting, use the values for `m365-mcp-windows-x64.exe` in
+the same GitHub Release description. First confirm the EXE's SHA-256 against
+the published `.sha256` file; then give the MD5 and SHA-1 to the security
+administrator for a narrowly scoped rule. These older hashes are not proof of
+authenticity and must be recalculated for any changed executable.
+
 ## Entra public-client setup
 
 The Windows-local executable uses this project-managed public client by default:
