@@ -20,7 +20,11 @@
 - Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
   `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
 
-在完成 `v0.1.0` 发布门禁前，它仍属于集成版本。首个 Stable Release 可以在没有 Authenticode 签名的情况下发布 EXE，但必须为最终通过 Smoke Test 的同一二进制文件发布 SHA-256 校验文件和 GitHub Artifact Attestation。后续再通过真实验收判断可选的 WAM Broker 是否比更简单的 Browser PKCE Flow 带来足够价值；PDF/Office 附件解析、Authenticode 签名、SBOM 和 Clean VM 真实邮箱验收属于后续加固工作。
+[v0.1.0 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+已提供稳定版 Windows EXE、SHA-256 校验文件、MIT 许可声明和该精确 Smoke Test
+二进制文件的 GitHub Artifact Attestation。普通分支的 Actions Artifact 仍只是
+集成产物。已发布 EXE 尚无 Authenticode 签名；SBOM、PDF/Office 本地附件解析和
+Clean VM 真实邮箱验收仍是后续加固工作。是否引入 WAM 仍需依据实际部署证据判断。
 
 ## Runtime 决策
 
@@ -176,9 +180,11 @@ EXE 当前提供：
    `initialize` 和 `tools/list`；
 5. 断言 Ephemeral 运行不会留下文件。
 
-Actions Artifact 不能宣称为 Stable Release。正式 Release Workflow 必须重新构建并 Smoke Test 最终 Windows x64 EXE，为该文件发布 SHA-256 校验文件和 GitHub Artifact Attestation，并把精确通过测试的文件附加到 GitHub Release。
+Actions Artifact 不能宣称为 Stable Release。Tag Release Workflow 会重新构建并
+Smoke Test Windows x64 EXE，发布 SHA-256 校验文件和 MIT 许可声明，为该文件
+记录 GitHub Artifact Attestation，并把精确通过测试的文件附加到 GitHub Release。
 
-## 剩余验收门禁
+## 后续加固与部署检查
 
 - 先验证 Browser PKCE，再根据账户选择、SSO 或 Tenant Policy 的实际需要决定
   是否增加可选 WAM 集成。

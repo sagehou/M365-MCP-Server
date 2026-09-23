@@ -58,19 +58,21 @@ These tests do not read or change production mailbox data. CI proves the
 artifact shape and mocked/protocol behavior; it does not prove live tenant
 consent, real Graph behavior, code-signing trust, or target-agent compatibility.
 
-## Still required before production
+## Current release and remaining deployment work
 
-- Choose and publish the first approved release version; verify GHCR visibility
-  and pull access. A passing Docker build is not a published release.
-- Configure Entra applications/consent and validate two real users, supported
-  MCP clients, certificate or secret credentials, and representative attachments.
+- `v0.1.0` is [published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+  under MIT; all four GHCR tags allow anonymous manifest access. Each deployment
+  still needs its own Entra configuration and consent checks.
+- The maintainer reports two-user, cross-tenant, WorkBuddy, and representative
+  mailbox acceptance completed for the release; detailed records are outside
+  this repository.
 - OAuth discovery, dynamic public-client registration, MSAL-backed interactive
   authorization, S256 PKCE, one-time local authorization-code exchange and
   persistent encrypted refresh sessions with rotation/replay prevention are
   implemented behind a default-off feature flag. The WorkBuddy connector and CI
-  client-flow coverage are present. Live WorkBuddy automatic sign-in/refresh,
-  restart, real-mailbox and cross-tenant acceptance remain release blockers for
-  a WorkBuddy-compatible v0.1.
+  client-flow coverage are present. Bounded automation sending remains supported
+  by the client/agent contract but was not live-tested for v0.1.0; validate an
+  allowed send and an out-of-policy block before enabling it in a deployment.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.
@@ -81,13 +83,14 @@ consent, real Graph behavior, code-signing trust, or target-agent compatibility.
 - OCR, replies, forwarding, shared mailboxes, enterprise RBAC/rate
   limiting/observability, Calendar, Drive, SharePoint and Teams remain roadmap
   items.
-- The Windows executable is an unsigned integration artifact, not a stable
-  release. Live public-client sign-in, refresh/restart/logout, real-mailbox
-  tools, target-agent lifecycle, Authenticode signing, scanning, provenance/SBOM
-  and stable release publication remain incomplete.
+- The stable Windows executable is published unsigned with SHA-256 and GitHub
+  provenance. Clean-VM real-mailbox acceptance, target-agent lifecycle checks,
+  antivirus false-positive review, optional signing, and SBOM remain follow-up
+  work.
 - Windows local mode intentionally omits `mail_download_attachment` and rich
   binary-document extraction. It does not install a Windows Service: the stdio
   process is launched and owned by the agent. Service mode would require a
   separate IPC and security design.
 
-These pending items are not marked complete by tasks 001–007 or by this review.
+The original review and mocked CI did not establish live acceptance; the later
+maintainer report and completed release workflow are reflected above.

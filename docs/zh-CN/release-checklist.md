@@ -10,6 +10,10 @@
 - Stable Image：`ghcr.io/sagehou/m365-mcp-server:v0.1.0`
 - Windows Asset：`m365-mcp-windows-x64.exe`
 
+`v0.1.0` 已于 2026-09-23 [发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)。
+本文仍是发布审核清单；维护者将真实验收的详细记录保存在仓库外。下文的自动发送
+例外在本版本仍未完成真实验收。
+
 以下第 1–4 节 Tag 前检查项必须有证据，之后才能创建或推送 Stable Tag。自动发送
 检查属于该模式的部署门禁，不是 v0.1.0 Tag 门禁；本版本明确未完成该项真实验收。
 
