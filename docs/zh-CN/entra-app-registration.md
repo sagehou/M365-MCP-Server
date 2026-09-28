@@ -326,7 +326,6 @@ MSAL 兑换 Authorization Code 时只请求 MCP Scope，因此 Token A 仍是 MC
 - MCP OAuth Discovery / Dynamic Client Registration：已在 `OAUTH_ENABLED` 后实现
 - MSAL Interactive Sign-in、S256 PKCE 与 Local Authorization-code Exchange：已在 `OAUTH_ENABLED` 后实现
 - Persistent Encrypted Local Refresh Session 与 Rotation：已在 `OAUTH_ENABLED` 后实现
-- 真实 WorkBuddy 验收：尚未完成
 
 ### 10.1 核对 Web Authentication 配置
 

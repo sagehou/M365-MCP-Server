@@ -7,6 +7,7 @@ from .downloads import (
     create_attachment_download_router,
 )
 from .tools import MailToolService, register_mail_tools
+from .uploads import AttachmentUploadStore, create_attachment_upload_router
 
 __all__ = [
     "AttachmentDownloadStore",
@@ -15,4 +16,6 @@ __all__ = [
     "MailToolService",
     "create_attachment_download_router",
     "register_mail_tools",
+    "AttachmentUploadStore",
+    "create_attachment_upload_router",
 ]

@@ -38,7 +38,7 @@ GitHub Actions 执行。
 
 Windows Workflow 只在 Publish Directory 恰好包含一个 `m365-mcp.exe` 时发布
 NativeAOT 集成产物。隔离烟测只在 `PATH` 中保留 Windows 系统目录，执行
-`doctor --ephemeral`、MCP `initialize` 和 `tools/list`，核对预期的十个
+`doctor --ephemeral`、MCP `initialize` 和 `tools/list`，核对预期的十一个
 Tools，并检查隔离 Data Root 没有产生文件。
 
 这些测试不会读取或修改生产邮箱数据。CI 能证明 Artifact 形态与 Mock/Protocol
@@ -49,19 +49,17 @@ Agent 兼容性。
 
 - `v0.1.0` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)；
   四个 GHCR 标签均允许匿名读取 Manifest。每个部署仍需单独核对 Entra 配置和同意。
-- 维护者报告双用户、跨租户、WorkBuddy 和代表性邮箱验收已完成；详细记录保存在
-  仓库外。
-- OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。受限自动发送仍属于 Client/Agent 契约支持范围，但在 v0.1.0 未完成真实验收；具体部署启用前须验证符合策略的发送与越界阻止。
+- OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。
+- 受限自动发送属于 Client/Agent 授权契约；Server 只收到 `draft_id`，不能据此判断是否已经取得授权。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
-- 已实现纯文本 Draft 创建和发送。Client/Agent 层必须逐封确认或具有明确的受限
-  自动化授权。v0.1 契约有意不提供一步式 Direct Send、HTML/附件撰写和自动重试。
+- 已实现纯文本 Draft 创建和发送。当前源码还支持远端二进制上传加一次性句柄，
+  或 Windows 原生文件选择框，将最多 20 MiB 的文件添加至草稿；此能力不在已发布的
+  v0.1.0 二进制文件中。Client/Agent 层必须逐封确认或具有明确的受限自动化授权。
+  一步式 Direct Send、HTML 撰写和自动重试仍不提供。
 - OCR、Reply、Forward、Shared Mailboxes、Enterprise RBAC / Rate Limiting /
   Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
 - 稳定版 Windows EXE 已作为未签名文件发布，并附有 SHA-256 与 GitHub 构建来源
-  证明。Clean VM 真实邮箱验收、目标 Agent 生命周期检查、杀毒误报申诉、可选签名
-  和 SBOM 仍属于后续工作。
+  证明。杀毒误报处理、可选签名和 SBOM 属于独立加固事项，不改变 v0.1.0 产物。
 - Windows 本地模式有意不提供 `mail_download_attachment` 和丰富二进制文档提取。
   它不会安装 Windows Service：stdio 进程由 Agent 启动并管理。Service Mode
   需要独立 IPC 与安全设计。
-
-原始 Review 与 Mock CI 不能证明真实验收；上文另列维护者后续确认和发布流程结果。

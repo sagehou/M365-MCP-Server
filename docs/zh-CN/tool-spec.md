@@ -38,12 +38,41 @@
 
 在用户逐封明确确认，或已经明确授予有边界的自动化授权后，按 `draft_id` 发送
 一封现有草稿。自动化授权必须约束收件人/域名、触发条件、内容生成规则与可信数据
-源、单次和每日发送量以及到期时间；任何越界都需要确认。
+源、获准的附件名称与内容、单次和每日发送量以及到期时间；任何越界都需要确认。
 
 Server 只接收 `draft_id`，无法证明 Client 使用了哪种授权路径；集成 Client 或
 Agent 必须在调用前执行该策略。`send_accepted=true` 表示 Microsoft Graph 已接受
 请求；`delivery_confirmed=false` 明确表示尚未证明最终投递成功。对结果不明确的
 失败不得自动重试。
+
+### mail_add_draft_attachment
+
+为现有草稿添加一个文件，不发送邮件。未发布构建的远端 Server 和 Windows
+本地 EXE 均支持；不属于已发布的 v0.1.0。每个文件调用一次，随后才能调用
+`mail_send_draft`。
+
+远端 MCP 工具输入为 `draft_id` 和 `upload_handle`。先使用与 `/mcp/` 相同的
+Delegated Bearer Token 向 `POST /uploads/attachments` 上传 1 字节至 20 MiB 的
+原始文件字节：请求体类型为 `application/octet-stream`，`X-Attachment-Name`
+填写 UTF-8 文件名的百分号编码，可选 `X-Attachment-Content-Type` 填写 ASCII
+MIME 类型。响应返回绑定当前用户、一次性且五分钟过期的 `upload_handle`、文件
+元数据和 SHA-256。暂存仅使用有容量上限的 Server 内存，重启或跨 Worker 不保证
+句柄可用。随后调用 MCP 工具消费句柄并添加附件。客户端必须自行实现二进制上传；
+仓库提供的 WorkBuddy Skill 并不自带文件上传器。
+
+Windows 本地同名工具输入 `draft_id` 和可选 `content_type`，会弹出系统文件
+选择框。EXE 只读取用户选中的文件，不接受 Agent 传入任意路径，也不写临时附件
+文件。取消选择返回 `attached=false, cancelled=true`；此方式需要交互式桌面，
+不支持无人值守的自动附件发送。
+
+小于 3 MB 使用 Graph 直接添加，更大文件使用顺序分块上传。结果含
+`attached=true`、`content_length`、SHA-256；通过小文件 POST 返回附件 ID 时
+也返回 ID（大文件结果中的 `attachment_id` 为 null）。工具结果绝不返回文件
+字节或敏感的 Graph 上传 URL。失败后先检查草稿及附件列表，再决定是否重试，
+因为上传结果可能不明确。
+
+发送前核对完整草稿及 `mail_list_attachments`。交互模式的单独发送确认须包含附件；
+受限自动化授权须明确限定附件来源和内容。
 
 ### mail_list_attachments
 

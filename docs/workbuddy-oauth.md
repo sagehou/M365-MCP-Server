@@ -28,10 +28,11 @@ with AES-256-GCM under `OAUTH_ENCRYPTION_KEY`; record-specific authenticated
 context binds each ciphertext to immutable OAuth metadata. Sensitive token
 material never appears in the browser redirect or plaintext SQLite columns.
 
-Keep `OAUTH_ENABLED=false` outside controlled integration development until the
-real WorkBuddy acceptance gate is complete. Restarted or replacement processes
-must use the same SQLite database and encryption key. Distributed or multi-host
-session storage is outside the v0.1 scope.
+`OAUTH_ENABLED` defaults to `false`; enable it per deployment only after the
+Entra registration, consent, fixed public origin, persistent SQLite database,
+and encryption key are configured. Restarted or replacement processes must use
+the same SQLite database and encryption key. Distributed or multi-host session
+storage is outside the v0.1 scope.
 
 ## Connector package
 
@@ -202,9 +203,8 @@ of these live checks with the exact release image and connector archive:
    access/refresh tokens, MSAL cache, client secrets, code verifiers, message
    bodies or attachment contents.
 
-These live checks are manual release gates. Passing the mocked CI flow does not
-mark them complete.
-
-Bounded automation sending remains supported by the client/agent contract but
-was not live-validated for v0.1.0. Before enabling it in a deployment, test one
-in-policy send and one blocked out-of-policy attempt against a controlled mailbox.
+Keep deployment-specific acceptance records outside the source repository. Mocked
+CI covers protocol behavior but does not replace real tenant and client checks.
+For bounded automation sending, the client/agent must enforce the user's recorded
+authorization; confirm both an in-policy send and an out-of-policy block in the
+deployment that enables it.

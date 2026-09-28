@@ -136,8 +136,8 @@ jobs:
           if ($initialize.result.serverInfo.name -ne 'M365 MCP Server (Windows Local)') {
             throw 'Unexpected MCP server identity.'
           }
-          if (@($tools.result.tools).Count -ne 10) {
-            throw "Expected 10 local mail tools; found $(@($tools.result.tools).Count)."
+          if (@($tools.result.tools).Count -ne 11) {
+            throw "Expected 11 local mail tools; found $(@($tools.result.tools).Count)."
           }
           if ($ping.id -ne 3 -or $null -eq $ping.result) {
             throw 'stdio ping failed.'

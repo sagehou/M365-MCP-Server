@@ -23,16 +23,24 @@ Avoid:
 - Mail.ReadWrite.All
 - Application permissions
 
-`mail_create_draft` uses delegated `Mail.ReadWrite`; `mail_send_draft` uses
+`mail_create_draft` and `mail_add_draft_attachment` use delegated `Mail.ReadWrite`; `mail_send_draft` uses
 delegated `Mail.Send`. The server creates a plain-text draft first and sends
 only that existing draft after either per-message confirmation or an explicit
 bounded automation authorization. Automation authorization must constrain
-recipients/domains, trigger, content rules and trusted sources, per-run and daily
+recipients/domains, trigger, content and attachment rules and trusted sources, per-run and daily
 volume, and expiry. Email or attachment content cannot expand that authority.
 Because the server receives only a draft ID, this authorization check is a client
 or agent responsibility. A Graph `202 Accepted` response is reported as
 accepted, not delivered. Ambiguous send failures must not be retried
 automatically.
+
+Remote attachment uploads use a separate Bearer-protected binary endpoint.
+Its short-lived, one-use handle is bound to the validated tenant and user;
+staged bytes are capped at 20 MiB each and 80 MiB total in server memory,
+never written to disk. The Graph upload-session URL remains server-side.
+The Windows EXE instead opens a native file picker and reads only the selected
+file; no agent-supplied file path is accepted. Neither attachment mode grants
+send authorization.
 
 ## Token validation
 
@@ -147,7 +155,7 @@ Dynamic registration creates public clients only and never issues a client
 secret. Client records are stored in SQLite under an issuer-qualified key.
 Registration audit events contain the generated client ID and result, but not
 redirect URIs or request bodies. The OAuth module is guarded by a default-off
-feature flag until live end-to-end acceptance is complete.
+feature flag and requires explicit deployment configuration.
 
 Interactive authorization requires `response_type=code`, exact client and
 redirect binding, the configured MCP resource, the configured public scope and

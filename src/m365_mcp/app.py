@@ -20,8 +20,10 @@ from .graph import GraphClient, MailService
 from .extractors import AttachmentExtractorRegistry
 from .mail import (
     AttachmentDownloadStore,
+    AttachmentUploadStore,
     MailToolService,
     create_attachment_download_router,
+    create_attachment_upload_router,
     register_mail_tools,
 )
 from .oauth import (
@@ -64,6 +66,7 @@ def create_app(
     oauth_store: OAuthStore | None = None,
     oauth_authorization_service: OAuthAuthorizationService | None = None,
     attachment_download_store: AttachmentDownloadStore | None = None,
+    attachment_upload_store: AttachmentUploadStore | None = None,
 ) -> FastAPI:
     """Create an application with protected MCP mail tools."""
 
@@ -96,12 +99,14 @@ def create_app(
             max_total_bytes=configured_settings.attachment_download_max_total_bytes,
         )
     mail_audit_logger = audit_logger or AuditLogger()
+    upload_store = attachment_upload_store or AttachmentUploadStore()
     register_mail_tools(
         server,
         MailToolService(
             mail_service,
             attachment_extractor=attachment_extractor,
             attachment_download_store=download_store,
+            attachment_upload_store=upload_store,
             attachment_download_url_prefix=(
                 f"{configured_settings.normalized_oauth_issuer_url}/downloads"
                 if download_store is not None
@@ -147,6 +152,7 @@ def create_app(
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         async with http_app.lifespan(application):
             try:
+                await upload_store.start()
                 if download_store is not None:
                     await download_store.start()
                 if registry is not None:
@@ -155,6 +161,7 @@ def create_app(
             finally:
                 if download_store is not None:
                     await download_store.aclose()
+                await upload_store.aclose()
                 if graph_client is not None:
                     await graph_client.aclose()
 
@@ -190,9 +197,11 @@ def create_app(
         )
     if download_store is not None:
         application.include_router(create_attachment_download_router(download_store))
+    application.include_router(create_attachment_upload_router(upload_store))
     application.add_middleware(
         BearerAuthMiddleware,
         validator=validator,
+        additional_protected_prefixes=("/uploads/attachments",),
         resource_metadata_url=(
             configured_settings.protected_resource_metadata_url
             if configured_settings.oauth_enabled

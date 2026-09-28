@@ -17,7 +17,7 @@ The executable currently provides:
 - the project `M365-MCP-Localhost` public client built in by default, with an
   enterprise client-ID override
 - current-user DPAPI protection for the optional persistent token state
-- MCP stdio with ten bounded Outlook mail tools
+- MCP stdio with eleven bounded Outlook mail tools in the current source
 - an `--ephemeral` mode that neither reads nor writes persistent state
 - a Windows Actions gate that rejects anything except one executable, removes
   language runtimes from `PATH` during smoke testing, and fails if the
@@ -27,9 +27,10 @@ The [v0.1.0 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/
 contains the stable Windows asset, its SHA-256 checksum, MIT notice, and GitHub
 Artifact Attestation for the exact smoke-tested binary. Actions artifacts from
 ordinary branch builds remain integration builds. The released EXE is unsigned;
-Authenticode signing, SBOM, rich local attachment extraction, and clean-VM
-live-mailbox validation remain follow-up hardening work. Optional WAM remains
-subject to real deployment evidence.
+Authenticode signing, SBOM, and rich local attachment extraction remain separate
+hardening work. Optional WAM depends on deployment requirements. The published
+v0.1.0 EXE has ten mail tools; the attachment tool exists only in newer source
+and Actions integration artifacts.
 
 ## Runtime decision
 
@@ -187,6 +188,7 @@ The executable exposes these tools:
 - `mail_get`
 - `mail_create_draft`
 - `mail_send_draft`
+- `mail_add_draft_attachment` (one file up to 20 MiB per call; unreleased builds only)
 - `mail_list_attachments`
 - `mail_read_attachment` for bounded UTF-8 text, CSV, JSON, and XML
 - `mail_mark_read`
@@ -199,6 +201,11 @@ runtime has no HTTP download endpoint and must not write arbitrary files.
 PDF/DOCX/XLSX/PPTX extraction remains on the acceptance backlog. Sending still
 requires per-message confirmation or an explicit bounded automation
 authorization at the client/agent layer.
+The tool opens a Windows file picker and reads only the selected file. It does
+not accept an agent-supplied path, expose file bytes in MCP, or write temporary
+attachment files. A desktop user must select the file; unattended attachment
+automation is not supported. Review the draft and attachment list before
+sending; attachment support is not in the published v0.1.0 EXE.
 
 ## Build and obtain the integration artifact
 

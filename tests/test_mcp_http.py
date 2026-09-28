@@ -43,7 +43,11 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                 "contentBytes": base64.b64encode(b"hello").decode(),
             })
         if request.url.path.endswith("/attachments"):
+            if request.method == "POST":
+                return httpx.Response(201, json={"id": "new-attachment"})
             return httpx.Response(200, json={"value": [{"id": "attachment", "name": "notes.txt"}]})
+        if request.method == "GET" and request.url.path == "/v1.0/me/messages/draft-id":
+            return httpx.Response(200, json={"id": "draft-id", "isDraft": True})
         if request.method == "POST" and request.url.path == "/v1.0/me/messages":
             return httpx.Response(201, json={"id": "draft-id"})
         if request.url.path == "/v1.0/me/messages/draft-id/send":
@@ -86,6 +90,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     listed = await rpc("alice", "tools/list", {})
                     assert {tool["name"] for tool in listed["tools"]} == {
                         "mail_search", "mail_get", "mail_create_draft", "mail_send_draft",
+                        "mail_add_draft_attachment",
                         "mail_list_attachments", "mail_read_attachment",
                         "mail_mark_read", "mail_archive", "mail_move", "mail_set_category",
                     }
@@ -110,6 +115,24 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         assert not result.get("isError")
                         payload = json.loads(result["content"][0]["text"])
                         assert payload["message"]["id"] == "Bearer graph-" + user
+                    staged = await client.post(
+                        "/uploads/attachments",
+                        headers={
+                            "Authorization": "Bearer alice",
+                            "Content-Type": "application/octet-stream",
+                            "X-Attachment-Name": "note.txt",
+                            "X-Attachment-Content-Type": "text/plain",
+                        },
+                        content=b"hello",
+                    )
+                    assert staged.status_code == 201
+                    handle = staged.json()["upload_handle"]
+                    assert staged.json()["content_length"] == 5
+                    wrong_user = await rpc("bob", "tools/call", {
+                        "name": "mail_add_draft_attachment",
+                        "arguments": {"draft_id": "draft-id", "upload_handle": handle},
+                    })
+                    assert wrong_user["isError"]
                     cases = [
                         ("mail_search", {"query": "test"}, "messages"),
                         (
@@ -121,6 +144,9 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             },
                             "created",
                         ),
+                        ("mail_add_draft_attachment", {
+                            "draft_id": "draft-id", "upload_handle": handle,
+                        }, "attached"),
                         ("mail_send_draft", {"draft_id": "draft-id"}, "send_accepted"),
                         ("mail_list_attachments", {"message_id": "id"}, "attachments"),
                         ("mail_read_attachment", {"message_id": "id", "attachment_id": "attachment"}, "content"),
@@ -138,6 +164,13 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             assert payload["message_id"] == "moved-id"
                         if name == "mail_read_attachment":
                             assert payload["content"] == "hello"
+                        if name == "mail_add_draft_attachment":
+                            assert payload["content_length"] == 5
+                            assert "upload_handle" not in payload
+                            repeated = await rpc("alice", "tools/call", {
+                                "name": name, "arguments": arguments,
+                            })
+                            assert repeated["isError"]
                     bad_date = await rpc("alice", "tools/call", {
                         "name": "mail_search",
                         "arguments": {"query": "test", "date_from": "2026-13-45"},
@@ -171,6 +204,10 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     assert "Verify mailbox state before retrying" in json.dumps(send_failure)
                     missing = await client.post("/mcp/", json={})
                     assert missing.status_code == 401
+                    upload_missing_auth = await client.post(
+                        "/uploads/attachments", content=b"x"
+                    )
+                    assert upload_missing_auth.status_code == 401
 
                     modern_meta = {
                         "io.modelcontextprotocol/protocolVersion": "2026-07-28",
@@ -207,7 +244,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     modern_tools = await modern_rpc(
                         "alice", "tools/list", {"_meta": modern_meta}
                     )
-                    assert len(modern_tools["tools"]) == 10
+                    assert len(modern_tools["tools"]) == 11
                     modern_result = await modern_rpc(
                         "bob",
                         "tools/call",
@@ -243,6 +280,16 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                 "toRecipients": [
                     {"emailAddress": {"address": "recipient@example.com"}}
                 ],
+            },
+        ),
+        (
+            "POST",
+            "/v1.0/me/messages/draft-id/attachments",
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": "note.txt",
+                "contentType": "text/plain",
+                "contentBytes": "aGVsbG8=",
             },
         ),
         ("POST", "/v1.0/me/messages/draft-id/send", None),

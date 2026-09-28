@@ -54,6 +54,7 @@ internal static class Program
 
             using var handler = new HttpClientHandler
             {
+                AllowAutoRedirect = false,
                 AutomaticDecompression =
                     DecompressionMethods.GZip
                     | DecompressionMethods.Deflate

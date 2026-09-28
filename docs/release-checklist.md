@@ -49,7 +49,7 @@ Use a clean WorkBuddy profile and the candidate deployment.
 - [ ] Dynamic Client Registration succeeds.
 - [ ] Entra interactive sign-in completes through the registered WorkBuddy
   callback.
-- [ ] MCP initializes and lists the expected eleven mail tools.
+- [ ] MCP initializes and lists the ten mail tools in the v0.1.0 release.
 - [ ] Token expiry triggers a successful refresh and one-time rotation.
 - [ ] Replaying the old refresh token is rejected.
 - [ ] Authentication remains usable after a server restart.

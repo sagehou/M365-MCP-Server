@@ -84,5 +84,6 @@ including the current local-handle hash and rotation count.
 
 The public resource and issuer URLs come only from `MCP_PUBLIC_URL` and
 `OAUTH_ISSUER_URL`; request Host and forwarded-host headers never define this
-security metadata. The module remains disabled by default until real WorkBuddy
-acceptance is complete.
+security metadata. The module is disabled by default and enabled explicitly per
+deployment after its Entra, origin, database, and encryption-key prerequisites
+are configured.

@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import hashlib
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ from ..graph.client import GraphResponse
 from ..graph.mail import MailService
 from ..security import AuditLogger, untrusted_content_metadata
 from .downloads import AttachmentDownloadStore, DownloadPayload
+from .uploads import AttachmentUploadStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,12 +47,14 @@ class MailToolService:
         *,
         attachment_extractor: AttachmentExtractorRegistry | None = None,
         attachment_download_store: AttachmentDownloadStore | None = None,
+        attachment_upload_store: AttachmentUploadStore | None = None,
         attachment_download_url_prefix: str | None = None,
         audit_logger: AuditLogger | None = None,
     ) -> None:
         self.mail_service = mail_service
         self.attachment_extractor = attachment_extractor or AttachmentExtractorRegistry()
         self.attachment_download_store = attachment_download_store
+        self.attachment_upload_store = attachment_upload_store
         self.audit_logger = audit_logger
         self.attachment_download_url_prefix = (
             attachment_download_url_prefix.rstrip("/")
@@ -308,6 +312,33 @@ class MailToolService:
             "delivery_confirmed": False,
         }
 
+    async def add_draft_attachment(
+        self,
+        context: AuthContext,
+        draft_id: str,
+        upload_handle: str,
+    ) -> dict[str, Any]:
+        store = self.attachment_upload_store
+        if store is None:
+            raise RuntimeError("Attachment upload staging is not configured")
+        payload = store.consume(context, upload_handle)
+        if payload is None:
+            raise InvalidToolInputError(
+                "upload_handle", "invalid_or_expired", "upload handle is invalid or expired"
+            )
+        attachment_id = await self.mail_service.add_draft_attachment(
+            context, draft_id, payload.name, payload.content_type, payload.content
+        )
+        return {
+            "draft_id": draft_id,
+            "attachment_id": attachment_id,
+            "name": payload.name,
+            "content_type": payload.content_type,
+            "content_length": len(payload.content),
+            "content_sha256": hashlib.sha256(payload.content).hexdigest(),
+            "attached": True,
+        }
+
 
 def register_mail_tools(
     mcp: FastMCP,
@@ -430,6 +461,26 @@ def register_mail_tools(
         return await audited(
             "mail_send_draft",
             lambda context: service.send_draft(context, draft_id),
+            write_operation=True,
+        )
+
+    @mcp.tool(
+        name="mail_add_draft_attachment",
+        description=(
+            "Attach one staged file up to 20 MiB to an existing Outlook draft without sending. "
+            "Pass the short-lived handle returned by the authenticated binary upload endpoint. "
+            "Review the exact draft and attachment list before sending."
+        ),
+    )
+    async def mail_add_draft_attachment(
+        draft_id: str,
+        upload_handle: str,
+    ) -> dict[str, Any]:
+        return await audited(
+            "mail_add_draft_attachment",
+            lambda context: service.add_draft_attachment(
+                context, draft_id, upload_handle
+            ),
             write_operation=True,
         )
 

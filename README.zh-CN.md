@@ -7,8 +7,7 @@
 
 > **已发布：**[`v0.1.0`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
 > 已按 MIT 许可证发布。CI 验证了 Container Image 与 Windows x64 NativeAOT
-> EXE。维护者报告核心流程已通过真实客户端验收；受限自动发送尚未完成真实客户端
-> 测试，具体部署启用前必须验收。
+> EXE。每个部署仍须自行配置 Entra 同意，并在客户端执行发送授权策略。
 
 ## 当前已经可用
 
@@ -23,6 +22,10 @@
 - `workbuddy/` 中提供 WorkBuddy Connector Package，CI 覆盖完整的 Mock
   Client Flow。
 - 结构化脱敏 Audit Event；安全错误会返回可关联的 Event ID。
+- 未发布源码增加 `mail_add_draft_attachment`：可为现有草稿添加单个不超过
+  20 MiB 的文件，但不会发送。远端客户端先走 Bearer 鉴权的二进制上传接口，
+  MCP 只传短期句柄；Windows EXE 弹出本机文件选择框。仓库内 WorkBuddy Skill
+  本身不提供本地文件上传器。该功能不属于已发布的 v0.1.0。
 
 ### Windows 本地 EXE
 
@@ -51,20 +54,18 @@ MD5 和 SHA-1 仅用于兼容旧式白名单表单，不是可信性验证；EXE
 | Docker Compose 校验 | CI 覆盖 |
 | Windows NativeAOT EXE 构建 | CI 覆盖 |
 | Windows SHA-256 与 Provenance Attestation | 已随 v0.1.0 发布并核验 |
-| 真实 WorkBuddy 与真实邮箱验收 | 维护者报告除受限自动发送外已完成；记录保存在仓库外 |
 | 稳定版 `v0.1.0` GitHub Release | [已发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0) |
 
 GitHub Actions 是本仓库唯一的构建与测试环境。
 
 ## 后续工作
 
-- 受限自动发送的真实验收。
 - Search Continuation Cursor 与 Folder Discovery。
-- Reply、Forward 工作流，以及 HTML 和附件撰写。
+- Reply、Forward 工作流和 HTML 撰写。
 - OCR、Shared Mailbox、RBAC、Read-only Mode、Dynamic Tool Exposure 和 Rate
   Limiting。
 - Calendar、OneDrive、SharePoint 和 Teams。
-- Windows EXE 的 Authenticode 签名与 Clean VM 验收；可选 WAM 评估与本地富文档附件解析。
+- Windows EXE 的 Authenticode 签名；可选 WAM 评估与本地富文档附件解析。
 
 部署前请阅读 [v0.1.0 发布检查清单](docs/zh-CN/release-checklist.md)和
 [发布说明](docs/zh-CN/releases/v0.1.0.md)。

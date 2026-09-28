@@ -51,7 +51,7 @@ without embedded credentials and the four scoped Skills.
 The Windows workflow publishes a NativeAOT integration artifact only after the
 publish directory contains exactly one `m365-mcp.exe`. Its isolated smoke test
 runs with only Windows system directories on `PATH`, exercises
-`doctor --ephemeral`, MCP `initialize`, and `tools/list`, verifies the ten
+`doctor --ephemeral`, MCP `initialize`, and `tools/list`, verifies the eleven
 expected tools, and checks that the isolated data root remains empty.
 
 These tests do not read or change production mailbox data. CI proves the
@@ -63,34 +63,29 @@ consent, real Graph behavior, code-signing trust, or target-agent compatibility.
 - `v0.1.0` is [published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
   under MIT; all four GHCR tags allow anonymous manifest access. Each deployment
   still needs its own Entra configuration and consent checks.
-- The maintainer reports two-user, cross-tenant, WorkBuddy, and representative
-  mailbox acceptance completed for the release; detailed records are outside
-  this repository.
 - OAuth discovery, dynamic public-client registration, MSAL-backed interactive
   authorization, S256 PKCE, one-time local authorization-code exchange and
   persistent encrypted refresh sessions with rotation/replay prevention are
   implemented behind a default-off feature flag. The WorkBuddy connector and CI
-  client-flow coverage are present. Bounded automation sending remains supported
-  by the client/agent contract but was not live-tested for v0.1.0; validate an
-  allowed send and an out-of-policy block before enabling it in a deployment.
+  client-flow coverage are present. Bounded automation sending is a client/agent
+  authorization contract; the server cannot infer that authorization from a
+  `draft_id` alone.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.
-- Plain-text draft creation and draft sending are implemented. Sending requires
-  per-message confirmation or explicit bounded automation authorization at the
-  client/agent layer. Direct send, HTML/attachment composition, and automatic
-  retry are intentionally excluded from the v0.1 contract.
+- Plain-text draft creation and draft sending are implemented. The current source
+  branch adds draft-file attachments up to 20 MiB through a binary upload and
+  one-use handle remotely, or a native file picker on Windows. This addition is
+  not part of the published v0.1.0 binaries. Sending requires per-message
+  confirmation or explicit bounded automation authorization at the client/agent
+  layer. Direct send, HTML composition, and automatic retry remain excluded.
 - OCR, replies, forwarding, shared mailboxes, enterprise RBAC/rate
   limiting/observability, Calendar, Drive, SharePoint and Teams remain roadmap
   items.
 - The stable Windows executable is published unsigned with SHA-256 and GitHub
-  provenance. Clean-VM real-mailbox acceptance, target-agent lifecycle checks,
-  antivirus false-positive review, optional signing, and SBOM remain follow-up
-  work.
+  provenance. Antivirus false-positive handling, optional signing, and SBOM are
+  separate hardening concerns; they do not change the v0.1.0 artifact.
 - Windows local mode intentionally omits `mail_download_attachment` and rich
   binary-document extraction. It does not install a Windows Service: the stdio
   process is launched and owned by the agent. Service mode would require a
   separate IPC and security design.
-
-The original review and mocked CI did not establish live acceptance; the later
-maintainer report and completed release workflow are reflected above.

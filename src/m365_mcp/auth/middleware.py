@@ -27,11 +27,15 @@ class BearerAuthMiddleware:
         app: Callable[..., Awaitable[None]],
         validator: TokenValidator,
         protected_prefix: str = "/mcp",
+        additional_protected_prefixes: tuple[str, ...] = (),
         resource_metadata_url: str | None = None,
     ) -> None:
         self.app = app
         self.validator = validator
         self.protected_prefix = protected_prefix.rstrip("/") or "/"
+        self.additional_protected_prefixes = tuple(
+            prefix.rstrip("/") or "/" for prefix in additional_protected_prefixes
+        )
         self.resource_metadata_url = resource_metadata_url
 
     async def __call__(self, scope: Mapping[str, Any], receive: Any, send: Any) -> None:
@@ -83,8 +87,9 @@ class BearerAuthMiddleware:
         path = scope.get("path")
         if not isinstance(path, str):
             return False
-        return path == self.protected_prefix or path.startswith(
-            f"{self.protected_prefix}/"
+        return any(
+            path == prefix or path.startswith(f"{prefix}/")
+            for prefix in (self.protected_prefix, *self.additional_protected_prefixes)
         )
 
     @staticmethod

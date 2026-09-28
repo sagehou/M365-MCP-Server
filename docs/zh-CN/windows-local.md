@@ -15,7 +15,7 @@
   S256 PKCE 登录；
 - 默认内置项目公共客户端 `M365-MCP-Localhost`，并允许企业覆盖 Client ID；
 - 使用当前 Windows 用户 DPAPI 保护可选持久 Token State；
-- 通过 MCP stdio 提供 10 个有边界的 Outlook Mail 工具；
+- 当前源码通过 MCP stdio 提供 11 个有边界的 Outlook Mail 工具；
 - `--ephemeral` 模式，不读取也不写入持久状态；
 - Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
   `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
@@ -23,8 +23,9 @@
 [v0.1.0 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
 已提供稳定版 Windows EXE、SHA-256 校验文件、MIT 许可声明和该精确 Smoke Test
 二进制文件的 GitHub Artifact Attestation。普通分支的 Actions Artifact 仍只是
-集成产物。已发布 EXE 尚无 Authenticode 签名；SBOM、PDF/Office 本地附件解析和
-Clean VM 真实邮箱验收仍是后续加固工作。是否引入 WAM 仍需依据实际部署证据判断。
+集成产物。已发布 EXE 尚无 Authenticode 签名；SBOM 与 PDF/Office 本地附件解析
+属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.0 EXE 提供 10 个
+邮件工具；添加附件工具仅在更新的源码与 Actions 集成产物中提供。
 
 ## Runtime 决策
 
@@ -162,6 +163,7 @@ EXE 当前提供：
 - `mail_get`
 - `mail_create_draft`
 - `mail_send_draft`
+- `mail_add_draft_attachment`：每次最多添加 20 MiB 的单个文件（仅未发布构建）
 - `mail_list_attachments`
 - `mail_read_attachment`：支持有边界的 UTF-8 Text、CSV、JSON 和 XML
 - `mail_mark_read`
@@ -172,6 +174,10 @@ EXE 当前提供：
 本地 stdio Runtime 没有 HTTP Download Endpoint，并且不得任意写文件，因此暂不
 提供 `mail_download_attachment`。PDF/DOCX/XLSX/PPTX 解析仍在验收待办中。邮件
 发送仍必须在 Client/Agent 层逐封确认，或具有明确的受限自动化授权。
+工具调用时弹出 Windows 文件选择框，EXE 只读取用户选中的文件，不接受 Agent
+传入的任意路径、不通过 MCP 暴露文件字节，也不写临时附件文件。附件选择需要
+交互式桌面，暂不支持无人值守的自动附件发送。发送前核对草稿与附件列表。
+已发布的 v0.1.0 EXE 尚不包含此功能。
 
 ## 构建与取得集成产物
 

@@ -1,5 +1,6 @@
 """Internal mailbox service foundation built on the delegated Graph client."""
 
+import base64
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -14,6 +15,9 @@ MAX_DRAFT_RECIPIENTS_PER_FIELD = 50
 MAX_DRAFT_RECIPIENTS_TOTAL = 100
 MAX_DRAFT_SUBJECT_CHARS = 255
 MAX_DRAFT_BODY_CHARS = 100_000
+MAX_SEND_ATTACHMENT_BYTES = 20 * 1024 * 1024
+DIRECT_ATTACHMENT_LIMIT = 3_000_000
+UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024
 
 
 class MailService:
@@ -196,6 +200,66 @@ class MailService:
             "POST",
             f"/me/messages/{self._segment(draft_id)}/send",
         )
+
+    async def add_draft_attachment(
+        self,
+        context: AuthContext,
+        draft_id: str,
+        name: str,
+        content_type: str,
+        content: bytes,
+    ) -> str | None:
+        """Attach a file to a draft; return an ID when Graph provides one."""
+        if not 1 <= len(content) <= MAX_SEND_ATTACHMENT_BYTES:
+            raise InvalidToolInputError(
+                "attachment", "invalid_size", "attachment must be 1 byte to 20 MiB"
+            )
+        path = f"/me/messages/{self._segment(draft_id)}"
+        draft = await self.graph_client.request(
+            context, "GET", path, params={"$select": "id,isDraft"}
+        )
+        if not isinstance(draft.data, dict) or draft.data.get("isDraft") is not True:
+            raise InvalidToolInputError("draft_id", "not_draft", "message is not a draft")
+
+        if len(content) < DIRECT_ATTACHMENT_LIMIT:
+            response = await self.graph_client.request(
+                context,
+                "POST",
+                f"{path}/attachments",
+                json_body={
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": name,
+                    "contentType": content_type,
+                    "contentBytes": base64.b64encode(content).decode("ascii"),
+                },
+            )
+            return response.data.get("id") if isinstance(response.data, dict) else None
+
+        session = await self.graph_client.request(
+            context,
+            "POST",
+            f"{path}/attachments/createUploadSession",
+            json_body={
+                "AttachmentItem": {
+                    "attachmentType": "file",
+                    "name": name,
+                    "contentType": content_type,
+                    "size": len(content),
+                }
+            },
+        )
+        upload_url = session.data.get("uploadUrl") if isinstance(session.data, dict) else None
+        if not isinstance(upload_url, str):
+            raise ValueError("Graph upload session did not return a URL")
+        for start in range(0, len(content), UPLOAD_CHUNK_BYTES):
+            chunk = content[start : start + UPLOAD_CHUNK_BYTES]
+            result = await self.graph_client.upload_attachment_chunk(
+                upload_url, chunk, start, len(content)
+            )
+            is_final = start + len(chunk) == len(content)
+            if result.status_code != (201 if is_final else 200):
+                raise ValueError("Graph upload session returned an unexpected state")
+        return None
 
     async def mark_read(
         self,

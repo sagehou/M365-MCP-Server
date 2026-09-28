@@ -8,9 +8,8 @@ handling of Outlook mail and attachments.
 
 > **Released:** [`v0.1.0`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
 > is available under the MIT License. CI validated the container image and Windows
-> x64 NativeAOT executable. The maintainer reports real-client acceptance for
-> the core flows; bounded automation sending remains untested in a live client
-> and requires deployment-specific validation before it is enabled.
+> x64 NativeAOT executable. Deployment-specific Entra consent and client-side
+> send authorization remain the responsibility of each installation.
 
 ## What works today
 
@@ -25,6 +24,12 @@ handling of Outlook mail and attachments.
 - A WorkBuddy connector package under `workbuddy/` with a mocked end-to-end
   client flow in CI.
 - Structured, redacted audit events with correlation IDs returned in safe errors.
+- In unreleased source, `mail_add_draft_attachment` adds a file of
+  up to 20 MiB to an existing draft without sending. Remote clients first use
+  a Bearer-authenticated binary upload endpoint and pass only its short-lived
+  handle to MCP; the Windows EXE opens a local file picker. The bundled
+  WorkBuddy skill does not itself upload local files. This feature is not part
+  of the published v0.1.0 release.
 
 ### Windows local executable
 
@@ -55,20 +60,18 @@ authenticity checks; a changed EXE needs new hashes and a new allowlist review.
 | Docker Compose validation | CI-covered |
 | Windows NativeAOT executable build | CI-covered |
 | Windows SHA-256 and provenance attestation | Published and verified for v0.1.0 |
-| Real WorkBuddy and real mailbox acceptance | Maintainer-reported complete except bounded automation send; records retained outside this repository |
 | Stable `v0.1.0` GitHub release | [Published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0) |
 
 GitHub Actions is the only build and test environment for this repository.
 
 ## Remaining work
 
-- Live bounded-automation-send acceptance.
 - Search continuation cursors and folder discovery.
-- Reply and forward workflows; HTML and attachment composition.
+- Reply and forward workflows; HTML composition.
 - OCR, shared mailboxes, RBAC, read-only mode, dynamic tool exposure, and rate
   limiting.
 - Calendar, OneDrive, SharePoint, and Teams.
-- Authenticode signing and clean-VM acceptance for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
+- Authenticode signing for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
 
 See the [v0.1.0 release checklist](docs/release-checklist.md) and
 [release notes](docs/releases/v0.1.0.md) before deployment.
