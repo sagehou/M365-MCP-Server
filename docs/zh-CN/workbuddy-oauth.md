@@ -113,7 +113,7 @@ GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2
 
 1. 在 WorkBuddy 4.24.0 或更高版本安装 Connector，确认不会出现 Token 填写表单。
 2. 使用干净 WorkBuddy Profile 连接，确认 Browser Launch、Microsoft Login 与 Consent，并通过 `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback` 返回 WorkBuddy。
-3. 初始化 MCP，确认只列出 11 个 Tools；执行 Search、单封读取、Draft 创建、逐封
+3. 初始化 MCP，确认只列出 13 个 Tools；执行 Search、单封读取、Draft 创建、逐封
    确认后的 Draft 发送、附件
    提取、单次附件下载和对可丢弃消息的有意 Mutation，并确认 Move/Archive 后继续
    使用返回的新 ID。
