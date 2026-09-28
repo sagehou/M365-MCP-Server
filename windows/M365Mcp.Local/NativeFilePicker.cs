@@ -12,6 +12,10 @@ internal static class NativeFilePicker
 
     internal static Task<string?> SelectFileAsync(CancellationToken cancellationToken)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("The file picker requires Windows.");
+        }
         var completion = new TaskCompletionSource<string?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
