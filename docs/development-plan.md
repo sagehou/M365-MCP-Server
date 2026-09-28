@@ -5,18 +5,15 @@
 ## Current Delivery Order
 
 1. `v0.1.0` is [released](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
-   under MIT with a tested container image and Windows single EXE. The maintainer
-   retains live WorkBuddy and mailbox acceptance records outside this repository.
-2. Complete post-release hardening: live-test bounded automation sending before
-   enabling it in a deployment, validate the Windows EXE on a clean VM, pursue
-   antivirus false-positive review and signing, and decide whether WAM is needed.
-3. Resume richer attachment processing and broader M365 expansion after the
-   local runtime foundation is accepted.
+   under MIT with a container image and Windows single EXE.
+2. Current source adds file attachments to drafts (up to 20 MiB) through binary
+   staging for remote clients and a native file picker for Windows. This is not
+   part of the published v0.1.0 assets.
+3. Future scope includes richer attachment extraction, search continuation,
+   replies and forwarding, and broader Microsoft 365 workloads. Signing and
+   antivirus false-positive handling are separate Windows distribution concerns.
 
-The automated release pipeline passed in GitHub Actions. The maintainer reports
-the core live WorkBuddy and mailbox checks passed; bounded automation sending
-remains an explicit deployment gate, not a completed live test. See the
-[v0.1.0 release checklist](release-checklist.md) for the distinction.
+Deployment-specific acceptance records are kept outside this repository.
 
 ## Windows local-mode implementation status
 
@@ -36,16 +33,12 @@ Delivered in v0.1.0:
 - ten bounded mail tools, including draft creation and draft sending
 - explicit omission of arbitrary attachment file writes
 
-Remaining hardening and deployment checks:
+Current design boundaries:
 
-- clean-VM public-client sign-in, restart/refresh, logout, and real-mailbox
-  acceptance for the released EXE
-- target-agent configuration and lifecycle acceptance on supported PCs
-- parity decisions for rich attachment extraction and download behavior
-- antivirus false-positive review, possible Authenticode signing, and SBOM;
-  SHA-256 and GitHub build provenance are already published
-- decide from real deployment evidence whether system-browser PKCE is
-  sufficient or Windows Web Account Manager is needed
+- local rich attachment extraction and download parity are not implemented
+- SHA-256 and GitHub build provenance are published; optional Authenticode
+  signing and an SBOM are distinct distribution improvements
+- Windows Web Account Manager is optional and depends on deployment needs
 
 Windows Service installation is not part of the current stdio contract. An
 stdio MCP host is owned by the agent process; service mode would require a

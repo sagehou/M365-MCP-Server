@@ -68,7 +68,7 @@ required Entra configuration.
 The OAuth module provides discovery metadata, dynamic public-client registration,
 MSAL-backed interactive authorization, S256 PKCE, one-time authorization-code
 exchange and persistent local refresh sessions. OAuth remains disabled by default
-until live WorkBuddy acceptance is complete:
+and requires explicit deployment configuration:
 
     OAUTH_ENABLED=false
     MCP_PUBLIC_URL=https://mcp.example.com/mcp/
@@ -92,8 +92,14 @@ container recreation. Back up this volume as sensitive authentication state. Sto
 image, repository or logs. Restores and replacement processes must use the same
 database and key. v0.1 does not provide distributed or multi-host session storage.
 
-Route `/.well-known/*`, `/oauth/*`, `/downloads/*` and `/mcp/` through the same fixed public
-origin. Register `https://mcp.example.com/oauth/callback` as a Web redirect URI
+Route `/.well-known/*`, `/oauth/*`, `/downloads/*`, `/uploads/attachments` and `/mcp/`
+through the same fixed public origin. The binary upload endpoint requires the same
+delegated bearer token as `/mcp/`; do not exempt it from authentication. Cap its
+request body at 20 MiB plus HTTP framing overhead, apply a per-user/IP request-rate
+limit, and permit enough upload time for a 20 MiB file. Staged uploads are bounded
+in process memory and their one-use handles must reach the same worker; do not
+load-balance this flow across multiple workers or replicas without a shared store.
+Register `https://mcp.example.com/oauth/callback` as a Web redirect URI
 on the `M365-MCP-Server` App Registration. For loopback development, register
 `http://localhost:8000/oauth/callback` separately.
 Apply reverse-proxy request-size and rate limits to `/oauth/register`, and rate
@@ -103,8 +109,9 @@ The production entry point disables Uvicorn request-line access logs because
 OAuth authorization and callback query strings and attachment-download paths
 contain sensitive transient capabilities. Configure every reverse proxy and log
 collector to omit `/downloads/*` paths and `/oauth/*` query strings as well.
-Do not set `OAUTH_ENABLED=true` in production until the WorkBuddy end-to-end gate
-is complete. See [WorkBuddy OAuth](workbuddy-oauth.md).
+Enable `OAUTH_ENABLED` only with the documented Entra registration, consent,
+fixed public origin, persistent SQLite database, and encryption key. See
+[WorkBuddy OAuth](workbuddy-oauth.md).
 
 ## Container release
 

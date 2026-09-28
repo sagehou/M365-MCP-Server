@@ -21,7 +21,7 @@ Server 当前实现 Discovery、Registration 与 Interactive Authorization-code 
 
 Token Endpoint 返回发给唯一 `M365-MCP-Server` App Registration、并已通过现有 `JwtValidator` 复验的 Entra Access Token，因此现有 JWT Validation 与 OBO 链路仍是权威安全边界，不会另外签发 MCP JWT。Entra Authorization-flow Object、Token A 与 MSAL Cache 使用 `OAUTH_ENCRYPTION_KEY` 执行 AES-256-GCM 加密，并通过 Record-specific Authenticated Context 绑定不可变 OAuth Metadata；敏感 Token Material 不会进入 Browser Redirect 或 SQLite Plaintext Column。
 
-在真实 WorkBuddy Acceptance Gate 完成前，受控集成开发以外应保持 `OAUTH_ENABLED=false`。Restarted 或 Replacement Process 必须使用同一 SQLite Database 与 Encryption Key。Distributed 或 Multi-host Session Storage 不属于 v0.1 Scope。
+`OAUTH_ENABLED` 默认为 `false`；每个部署配置好 Entra 注册与同意、固定 Public Origin、持久化 SQLite 和 Encryption Key 后，才显式启用。Restarted 或 Replacement Process 必须使用同一 SQLite Database 与 Encryption Key。Distributed 或 Multi-host Session Storage 不属于 v0.1 Scope。
 
 ## Connector Package
 
@@ -123,7 +123,6 @@ GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2
 7. 在 Allowlist 内第二个 Tenant 完成同一 Flow，并记录 Consent、Issuer、Audience 与 OBO 结果。只有部署明确支持 Consumer Account 时才单独测试该场景。
 8. 确认 Application、Proxy 与 Platform Logs 不含 Authorization Code、Access/Refresh Token、MSAL Cache、Client Secret、Code Verifier、Message Body 或 Attachment Content。
 
-这些 Live Checks 是 Manual Release Gates。Mock CI Flow 通过不能把它们标记为已完成。
-
-受限自动发送仍属于 Client/Agent 契约支持的功能，但在 v0.1.0 尚未完成真实验收。
-具体部署启用该模式前，必须在受控邮箱测试一次符合策略的发送和一次越界阻止。
+每个部署的验收记录保存在源码仓库之外。Mock CI 覆盖协议行为，不能代替真实租户与
+客户端检查。启用受限自动发送的部署，必须由 Client/Agent 执行用户记录的授权范围，
+并确认一次符合策略的发送和一次越界阻止。

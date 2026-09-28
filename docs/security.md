@@ -155,7 +155,7 @@ Dynamic registration creates public clients only and never issues a client
 secret. Client records are stored in SQLite under an issuer-qualified key.
 Registration audit events contain the generated client ID and result, but not
 redirect URIs or request bodies. The OAuth module is guarded by a default-off
-feature flag until live end-to-end acceptance is complete.
+feature flag and requires explicit deployment configuration.
 
 Interactive authorization requires `response_type=code`, exact client and
 redirect binding, the configured MCP resource, the configured public scope and

@@ -5,15 +5,13 @@
 ## 当前交付顺序
 
 1. `v0.1.0` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)，
-   包含经测试的容器镜像和 Windows 单文件 EXE。维护者将 WorkBuddy 与邮箱真实
-   验收记录保存在仓库外。
-2. 完成发布后加固：具体部署启用受限自动发送前进行真实测试，在 Clean VM 验证
-   Windows EXE，推进杀毒误报申诉与签名，并决定是否需要 WAM。
-3. 本地运行时基础通过验收后，再继续更丰富的附件处理和 M365 扩展。
+   包含容器镜像和 Windows 单文件 EXE。
+2. 当前源码增加最多 20 MiB 的草稿文件附件：远端客户端使用二进制暂存，Windows
+   使用原生文件选择框。此能力不在已发布的 v0.1.0 产物中。
+3. 后续范围包括丰富附件提取、Search 翻页、回复与转发及更广泛的 M365 工作负载。
+   签名和杀毒误报处理属于独立的 Windows 分发事项。
 
-自动化发布流程已在 GitHub Actions 通过。维护者报告核心 WorkBuddy 与邮箱真实
-检查已通过；受限自动发送仍是具体部署的门禁，不能宣称已经完成真实测试。区别见
-[v0.1.0 发布检查清单](release-checklist.md)。
+每个部署的验收记录保存在源码仓库之外。
 
 ## Windows 本地模式实现状态
 
@@ -30,15 +28,11 @@ v0.1.0 已交付：
 - 十个有边界的邮件工具，包括创建草稿和发送草稿
 - 明确不进行任意附件文件写入
 
-后续加固与部署检查：
+当前设计边界：
 
-- 已发布 EXE 在 Clean VM 的 Public-client 登录、重启/刷新、登出与真实邮箱验收
-- 受支持 PC 上目标 Agent 的配置与生命周期验收
-- 对丰富附件提取和下载行为做功能对齐决策
-- 杀毒误报申诉、可选 Authenticode 签名和 SBOM；SHA-256 与 GitHub 构建来源
-  证明已经发布
-- 根据真实部署证据判断系统浏览器 PKCE 是否足够，或是否需要 Windows Web
-  Account Manager
+- 本地丰富附件提取及下载能力尚未与远端对齐
+- SHA-256 与 GitHub 构建来源证明已发布；可选 Authenticode 签名和 SBOM 是独立分发改进
+- 是否增加 Windows Web Account Manager 取决于部署需求
 
 Windows Service 安装不属于当前 stdio 契约。stdio MCP Host 的生命周期由
 Agent 进程管理；若要提供 Service Mode，需要独立 IPC Transport，以及明确的

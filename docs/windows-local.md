@@ -17,7 +17,7 @@ The executable currently provides:
 - the project `M365-MCP-Localhost` public client built in by default, with an
   enterprise client-ID override
 - current-user DPAPI protection for the optional persistent token state
-- MCP stdio with ten bounded Outlook mail tools
+- MCP stdio with eleven bounded Outlook mail tools in the current source
 - an `--ephemeral` mode that neither reads nor writes persistent state
 - a Windows Actions gate that rejects anything except one executable, removes
   language runtimes from `PATH` during smoke testing, and fails if the
@@ -27,9 +27,10 @@ The [v0.1.0 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/
 contains the stable Windows asset, its SHA-256 checksum, MIT notice, and GitHub
 Artifact Attestation for the exact smoke-tested binary. Actions artifacts from
 ordinary branch builds remain integration builds. The released EXE is unsigned;
-Authenticode signing, SBOM, rich local attachment extraction, and clean-VM
-live-mailbox validation remain follow-up hardening work. Optional WAM remains
-subject to real deployment evidence.
+Authenticode signing, SBOM, and rich local attachment extraction remain separate
+hardening work. Optional WAM depends on deployment requirements. The published
+v0.1.0 EXE has ten mail tools; the attachment tool exists only in newer source
+and Actions integration artifacts.
 
 ## Runtime decision
 

@@ -19,6 +19,7 @@ from ..graph.mail import MAX_SEND_ATTACHMENT_BYTES
 
 
 _HANDLE_PATTERN = re.compile(r"[A-Za-z0-9_-]{43}")
+_MEDIA_TYPE_PATTERN = re.compile(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +51,7 @@ def validate_content_type(content_type: str) -> str:
         not content_type
         or len(content_type) > 127
         or not content_type.isascii()
-        or any(ord(char) < 33 or ord(char) > 126 for char in content_type)
+        or _MEDIA_TYPE_PATTERN.fullmatch(content_type) is None
     ):
         raise ValueError("content type must be an ASCII MIME type")
     return content_type

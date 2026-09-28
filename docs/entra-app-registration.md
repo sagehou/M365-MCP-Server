@@ -346,7 +346,6 @@ Current repository status:
 - MCP OAuth discovery / dynamic client registration: implemented behind `OAUTH_ENABLED`
 - MSAL interactive sign-in, S256 PKCE and local authorization-code exchange: implemented behind `OAUTH_ENABLED`
 - persistent encrypted local refresh sessions and rotation: implemented behind `OAUTH_ENABLED`
-- live WorkBuddy acceptance: not yet complete
 
 ### 10.1 Verify the Web authentication configuration
 

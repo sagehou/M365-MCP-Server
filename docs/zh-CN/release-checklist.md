@@ -44,7 +44,7 @@
 - [ ] Authorization Server Metadata Discovery 成功。
 - [ ] Dynamic Client Registration 成功。
 - [ ] Entra Interactive Sign-in 通过注册的 WorkBuddy Callback 完成。
-- [ ] MCP 初始化成功并列出预期的十一个 Mail Tool。
+- [ ] MCP 初始化成功并列出 v0.1.0 发布版的十个 Mail Tool。
 - [ ] Token 过期后成功 Refresh，并执行一次性 Rotation。
 - [ ] 旧 Refresh Token Replay 被拒绝。
 - [ ] Server 重启后认证状态仍然可用。

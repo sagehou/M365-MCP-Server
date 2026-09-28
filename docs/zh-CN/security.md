@@ -106,7 +106,7 @@ HTTP Security Middleware 会添加 `no-store`、Anti-framing、Content-type、Re
 
 OAuth Issuer 和 Resource Metadata 只能由显式、经过验证的配置生成。Host、`X-Forwarded-Host`、Prefix Match 和 Wildcard Redirect Match 均不受信任。Public HTTP Redirect 会被拒绝；HTTP 只允许 Loopback Callback。WorkBuddy Private Scheme 必须通过结构校验，后续 Authorization Request 还必须在相同 Client 与 Issuer 下精确匹配 Registered Redirect String。
 
-Dynamic Registration 只创建 Public Client，绝不签发 Client Secret。Client Record 使用带 Issuer Qualification 的 Key 存入 SQLite。Registration Audit Event 只包含生成的 Client ID 和 Result，不记录 Redirect URI 或 Request Body。在真实 E2E Acceptance 完成前，OAuth Module 由默认关闭的 Feature Flag 保护。
+Dynamic Registration 只创建 Public Client，绝不签发 Client Secret。Client Record 使用带 Issuer Qualification 的 Key 存入 SQLite。Registration Audit Event 只包含生成的 Client ID 和 Result，不记录 Redirect URI 或 Request Body。OAuth Module 由默认关闭的 Feature Flag 保护，须按部署配置显式启用。
 
 Interactive Authorization 强制要求 `response_type=code`、Exact Client/Redirect Binding、Configured MCP Resource、Configured Public Scope 与 S256 PKCE。WorkBuddy State 与新生成的 Entra State 分开保存；后者在 MSAL 完成 Callback 之前原子消费。Token A 必须再次通过现有 `JwtValidator`，之后才创建 Random、Hashed、Single-use Local Code。Browser Redirect 只包含该 Local Code 与原始 WorkBuddy State。Entra Authorization-flow Object、Token A 与 MSAL Cache 均使用 AES-256-GCM 加密后再写入 SQLite；每个 Ciphertext 都认证 Artifact Type 与 Record Metadata。Refresh Session 还绑定当前 Local-handle Hash 与 Rotation Count，并在每次成功轮换时重新封装，因此只修改 Database Credential Field 不能复用完整 Encrypted Cache。OAuth 开启时，`OAUTH_ENCRYPTION_KEY` 必须由 Base64 解码成恰好 32 Bytes，并且 Key 不进入 SQLite。
 
