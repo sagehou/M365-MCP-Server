@@ -201,11 +201,54 @@ runtime has no HTTP download endpoint and must not write arbitrary files.
 PDF/DOCX/XLSX/PPTX extraction remains on the acceptance backlog. Sending still
 requires per-message confirmation or an explicit bounded automation
 authorization at the client/agent layer.
-The tool opens a Windows file picker and reads only the selected file. It does
-not accept an agent-supplied path, expose file bytes in MCP, or write temporary
-attachment files. A desktop user must select the file; unattended attachment
-automation is not supported. Review the draft and attachment list before
+The local `mail_add_draft_attachment` MCP tool opens a Windows file picker and
+reads only the selected file. It does not accept an agent-supplied path, expose
+file bytes in MCP, or write temporary attachment files. The picker still
+requires an interactive desktop. Review the draft and attachment list before
 sending; attachment support is not in the published v0.1.0 EXE.
+
+### Unattended artifacts for a remote connector
+
+In newer source builds, the same single EXE also provides
+`inspect-attachment <relative-path>` and `push-attachment <relative-path>`.
+These commands do not use Entra login or start an MCP connector. Set
+`M365_ATTACHMENT_ROOT` to a trusted, absolute directory containing completed
+automation outputs, and `M365_ATTACHMENT_PUSH_URL` to the server's fixed HTTPS
+`/uploads/push` URL. The caller may specify only a relative path beneath that
+root; the EXE checks the opened file's resolved path, permits DOCX, XLSX,
+PPTX, ZIP, and PDF, and rejects empty files or files over 20 MiB. It creates
+no temporary file.
+
+1. Inspect the completed local artifact. The command returns its filename,
+   MIME type, byte length, and SHA-256.
+2. Create the draft via the remote MCP connector. Call
+   `mail_prepare_attachment_push` with the draft ID and inspected metadata.
+3. Pass the returned grant JSON on standard input to `push-attachment` for
+   the same relative path. The EXE verifies the configured URL and rechecks
+   the file against the grant before posting raw bytes. It never receives the
+   user's OAuth token, and it does not follow HTTP redirects.
+4. Call remote `mail_add_draft_attachment` with that draft ID and the returned
+   `upload_handle`. Verify `mail_list_attachments` before an authorized send.
+
+For example, in PowerShell with an already received MCP grant JSON held only in
+`$grantJson`:
+
+```powershell
+$env:M365_ATTACHMENT_ROOT = 'C:\Automation\Output'
+$env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
+& 'C:\Tools\m365-mcp.exe' inspect-attachment 'reports\weekly.docx'
+$grantJson | & 'C:\Tools\m365-mcp.exe' push-attachment 'reports\weekly.docx'
+```
+
+The handle is a five-minute capability: do not log it or place it in command
+arguments. If inspection and push differ, regenerate the grant; never guess
+the hash. A successful push alone neither attaches nor sends the draft.
+The WorkBuddy compose Skill can invoke these commands through its Bash tool;
+the EXE must be installed at an operator-approved path. A bounded automation
+authorization must still name the permitted output source, recipients, sizes,
+message limits, and expiry. The EXE's file-root check limits only this command:
+WorkBuddy's general Bash permission may access other files, so use the client's
+own sandbox and tool-approval policy for that broader capability.
 
 ## Build and obtain the integration artifact
 

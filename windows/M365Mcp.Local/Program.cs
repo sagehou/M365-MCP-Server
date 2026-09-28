@@ -44,6 +44,32 @@ internal static class Program
                 Console.WriteLine(result.ToJsonString());
                 return result["ok"]?.GetValue<bool>() is true ? 0 : 2;
             }
+            if (command == "inspect-attachment")
+            {
+                if (args.Length != 2)
+                {
+                    throw new InvalidToolArgumentException("Usage: inspect-attachment <relative-path>");
+                }
+                Console.WriteLine(new AttachmentPushClient().Inspect(args[1]).ToJsonString());
+                return 0;
+            }
+            if (command == "push-attachment")
+            {
+                if (args.Length != 2)
+                {
+                    throw new InvalidToolArgumentException("Usage: push-attachment <relative-path>");
+                }
+                var input = await Console.In.ReadLineAsync(cancellation.Token);
+                if (input is null || input.Length > 4096
+                    || JsonNode.Parse(input) is not JsonObject grant)
+                {
+                    throw new InvalidToolArgumentException("Expected one upload grant JSON object on stdin");
+                }
+                var result = await new AttachmentPushClient().PushAsync(
+                    args[1], grant, cancellation.Token);
+                Console.WriteLine(result.ToJsonString());
+                return 0;
+            }
 
             var validationErrors = configuration.Validate();
             if (validationErrors.Count != 0)
@@ -113,7 +139,11 @@ internal static class Program
         }
         catch (Exception exception) when (
             exception is LocalAuthException
+            or InvalidToolArgumentException
             or HttpRequestException
+            or IOException
+            or UnauthorizedAccessException
+            or System.Text.Json.JsonException
             or TaskCanceledException)
         {
             Console.Error.WriteLine(exception.Message);
@@ -140,6 +170,8 @@ internal static class Program
               m365-mcp.exe status [--ephemeral]
               m365-mcp.exe logout [--ephemeral]
               m365-mcp.exe stdio [--ephemeral]
+              m365-mcp.exe inspect-attachment <relative-path>
+              m365-mcp.exe push-attachment <relative-path> < grant.json
               m365-mcp.exe version
               m365-mcp.exe --version
 
@@ -150,6 +182,8 @@ internal static class Program
               M365_LOCAL_CLIENT_ID=<public desktop application id override>
               M365_LOCAL_TENANT_ID=<tenant id or organizations>
               M365_LOCAL_GRAPH_SCOPES=<space/comma-separated delegated scopes>
+              M365_ATTACHMENT_ROOT=<trusted absolute artifact directory>
+              M365_ATTACHMENT_PUSH_URL=<trusted HTTPS endpoint ending /uploads/push>
 
             stdio writes only MCP JSON-RPC messages to stdout. Diagnostics use stderr.
             Normal execution never installs a service or startup entry.

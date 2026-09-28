@@ -34,6 +34,18 @@ class _Entry:
     owner: tuple[str, str, str]
     payload: StagedAttachment
     expires_at: float
+    draft_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _PushGrant:
+    owner: tuple[str, str, str]
+    draft_id: str
+    name: str
+    content_type: str
+    size: int
+    sha256: str
+    expires_at: float
 
 
 def validate_attachment_name(name: str) -> str:
@@ -66,15 +78,18 @@ class AttachmentUploadStore:
         ttl_seconds: int = 300,
         max_items: int = 4,
         max_total_bytes: int = 80 * 1024 * 1024,
+        max_push_grants: int = 8,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        if ttl_seconds <= 0 or max_items <= 0 or max_total_bytes <= 0:
+        if ttl_seconds <= 0 or max_items <= 0 or max_total_bytes <= 0 or max_push_grants <= 0:
             raise ValueError("upload store limits must be positive")
         self.ttl_seconds = ttl_seconds
         self.max_items = max_items
         self.max_total_bytes = max_total_bytes
+        self.max_push_grants = max_push_grants
         self._clock = clock
         self._entries: dict[bytes, _Entry] = {}
+        self._push_grants: dict[bytes, _PushGrant] = {}
         self._total_bytes = 0
         self._lock = Lock()
         self._cleanup_task: asyncio.Task[None] | None = None
@@ -114,14 +129,86 @@ class AttachmentUploadStore:
             self._total_bytes += size
             return token
 
-    def consume(self, context: AuthContext, token: str) -> StagedAttachment | None:
+    def issue_push_grant(
+        self,
+        context: AuthContext,
+        draft_id: str,
+        name: str,
+        content_type: str,
+        size: int,
+        sha256: str,
+    ) -> str:
+        if not isinstance(draft_id, str) or not 1 <= len(draft_id) <= 1024:
+            raise ValueError("draft_id must contain 1 to 1024 characters")
+        validate_attachment_name(name)
+        validate_content_type(content_type)
+        if not isinstance(size, int) or isinstance(size, bool) or not 1 <= size <= MAX_SEND_ATTACHMENT_BYTES:
+            raise ValueError("attachment must be 1 byte to 20 MiB")
+        if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-fA-F]{64}", sha256) is None:
+            raise ValueError("content_sha256 must be a SHA-256 hex digest")
+        with self._lock:
+            self._prune()
+            if len(self._push_grants) >= self.max_push_grants:
+                raise OverflowError("temporary upload grant capacity is full")
+            token = secrets.token_urlsafe(32)
+            digest = self._digest(token)
+            self._push_grants[digest] = _PushGrant(
+                owner=self._owner(context),
+                draft_id=draft_id,
+                name=name,
+                content_type=content_type,
+                size=size,
+                sha256=sha256.lower(),
+                expires_at=self._clock() + self.ttl_seconds,
+            )
+            return token
+
+    def push_grant_size(self, token: str | None) -> int | None:
+        if not isinstance(token, str) or _HANDLE_PATTERN.fullmatch(token) is None:
+            return None
+        with self._lock:
+            self._prune()
+            grant = self._push_grants.get(self._digest(token))
+            return grant.size if grant is not None else None
+
+    def complete_push_grant(self, token: str, content: bytes) -> StagedAttachment | None:
+        if not isinstance(token, str) or _HANDLE_PATTERN.fullmatch(token) is None:
+            return None
+        with self._lock:
+            self._prune()
+            digest = self._digest(token)
+            grant = self._push_grants.get(digest)
+            if grant is None:
+                return None
+            if len(content) != grant.size or hashlib.sha256(content).hexdigest() != grant.sha256:
+                raise ValueError("attachment content does not match the upload grant")
+            if len(self._entries) >= self.max_items or self._total_bytes + grant.size > self.max_total_bytes:
+                raise OverflowError("temporary upload capacity is full")
+            payload = StagedAttachment(grant.name, grant.content_type, content)
+            del self._push_grants[digest]
+            self._entries[digest] = _Entry(
+                owner=grant.owner,
+                payload=payload,
+                expires_at=self._clock() + self.ttl_seconds,
+                draft_id=grant.draft_id,
+            )
+            self._total_bytes += grant.size
+            return payload
+
+    def consume(
+        self, context: AuthContext, token: str, draft_id: str | None = None
+    ) -> StagedAttachment | None:
         if not isinstance(token, str) or _HANDLE_PATTERN.fullmatch(token) is None:
             return None
         with self._lock:
             self._prune()
             digest = self._digest(token)
             entry = self._entries.get(digest)
-            if entry is None or entry.owner != self._owner(context):
+            if (
+                entry is None
+                or entry.owner != self._owner(context)
+                or (entry.draft_id is not None and entry.draft_id != draft_id)
+            ):
                 return None
             del self._entries[digest]
             self._total_bytes -= len(entry.payload.content)
@@ -130,6 +217,7 @@ class AttachmentUploadStore:
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._push_grants.clear()
             self._total_bytes = 0
 
     def purge_expired(self) -> None:
@@ -147,6 +235,9 @@ class AttachmentUploadStore:
             if entry.expires_at <= now:
                 del self._entries[digest]
                 self._total_bytes -= len(entry.payload.content)
+        for digest, grant in list(self._push_grants.items()):
+            if grant.expires_at <= now:
+                del self._push_grants[digest]
 
     @staticmethod
     def _digest(token: str) -> bytes:
@@ -204,6 +295,43 @@ def create_attachment_upload_router(store: AttachmentUploadStore) -> APIRouter:
             "expires_in_seconds": store.ttl_seconds,
             "name": name,
             "content_type": content_type,
+            "content_length": len(payload.content),
+            "content_sha256": hashlib.sha256(payload.content).hexdigest(),
+        }
+
+    @router.post("/uploads/push", status_code=201)
+    async def push_attachment(request: Request) -> dict[str, object]:
+        token = request.headers.get("x-upload-handle")
+        expected_size = store.push_grant_size(token)
+        if expected_size is None:
+            raise HTTPException(404, "Upload grant not found")
+        media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().casefold()
+        if media_type != "application/octet-stream":
+            raise HTTPException(415, "Use application/octet-stream")
+        declared = request.headers.get("content-length")
+        if declared is not None and (
+            len(declared) > 8 or not declared.isascii() or not declared.isdigit()
+            or int(declared) != expected_size
+        ):
+            raise HTTPException(400, "Upload length does not match the grant")
+        async with upload_slots:
+            content = bytearray()
+            async for chunk in request.stream():
+                if len(content) + len(chunk) > expected_size:
+                    raise HTTPException(413, "Attachment exceeds the granted size")
+                content.extend(chunk)
+        try:
+            payload = store.complete_push_grant(token, bytes(content))
+        except ValueError:
+            raise HTTPException(400, "Upload content does not match the grant") from None
+        except OverflowError:
+            raise HTTPException(429, "Temporary upload capacity is full") from None
+        if payload is None:
+            raise HTTPException(404, "Upload grant not found")
+        return {
+            "upload_handle": token,
+            "name": payload.name,
+            "content_type": payload.content_type,
             "content_length": len(payload.content),
             "content_sha256": hashlib.sha256(payload.content).hexdigest(),
         }

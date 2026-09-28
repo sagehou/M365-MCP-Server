@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from dataclasses import replace
 
 import httpx
@@ -52,6 +53,40 @@ def test_upload_store_rejects_invalid_files_and_bounds_capacity() -> None:
     store.issue(context, StagedAttachment("three.txt", "text/plain", b"three"))
 
 
+def test_push_grant_binds_exact_content_user_and_draft() -> None:
+    clock = [0.0]
+    store = AttachmentUploadStore(ttl_seconds=5, clock=lambda: clock[0])
+    alice = make_context()
+    bob = AuthContext(
+        identity=replace(alice.identity, user_id="other-user"),
+        access_token="other-token",
+    )
+    content = b"report bytes"
+    sha256 = hashlib.sha256(content).hexdigest()
+    handle = store.issue_push_grant(
+        alice, "draft-1", "report.docx", "application/octet-stream",
+        len(content), sha256,
+    )
+    assert store.push_grant_size(handle) == len(content)
+    with pytest.raises(ValueError):
+        store.complete_push_grant(handle, b"wrong bytes!")
+    assert store.push_grant_size(handle) == len(content)
+    assert store.complete_push_grant(handle, content) == StagedAttachment(
+        "report.docx", "application/octet-stream", content
+    )
+    assert store.complete_push_grant(handle, content) is None
+    assert store.consume(bob, handle, "draft-1") is None
+    assert store.consume(alice, handle, "draft-2") is None
+    assert store.consume(alice, handle, "draft-1") is not None
+    assert store.consume(alice, handle, "draft-1") is None
+    expired = store.issue_push_grant(
+        alice, "draft-1", "report.docx", "application/octet-stream",
+        len(content), sha256,
+    )
+    clock[0] = 5.0
+    assert store.push_grant_size(expired) is None
+
+
 def test_binary_upload_route_rejects_bad_input_and_enforces_capacity() -> None:
     class Validator:
         async def validate(self, token: str):
@@ -102,5 +137,41 @@ def test_binary_upload_route_rejects_bad_input_and_enforces_capacity() -> None:
                 assert uploaded.json()["name"] == "résumé.txt"
                 assert uploaded.json()["content_length"] == 5
                 assert (await client.post(url, headers=headers, content=b"again")).status_code == 429
+
+    asyncio.run(exercise())
+
+
+def test_push_route_accepts_only_matching_one_use_grant() -> None:
+    async def exercise() -> None:
+        store = AttachmentUploadStore()
+        app = create_app(
+            settings=Settings(),
+            mail_service=MailService(StubGraphClient()),  # type: ignore[arg-type]
+            attachment_upload_store=store,
+        )
+        content = b"report bytes"
+        handle = store.issue_push_grant(
+            make_context(), "draft-1", "report.docx", "application/octet-stream",
+            len(content), hashlib.sha256(content).hexdigest(),
+        )
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                url = "/uploads/push"
+                headers = {
+                    "X-Upload-Handle": handle,
+                    "Content-Type": "application/octet-stream",
+                }
+                assert (await client.post(url, content=content)).status_code == 404
+                assert (await client.post(url, headers=headers, content=b"wrong bytes!")).status_code == 400
+                assert (await client.post(url, headers=headers, content=content + b"x")).status_code == 400
+                uploaded = await client.post(url, headers=headers, content=content)
+                assert uploaded.status_code == 201
+                assert uploaded.headers["cache-control"] == "no-store"
+                assert uploaded.json()["content_sha256"] == hashlib.sha256(content).hexdigest()
+                assert (await client.post(url, headers=headers, content=content)).status_code == 404
+                assert store.consume(make_context(), handle, "other-draft") is None
+                assert store.consume(make_context(), handle, "draft-1") is not None
 
     asyncio.run(exercise())

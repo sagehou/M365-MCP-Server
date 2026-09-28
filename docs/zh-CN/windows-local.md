@@ -174,10 +174,45 @@ EXE 当前提供：
 本地 stdio Runtime 没有 HTTP Download Endpoint，并且不得任意写文件，因此暂不
 提供 `mail_download_attachment`。PDF/DOCX/XLSX/PPTX 解析仍在验收待办中。邮件
 发送仍必须在 Client/Agent 层逐封确认，或具有明确的受限自动化授权。
-工具调用时弹出 Windows 文件选择框，EXE 只读取用户选中的文件，不接受 Agent
-传入的任意路径、不通过 MCP 暴露文件字节，也不写临时附件文件。附件选择需要
-交互式桌面，暂不支持无人值守的自动附件发送。发送前核对草稿与附件列表。
-已发布的 v0.1.0 EXE 尚不包含此功能。
+本地 `mail_add_draft_attachment` MCP 工具调用时弹出 Windows 文件选择框，
+EXE 只读取用户选中的文件，不接受 Agent 传入的任意路径、不通过 MCP 暴露文件
+字节，也不写临时附件文件。文件选择框仍需要交互式桌面。发送前核对草稿与附件
+列表。已发布的 v0.1.0 EXE 尚不包含此功能。
+
+### 远端 Connector 的无人值守产物附件
+
+较新源码构建中的同一个单文件 EXE 还提供
+`inspect-attachment <relative-path>` 和 `push-attachment <relative-path>`。
+这些命令不使用 Entra 登录，也不启动另一个 MCP Connector。把
+`M365_ATTACHMENT_ROOT` 配为存放已完成自动化产物的可信绝对目录，把
+`M365_ATTACHMENT_PUSH_URL` 配为 Server 固定的 HTTPS `/uploads/push` URL。
+调用者只能给出该目录下的相对路径；EXE 校验打开文件的最终路径，仅允许
+DOCX、XLSX、PPTX、ZIP 和 PDF，拒绝空文件及超过 20 MiB 的文件，不创建临时文件。
+
+1. 检查已完成的本机产物，取得文件名、MIME 类型、字节数和 SHA-256。
+2. 经远端 MCP Connector 创建草稿，并用草稿 ID 与检查所得元数据调用
+   `mail_prepare_attachment_push`。
+3. 将返回的 Grant JSON 经标准输入传给同一相对路径的 `push-attachment`。
+   EXE 核对配置的 URL 并重新核验文件，再发送原始字节；它不接收用户 OAuth
+   Token，也不跟随 HTTP Redirect。
+4. 用草稿 ID 和返回的 `upload_handle` 调用远端
+   `mail_add_draft_attachment`。授权发送前检查 `mail_list_attachments`。
+
+例如 PowerShell 中已经把 MCP 工具返回的 Grant JSON 暂存在 `$grantJson` 时：
+
+```powershell
+$env:M365_ATTACHMENT_ROOT = 'C:\Automation\Output'
+$env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
+& 'C:\Tools\m365-mcp.exe' inspect-attachment 'reports\weekly.docx'
+$grantJson | & 'C:\Tools\m365-mcp.exe' push-attachment 'reports\weekly.docx'
+```
+
+句柄是五分钟有效的 Capability：不要记录它或放在命令行参数中。如检查与推送
+之间文件已变化，重新签发 Grant，不要猜测哈希。推送成功本身既不添加附件，也
+不发送邮件。WorkBuddy 撰写 Skill 可通过 Bash 工具调用这些命令；EXE 必须放在
+管理员认可的位置。受限自动化授权仍须明确约束产物来源、收件人、大小、邮件
+数量与有效期。EXE 的目录限制只约束该命令；WorkBuddy 的通用 Bash 权限仍可能
+访问其他文件，还需要依赖客户端自身的沙箱与工具审批策略。
 
 ## 构建与取得集成产物
 

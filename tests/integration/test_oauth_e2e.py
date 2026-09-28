@@ -98,6 +98,21 @@ class MockTokenValidator:
 
 
 class MockMailService:
+    async def add_draft_attachment(
+        self,
+        context: Any,
+        draft_id: str,
+        name: str,
+        content_type: str,
+        content: bytes,
+    ) -> str:
+        assert context.identity.user_id == "44444444-4444-4444-4444-444444444444"
+        assert draft_id == "draft-1"
+        assert name == "report.docx"
+        assert content_type == "application/octet-stream"
+        assert content == b"report bytes"
+        return "attachment-1"
+
     async def get_attachment(
         self,
         context: Any,
@@ -331,6 +346,7 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
             "mail_create_draft",
             "mail_send_draft",
             "mail_add_draft_attachment",
+            "mail_prepare_attachment_push",
             "mail_list_attachments",
             "mail_read_attachment",
             "mail_download_attachment",
@@ -339,6 +355,56 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
             "mail_move",
             "mail_set_category",
         }
+
+        content = b"report bytes"
+        prepare_result = _mcp_rpc(
+            client,
+            refreshed_tokens["access_token"],
+            "tools/call",
+            {
+                "name": "mail_prepare_attachment_push",
+                "arguments": {
+                    "draft_id": "draft-1",
+                    "name": "report.docx",
+                    "content_length": len(content),
+                    "content_sha256": hashlib.sha256(content).hexdigest(),
+                },
+            },
+        )
+        assert not prepare_result.get("isError"), prepare_result
+        grant = json.loads(prepare_result["content"][0]["text"])
+        assert grant["upload_url"] == f"{ISSUER}/uploads/push"
+        uploaded = client.post(
+            "/uploads/push",
+            headers={
+                "X-Upload-Handle": grant["upload_handle"],
+                "Content-Type": "application/octet-stream",
+            },
+            content=content,
+        )
+        assert uploaded.status_code == 201, uploaded.text
+        assert uploaded.json()["content_sha256"] == grant["content_sha256"]
+        wrong_draft = _mcp_rpc(
+            client,
+            refreshed_tokens["access_token"],
+            "tools/call",
+            {
+                "name": "mail_add_draft_attachment",
+                "arguments": {"draft_id": "draft-2", "upload_handle": grant["upload_handle"]},
+            },
+        )
+        assert wrong_draft["isError"] is True
+        attached = _mcp_rpc(
+            client,
+            refreshed_tokens["access_token"],
+            "tools/call",
+            {
+                "name": "mail_add_draft_attachment",
+                "arguments": {"draft_id": "draft-1", "upload_handle": grant["upload_handle"]},
+            },
+        )
+        assert not attached.get("isError"), attached
+        assert json.loads(attached["content"][0]["text"])["attached"] is True
 
         download_result = _mcp_rpc(
             client,

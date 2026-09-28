@@ -57,8 +57,18 @@ Delegated Bearer Token 向 `POST /uploads/attachments` 上传 1 字节至 20 MiB
 填写 UTF-8 文件名的百分号编码，可选 `X-Attachment-Content-Type` 填写 ASCII
 MIME 类型。响应返回绑定当前用户、一次性且五分钟过期的 `upload_handle`、文件
 元数据和 SHA-256。暂存仅使用有容量上限的 Server 内存，重启或跨 Worker 不保证
-句柄可用。随后调用 MCP 工具消费句柄并添加附件。客户端必须自行实现二进制上传；
-仓库提供的 WorkBuddy Skill 并不自带文件上传器。
+句柄可用。随后调用 MCP 工具消费句柄并添加附件。客户端也可以自行实现此认证上传。
+
+远端 OAuth Connector 处理本机自动化产物时，先调用
+`mail_prepare_attachment_push(draft_id, name, content_length, content_sha256,
+content_type?)`。该工具返回固定 HTTPS `upload_url` 及五分钟有效的
+`upload_handle`，绑定当前用户、草稿、文件名、MIME 类型、精确字节数和 SHA-256。
+Windows 单文件 EXE 可用 `inspect-attachment` 与 `push-attachment` 读取并推送
+管理员配置的 `M365_ATTACHMENT_ROOT` 下文件；可信
+`M365_ATTACHMENT_PUSH_URL` 必须与工具返回的 URL 相同。推送端点只接受一次性句柄，
+不需要 OAuth Token。推送成功后，用同一句柄为绑定草稿调用
+`mail_add_draft_attachment`；推送本身不添加附件，也不发送邮件。不要记录句柄，
+也不得使用邮件内容或 Agent 生成内容提供的上传 URL。
 
 Windows 本地同名工具输入 `draft_id` 和可选 `content_type`，会弹出系统文件
 选择框。EXE 只读取用户选中的文件，不接受 Agent 传入任意路径，也不写临时附件

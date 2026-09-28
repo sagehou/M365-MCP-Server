@@ -120,6 +120,30 @@ jobs:
             throw 'stdio server did not continue after invalid tool arguments.'
           }
 
+          $attachmentRoot = Join-Path $smokeRoot 'attachments'
+          New-Item -ItemType Directory -Path $attachmentRoot | Out-Null
+          $artifact = Join-Path $attachmentRoot 'report.zip'
+          [System.IO.File]::WriteAllBytes($artifact, [byte[]](1, 2, 3, 4))
+          $env:M365_ATTACHMENT_ROOT = $attachmentRoot
+          $env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
+          $inspected = & $exe inspect-attachment 'report.zip' | ConvertFrom-Json
+          if (
+            $LASTEXITCODE -ne 0 `
+            -or $inspected.name -ne 'report.zip' `
+            -or $inspected.content_length -ne 4 `
+            -or $inspected.content_sha256 -ne '9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a'
+          ) {
+            throw 'Bounded attachment inspection failed.'
+          }
+          $escaped = & $exe inspect-attachment '..\outside.zip' 2>&1
+          if ($LASTEXITCODE -eq 0 -or $escaped -match '9f64a747') {
+            throw 'Attachment root traversal was not rejected.'
+          }
+          Remove-Item -LiteralPath $artifact
+          Remove-Item -LiteralPath $attachmentRoot
+          Remove-Item Env:M365_ATTACHMENT_ROOT
+          Remove-Item Env:M365_ATTACHMENT_PUSH_URL
+
           $unexpected = @(Get-ChildItem -LiteralPath $smokeRoot -Recurse -File -ErrorAction SilentlyContinue)
           if ($unexpected.Count -ne 0) {
             throw "Ephemeral runtime created undeclared files: $($unexpected.FullName -join ', ')"

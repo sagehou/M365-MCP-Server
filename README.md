@@ -25,11 +25,13 @@ handling of Outlook mail and attachments.
   client flow in CI.
 - Structured, redacted audit events with correlation IDs returned in safe errors.
 - In unreleased source, `mail_add_draft_attachment` adds a file of
-  up to 20 MiB to an existing draft without sending. Remote clients first use
+  up to 20 MiB to an existing draft without sending. Remote clients can use
   a Bearer-authenticated binary upload endpoint and pass only its short-lived
-  handle to MCP; the Windows EXE opens a local file picker. The bundled
-  WorkBuddy skill does not itself upload local files. This feature is not part
-  of the published v0.1.0 release.
+  handle to MCP; the Windows local MCP tool opens a file picker. For unattended
+  local artifacts, the remote connector can issue a draft-bound upload grant
+  and the same EXE can push a file from a configured directory through the
+  WorkBuddy compose Skill. These source-only attachment features are not part
+  of the published v0.1.0 release. See [attachment commands](docs/windows-local.md#unattended-artifacts-for-a-remote-connector).
 
 ### Windows local executable
 
