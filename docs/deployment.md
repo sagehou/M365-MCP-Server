@@ -92,13 +92,18 @@ container recreation. Back up this volume as sensitive authentication state. Sto
 image, repository or logs. Restores and replacement processes must use the same
 database and key. v0.1 does not provide distributed or multi-host session storage.
 
-Route `/.well-known/*`, `/oauth/*`, `/downloads/*`, `/uploads/attachments` and `/mcp/`
-through the same fixed public origin. The binary upload endpoint requires the same
-delegated bearer token as `/mcp/`; do not exempt it from authentication. Cap its
-request body at 20 MiB plus HTTP framing overhead, apply a per-user/IP request-rate
-limit, and permit enough upload time for a 20 MiB file. Staged uploads are bounded
-in process memory and their one-use handles must reach the same worker; do not
-load-balance this flow across multiple workers or replicas without a shared store.
+Route `/.well-known/*`, `/oauth/*`, `/downloads/*`, `/uploads/attachments`,
+`/uploads/push`, and `/mcp/` through the same fixed public origin.
+`/uploads/attachments` requires the same delegated bearer token as `/mcp/`;
+do not exempt it from authentication. `/uploads/push` instead accepts only a
+short-lived, one-use capability issued by the authenticated
+`mail_prepare_attachment_push` tool and bound to exact draft and file metadata.
+Never log its `X-Upload-Handle` header. Cap both binary upload request bodies at
+20 MiB plus HTTP framing overhead, apply IP/request-rate limits to the push
+endpoint and per-user/IP limits to authenticated uploads, and permit enough
+upload time. Staged uploads and push grants live in bounded process memory;
+the grant, upload, and later MCP tool call must reach the same worker. Do not
+load-balance this flow across workers or replicas without a shared store.
 Register `https://mcp.example.com/oauth/callback` as a Web redirect URI
 on the `M365-MCP-Server` App Registration. For loopback development, register
 `http://localhost:8000/oauth/callback` separately.

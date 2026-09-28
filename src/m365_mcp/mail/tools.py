@@ -48,6 +48,7 @@ class MailToolService:
         attachment_extractor: AttachmentExtractorRegistry | None = None,
         attachment_download_store: AttachmentDownloadStore | None = None,
         attachment_upload_store: AttachmentUploadStore | None = None,
+        attachment_push_url: str | None = None,
         attachment_download_url_prefix: str | None = None,
         audit_logger: AuditLogger | None = None,
     ) -> None:
@@ -55,6 +56,7 @@ class MailToolService:
         self.attachment_extractor = attachment_extractor or AttachmentExtractorRegistry()
         self.attachment_download_store = attachment_download_store
         self.attachment_upload_store = attachment_upload_store
+        self.attachment_push_url = attachment_push_url
         self.audit_logger = audit_logger
         self.attachment_download_url_prefix = (
             attachment_download_url_prefix.rstrip("/")
@@ -321,7 +323,7 @@ class MailToolService:
         store = self.attachment_upload_store
         if store is None:
             raise RuntimeError("Attachment upload staging is not configured")
-        payload = store.consume(context, upload_handle)
+        payload = store.consume(context, upload_handle, draft_id)
         if payload is None:
             raise InvalidToolInputError(
                 "upload_handle", "invalid_or_expired", "upload handle is invalid or expired"
@@ -337,6 +339,41 @@ class MailToolService:
             "content_length": len(payload.content),
             "content_sha256": hashlib.sha256(payload.content).hexdigest(),
             "attached": True,
+        }
+
+    async def prepare_attachment_push(
+        self,
+        context: AuthContext,
+        draft_id: str,
+        name: str,
+        content_length: int,
+        content_sha256: str,
+        content_type: str,
+    ) -> dict[str, Any]:
+        store = self.attachment_upload_store
+        if store is None or self.attachment_push_url is None:
+            raise RuntimeError("Attachment push is not configured")
+        try:
+            handle = store.issue_push_grant(
+                context, draft_id, name, content_type, content_length, content_sha256
+            )
+        except ValueError as exc:
+            raise InvalidToolInputError(
+                "attachment", "invalid_metadata", str(exc)
+            ) from None
+        except OverflowError:
+            raise InvalidToolInputError(
+                "attachment", "capacity", "temporary upload grant capacity is full"
+            ) from None
+        return {
+            "draft_id": draft_id,
+            "upload_url": self.attachment_push_url,
+            "upload_handle": handle,
+            "expires_in_seconds": store.ttl_seconds,
+            "name": name,
+            "content_type": content_type,
+            "content_length": content_length,
+            "content_sha256": content_sha256.lower(),
         }
 
 
@@ -483,6 +520,30 @@ def register_mail_tools(
             ),
             write_operation=True,
         )
+
+    if service.attachment_push_url is not None:
+        @mcp.tool(
+            name="mail_prepare_attachment_push",
+            description=(
+                "Authorize a short-lived binary upload for one exact draft, filename, "
+                "size and SHA-256. A local uploader sends the file without receiving "
+                "the user's OAuth token. This does not attach or send the draft."
+            ),
+        )
+        async def mail_prepare_attachment_push(
+            draft_id: str,
+            name: str,
+            content_length: int,
+            content_sha256: str,
+            content_type: str = "application/octet-stream",
+        ) -> dict[str, Any]:
+            return await audited(
+                "mail_prepare_attachment_push",
+                lambda context: service.prepare_attachment_push(
+                    context, draft_id, name, content_length,
+                    content_sha256, content_type
+                ),
+            )
 
     @mcp.tool(
         name="mail_list_attachments",

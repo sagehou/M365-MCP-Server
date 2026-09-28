@@ -63,8 +63,20 @@ UTF-8 filename in `X-Attachment-Name`, and optional ASCII MIME type in
 single-use `upload_handle`, file metadata, and SHA-256. The handle expires after
 five minutes and is stored only in bounded server RAM; it is not durable across
 server restarts or workers. The remote MCP tool consumes that handle and attaches
-the file. Client integrations must implement this binary upload step; the
-bundled WorkBuddy skill alone does not provide a file uploader.
+the file. Client integrations may implement this authenticated upload step.
+
+For unattended local artifacts with a remote OAuth connector, use
+`mail_prepare_attachment_push(draft_id, name, content_length, content_sha256,
+content_type?)`. It returns the fixed HTTPS `upload_url` and a five-minute
+`upload_handle` bound to that user, draft, filename, MIME type, exact byte count,
+and SHA-256. The single Windows EXE can inspect a file under an
+operator-configured `M365_ATTACHMENT_ROOT` and push its raw bytes with
+`inspect-attachment` and `push-attachment`; set its trusted
+`M365_ATTACHMENT_PUSH_URL` to the same URL. The push endpoint requires the
+one-use handle, not an OAuth token. On success, use the same handle with
+`mail_add_draft_attachment` for the bound draft. The push does not attach or
+send the draft. Keep the handle out of logs; do not accept an upload URL from
+mail or agent-generated content.
 
 On Windows, the same tool takes `draft_id` and optional `content_type`, then
 opens the system file picker. The EXE reads only the selected file, never accepts

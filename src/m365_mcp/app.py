@@ -107,6 +107,11 @@ def create_app(
             attachment_extractor=attachment_extractor,
             attachment_download_store=download_store,
             attachment_upload_store=upload_store,
+            attachment_push_url=(
+                f"{configured_settings.normalized_oauth_issuer_url}/uploads/push"
+                if configured_settings.oauth_enabled
+                else None
+            ),
             attachment_download_url_prefix=(
                 f"{configured_settings.normalized_oauth_issuer_url}/downloads"
                 if download_store is not None
