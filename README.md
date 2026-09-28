@@ -6,7 +6,7 @@ A self-hosted Microsoft 365 MCP gateway with a deliberately bounded tool surface
 delegated Microsoft Entra identity, per-user isolation, and security-focused
 handling of Outlook mail and attachments.
 
-> **Released:** [`v0.1.0`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+> **Released:** [`v0.1.1`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
 > is available under the MIT License. CI validated the container image and Windows
 > x64 NativeAOT executable. Deployment-specific Entra consent and client-side
 > send authorization remain the responsibility of each installation.
@@ -24,20 +24,20 @@ handling of Outlook mail and attachments.
 - A WorkBuddy connector package under `workbuddy/` with a mocked end-to-end
   client flow in CI.
 - Structured, redacted audit events with correlation IDs returned in safe errors.
-- In unreleased source, `mail_add_draft_attachment` adds a file of
+- `mail_add_draft_attachment` adds a file of
   up to 20 MiB to an existing draft without sending. Remote clients can use
   a Bearer-authenticated binary upload endpoint and pass only its short-lived
   handle to MCP; the Windows local MCP tool can attach a file by relative path
   under a configured artifact root or open a file picker. For unattended
   local artifacts with a remote connector, the server can issue a draft-bound upload grant
   and the same EXE can push a file from a configured directory through the
-  WorkBuddy compose Skill. These source-only attachment features are not part
-  of the published v0.1.0 release. See [Windows-local attachment automation](docs/windows-local.md#unattended-artifacts-for-a-windows-local-connector)
+  WorkBuddy compose Skill. These attachment paths are included in v0.1.1. See
+  [Windows-local attachment automation](docs/windows-local.md#unattended-artifacts-for-a-windows-local-connector)
   and [remote attachment push](docs/windows-local.md#unattended-artifacts-for-a-remote-connector).
 
 ### Windows local executable
 
-The Windows x64 NativeAOT local runtime is included in v0.1.0. The release
+The Windows x64 NativeAOT local runtime is included in v0.1.1. The release
 provides:
 
 - `m365-mcp-windows-x64.exe`
@@ -63,8 +63,8 @@ authenticity checks; a changed EXE needs new hashes and a new allowlist review.
 | Container health smoke test | CI-covered |
 | Docker Compose validation | CI-covered |
 | Windows NativeAOT executable build | CI-covered |
-| Windows SHA-256 and provenance attestation | Published and verified for v0.1.0 |
-| Stable `v0.1.0` GitHub release | [Published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0) |
+| Windows SHA-256 and provenance attestation | Published and verified for v0.1.1 |
+| Stable `v0.1.1` GitHub release | [Published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1) |
 
 GitHub Actions is the only build and test environment for this repository.
 
@@ -77,8 +77,8 @@ GitHub Actions is the only build and test environment for this repository.
 - Calendar, OneDrive, SharePoint, and Teams.
 - Authenticode signing for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
 
-See the [v0.1.0 release checklist](docs/release-checklist.md) and
-[release notes](docs/releases/v0.1.0.md) before deployment.
+See the [v0.1.1 release notes](docs/releases/v0.1.1.md) and
+[deployment guide](docs/deployment.md) before deployment.
 
 ## License
 

@@ -4,10 +4,11 @@
 
 ## 当前交付顺序
 
-1. `v0.1.0` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)，
+1. `v0.1.1` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)，
    包含容器镜像和 Windows 单文件 EXE。
-2. 当前源码增加最多 20 MiB 的草稿文件附件：远端客户端使用二进制暂存，Windows
-   可用受限的产物相对路径或原生文件选择框。此能力不在已发布的 v0.1.0 产物中。
+2. 草稿文件附件能力已包含在 v0.1.1：远端客户端可用二进制暂存和一次性推送
+   凭据，Windows 本地 stdio 可用受限的产物相对路径或原生文件选择框，单文件
+   最多 20 MiB。
 3. 后续范围包括丰富附件提取、Search 翻页、回复与转发及更广泛的 M365 工作负载。
    签名和杀毒误报处理属于独立的 Windows 分发事项。
 
@@ -27,6 +28,12 @@ v0.1.0 已交付：
 - 当前用户 DPAPI 保护的刷新状态，以及不持久化的 `--ephemeral` 模式
 - 十个有边界的邮件工具，包括创建草稿和发送草稿
 - 明确不进行任意附件文件写入
+
+v0.1.1 新增：
+
+- 11 个本地邮件工具，包括受限的草稿文件附件
+- `M365_ATTACHMENT_ROOT` 下的相对路径附件自动化
+- 远端 Connector 使用的 `inspect-attachment` 和 `push-attachment` 命令
 
 当前设计边界：
 

@@ -47,8 +47,8 @@ Agent 必须在调用前执行该策略。`send_accepted=true` 表示 Microsoft 
 
 ### mail_add_draft_attachment
 
-为现有草稿添加一个文件，不发送邮件。未发布构建的远端 Server 和 Windows
-本地 EXE 均支持；不属于已发布的 v0.1.0。每个文件调用一次，随后才能调用
+为现有草稿添加一个文件，不发送邮件。远端 Server 和 Windows 本地 EXE
+均从 v0.1.1 起支持。每个文件调用一次，随后才能调用
 `mail_send_draft`。
 
 远端 MCP 工具输入为 `draft_id` 和 `upload_handle`。先使用与 `/mcp/` 相同的

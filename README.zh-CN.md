@@ -5,7 +5,7 @@
 一个自托管的 Microsoft 365 MCP Gateway，采用受控工具面、Microsoft Entra
 委托身份和按用户隔离，并重点保护 Outlook 邮件与附件处理边界。
 
-> **已发布：**[`v0.1.0`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+> **已发布：**[`v0.1.1`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
 > 已按 MIT 许可证发布。CI 验证了 Container Image 与 Windows x64 NativeAOT
 > EXE。每个部署仍须自行配置 Entra 同意，并在客户端执行发送授权策略。
 
@@ -22,18 +22,18 @@
 - `workbuddy/` 中提供 WorkBuddy Connector Package，CI 覆盖完整的 Mock
   Client Flow。
 - 结构化脱敏 Audit Event；安全错误会返回可关联的 Event ID。
-- 未发布源码增加 `mail_add_draft_attachment`：可为现有草稿添加单个不超过
+- `mail_add_draft_attachment` 可为现有草稿添加单个不超过
   20 MiB 的文件，但不会发送。远端客户端可走 Bearer 鉴权的二进制上传接口，
   MCP 只传短期句柄；Windows 本地 MCP 工具可读取指定产物目录下的相对路径，
   也可弹出文件选择框。远端 Connector 的无人值守本机产物可签发绑定草稿的
   上传凭据，再由同一个 EXE 经 WorkBuddy
-  撰写 Skill 从指定目录主动推送。这些附件能力仍只在源码中，不属于已发布的
-  v0.1.0。详见[Windows 本地附件自动化](docs/zh-CN/windows-local.md#windows-本地-connector-的无人值守产物附件)
+  撰写 Skill 从指定目录主动推送。这两条附件路径均包含在 v0.1.1 中。详见
+  [Windows 本地附件自动化](docs/zh-CN/windows-local.md#windows-本地-connector-的无人值守产物附件)
   和[远端附件推送](docs/zh-CN/windows-local.md#远端-connector-的无人值守产物附件)。
 
 ### Windows 本地 EXE
 
-Windows x64 NativeAOT 本地 Runtime 已包含在 v0.1.0 中。Release 提供：
+Windows x64 NativeAOT 本地 Runtime 已包含在 v0.1.1 中。Release 提供：
 
 - `m365-mcp-windows-x64.exe`
 - SHA-256 校验文件
@@ -57,8 +57,8 @@ MD5 和 SHA-1 仅用于兼容旧式白名单表单，不是可信性验证；EXE
 | Container Health Smoke Test | CI 覆盖 |
 | Docker Compose 校验 | CI 覆盖 |
 | Windows NativeAOT EXE 构建 | CI 覆盖 |
-| Windows SHA-256 与 Provenance Attestation | 已随 v0.1.0 发布并核验 |
-| 稳定版 `v0.1.0` GitHub Release | [已发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0) |
+| Windows SHA-256 与 Provenance Attestation | 已随 v0.1.1 发布并核验 |
+| 稳定版 `v0.1.1` GitHub Release | [已发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1) |
 
 GitHub Actions 是本仓库唯一的构建与测试环境。
 
@@ -71,8 +71,8 @@ GitHub Actions 是本仓库唯一的构建与测试环境。
 - Calendar、OneDrive、SharePoint 和 Teams。
 - Windows EXE 的 Authenticode 签名；可选 WAM 评估与本地富文档附件解析。
 
-部署前请阅读 [v0.1.0 发布检查清单](docs/zh-CN/release-checklist.md)和
-[发布说明](docs/zh-CN/releases/v0.1.0.md)。
+部署前请阅读 [v0.1.1 发布说明](docs/zh-CN/releases/v0.1.1.md)和
+[部署指南](docs/zh-CN/deployment.md)。
 
 ## 许可证
 

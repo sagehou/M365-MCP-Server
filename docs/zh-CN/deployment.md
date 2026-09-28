@@ -84,12 +84,9 @@ OAuth Module 已提供 Discovery Metadata、Dynamic Public-client Registration�
 4. 对该精确镜像执行 Smoke Test
 5. 通过后才发布
 
-示例：
-
-    git tag v0.1.0
-    git push origin v0.1.0
-
-对于 `v0.1.0`，Workflow 会发布 version、major/minor 和 `latest` GHCR Tags。Workflow 使用仓库 GitHub Token 发布 Package，不在仓库中保存 Registry Secret。
+获得新版本发布授权后，在经过审查的 `main` Commit 上创建新的版本标签；不要移动已有
+Release 标签。对于 `v0.1.1`，Workflow 会发布 version、major/minor 和 `latest` GHCR
+Tags。Workflow 使用仓库 GitHub Token 发布 Package，不在仓库中保存 Registry Secret。
 
 独立测试镜像 Workflow 在测试、Docker Build 和 Smoke Test 成功后，从 `main` 发布 `edge` 和 Commit-specific SHA Tag；测试标签不会覆盖 `latest`。
 

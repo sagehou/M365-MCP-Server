@@ -52,7 +52,7 @@ is not proven. Do not automatically retry an ambiguous failure.
 ### mail_add_draft_attachment
 
 Add one file to an existing draft without sending it. Available in the remote
-server and Windows local executable in unreleased builds (not v0.1.0).
+server and Windows local executable since v0.1.1.
 Call once per file, before `mail_send_draft`.
 
 Remote MCP input is `draft_id` and `upload_handle`. First send 1 byte to 20 MiB
