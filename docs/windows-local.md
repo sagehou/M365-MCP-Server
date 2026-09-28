@@ -201,11 +201,21 @@ runtime has no HTTP download endpoint and must not write arbitrary files.
 PDF/DOCX/XLSX/PPTX extraction remains on the acceptance backlog. Sending still
 requires per-message confirmation or an explicit bounded automation
 authorization at the client/agent layer.
-The local `mail_add_draft_attachment` MCP tool opens a Windows file picker and
-reads only the selected file. It does not accept an agent-supplied path, expose
-file bytes in MCP, or write temporary attachment files. The picker still
-requires an interactive desktop. Review the draft and attachment list before
-sending; attachment support is not in the published v0.1.0 EXE.
+
+### Unattended artifacts for a Windows-local connector
+
+For unattended automation using the Windows-local stdio connector, set
+`M365_ATTACHMENT_ROOT` in the connector process environment to a trusted,
+absolute output directory. Call
+`mail_add_draft_attachment(draft_id, relative_path="reports\\weekly.docx")`.
+The tool reads only an opened file whose resolved path stays inside that root,
+with the same 20 MiB and DOCX/XLSX/PPTX/ZIP/PDF limits as the EXE upload
+commands. It attaches directly through the locally signed-in user's Graph
+session: no browser upload, second connector, Bash command, or remote push URL
+is needed. It never writes a temporary attachment file or returns file bytes
+through MCP. Omit `relative_path` for the existing interactive Windows file
+picker. Review the draft and attachment list before an authorized send;
+attachment support is not in the published v0.1.0 EXE.
 
 ### Unattended artifacts for a remote connector
 

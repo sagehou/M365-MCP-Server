@@ -27,11 +27,13 @@ handling of Outlook mail and attachments.
 - In unreleased source, `mail_add_draft_attachment` adds a file of
   up to 20 MiB to an existing draft without sending. Remote clients can use
   a Bearer-authenticated binary upload endpoint and pass only its short-lived
-  handle to MCP; the Windows local MCP tool opens a file picker. For unattended
-  local artifacts, the remote connector can issue a draft-bound upload grant
+  handle to MCP; the Windows local MCP tool can attach a file by relative path
+  under a configured artifact root or open a file picker. For unattended
+  local artifacts with a remote connector, the server can issue a draft-bound upload grant
   and the same EXE can push a file from a configured directory through the
   WorkBuddy compose Skill. These source-only attachment features are not part
-  of the published v0.1.0 release. See [attachment commands](docs/windows-local.md#unattended-artifacts-for-a-remote-connector).
+  of the published v0.1.0 release. See [Windows-local attachment automation](docs/windows-local.md#unattended-artifacts-for-a-windows-local-connector)
+  and [remote attachment push](docs/windows-local.md#unattended-artifacts-for-a-remote-connector).
 
 ### Windows local executable
 

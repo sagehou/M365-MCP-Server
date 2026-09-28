@@ -53,7 +53,7 @@ Agent 兼容性。
 - 受限自动发送属于 Client/Agent 授权契约；Server 只收到 `draft_id`，不能据此判断是否已经取得授权。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
 - 已实现纯文本 Draft 创建和发送。当前源码还支持远端二进制上传加一次性句柄，
-  或 Windows 原生文件选择框，将最多 20 MiB 的文件添加至草稿；此能力不在已发布的
+  或 Windows 受限产物相对路径/原生文件选择框，将最多 20 MiB 的文件添加至草稿；此能力不在已发布的
   v0.1.0 二进制文件中。Client/Agent 层必须逐封确认或具有明确的受限自动化授权。
   一步式 Direct Send、HTML 撰写和自动重试仍不提供。
 - OCR、Reply、Forward、Shared Mailboxes、Enterprise RBAC / Rate Limiting /

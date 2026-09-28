@@ -157,27 +157,45 @@ internal sealed class LocalGraphClient(
         CancellationToken cancellationToken)
     {
         var draftId = RequiredString(arguments, "draft_id");
-        var selectedPath = await NativeFilePicker.SelectFileAsync(cancellationToken);
-        if (selectedPath is null)
+        var useArtifactPath = arguments.ContainsKey("relative_path");
+        string name;
+        string contentType;
+        FileStream file;
+        if (useArtifactPath)
         {
-            return new JsonObject { ["attached"] = false, ["cancelled"] = true };
+            file = AttachmentPushClient.OpenLocalArtifact(
+                RequiredString(arguments, "relative_path"), out name, out contentType);
         }
-        var name = Path.GetFileName(selectedPath);
+        else
+        {
+            var selectedPath = await NativeFilePicker.SelectFileAsync(cancellationToken);
+            if (selectedPath is null)
+            {
+                return new JsonObject { ["attached"] = false, ["cancelled"] = true };
+            }
+            name = Path.GetFileName(selectedPath);
+            contentType = OptionalString(arguments, "content_type")
+                ?? "application/octet-stream";
+            file = new FileStream(
+                selectedPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        }
+        await using var fileLease = file;
         if (name.Length > 255 || name.Any(character =>
             char.IsControl(character) || character is '/' or '\\'))
         {
             throw new InvalidToolArgumentException("name must be a plain filename of at most 255 characters");
         }
-        var contentType = OptionalString(arguments, "content_type")
-            ?? "application/octet-stream";
+        if (useArtifactPath && arguments.ContainsKey("content_type")
+            && OptionalString(arguments, "content_type") != contentType)
+        {
+            throw new InvalidToolArgumentException("content_type must match the artifact file type");
+        }
         if (contentType.Length is 0 or > 127 || contentType.Any(character =>
             character < 33 || character > 126))
         {
             throw new InvalidToolArgumentException("content_type must be an ASCII MIME type");
         }
-        await using var file = new FileStream(
-            selectedPath, FileMode.Open, FileAccess.Read, FileShare.Read,
-            64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
         if (file.Length is < 1 or > MaxSendAttachmentBytes)
         {
             throw new InvalidToolArgumentException("selected file must contain 1 byte to 20 MiB");

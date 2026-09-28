@@ -141,6 +141,32 @@ jobs:
           ) {
             throw 'Bounded attachment inspection failed.'
           }
+          Remove-Item Env:M365_ATTACHMENT_PUSH_URL
+          $attachmentRequests = @(
+            '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}',
+            '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mail_add_draft_attachment","arguments":{"draft_id":"draft-1","relative_path":"..\\outside.zip"}}}',
+            '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mail_add_draft_attachment","arguments":{"draft_id":"draft-1","relative_path":"report.zip","content_type":"application/pdf"}}}',
+            '{"jsonrpc":"2.0","id":4,"method":"ping","params":{}}'
+          )
+          $attachmentResponses = @($attachmentRequests | & $exe stdio --ephemeral)
+          if ($LASTEXITCODE -ne 0 -or $attachmentResponses.Count -ne 4) {
+            throw 'Automated stdio attachment smoke test failed.'
+          }
+          $attachmentTools = $attachmentResponses[0] | ConvertFrom-Json
+          $pathRejected = $attachmentResponses[1] | ConvertFrom-Json
+          $typeRejected = $attachmentResponses[2] | ConvertFrom-Json
+          $afterRejection = $attachmentResponses[3] | ConvertFrom-Json
+          $attachmentTool = @($attachmentTools.result.tools | Where-Object name -eq 'mail_add_draft_attachment')[0]
+          if (
+            -not $attachmentTool.inputSchema.properties.relative_path `
+            -or -not $pathRejected.result.isError `
+            -or -not $typeRejected.result.isError `
+            -or $typeRejected.result.content[0].text -notmatch 'content_type must match' `
+            -or $afterRejection.id -ne 4
+          ) {
+            throw 'Automated stdio attachment validation failed.'
+          }
+          $env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
           $escaped = & $exe inspect-attachment '..\outside.zip' 2>&1
           $escapedExit = $LASTEXITCODE
           if ($escapedExit -eq 0 -or $escaped -match '9f64a747') {

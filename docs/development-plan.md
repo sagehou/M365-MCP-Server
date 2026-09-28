@@ -7,8 +7,8 @@
 1. `v0.1.0` is [released](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
    under MIT with a container image and Windows single EXE.
 2. Current source adds file attachments to drafts (up to 20 MiB) through binary
-   staging for remote clients and a native file picker for Windows. This is not
-   part of the published v0.1.0 assets.
+   staging for remote clients, or a bounded relative artifact path and optional
+   native file picker for Windows. This is not part of the published v0.1.0 assets.
 3. Future scope includes richer attachment extraction, search continuation,
    replies and forwarding, and broader Microsoft 365 workloads. Signing and
    antivirus false-positive handling are separate Windows distribution concerns.

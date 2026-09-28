@@ -161,11 +161,12 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 "draft_id"),
             Tool(
                 "mail_add_draft_attachment",
-                "Open the Windows file picker and attach one selected file up to 20 MiB to an existing draft without sending.",
+                "Attach one file up to 20 MiB without sending. Use relative_path under the configured attachment root for unattended automation; omit it for the Windows file picker.",
                 new JsonObject
                 {
                     ["draft_id"] = StringProperty("Existing Outlook draft id."),
-                    ["content_type"] = StringProperty("Optional ASCII MIME type."),
+                    ["relative_path"] = StringProperty("Optional path relative to M365_ATTACHMENT_ROOT; no picker when provided."),
+                    ["content_type"] = StringProperty("Optional ASCII MIME type; must match the inferred type when relative_path is provided."),
                 },
                 "draft_id"),
             Tool(
