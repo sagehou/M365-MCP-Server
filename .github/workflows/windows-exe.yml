@@ -126,7 +126,13 @@ jobs:
           [System.IO.File]::WriteAllBytes($artifact, [byte[]](1, 2, 3, 4))
           $env:M365_ATTACHMENT_ROOT = $attachmentRoot
           $env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
-          $inspected = & $exe inspect-attachment 'report.zip' | ConvertFrom-Json
+          $PSNativeCommandUseErrorActionPreference = $false
+          $inspection = & $exe inspect-attachment 'report.zip' 2>&1
+          $inspectionExit = $LASTEXITCODE
+          if ($inspectionExit -ne 0) {
+            throw "Attachment inspection exited $inspectionExit`: $inspection"
+          }
+          $inspected = $inspection | ConvertFrom-Json
           if (
             $LASTEXITCODE -ne 0 `
             -or $inspected.name -ne 'report.zip' `
@@ -136,7 +142,8 @@ jobs:
             throw 'Bounded attachment inspection failed.'
           }
           $escaped = & $exe inspect-attachment '..\outside.zip' 2>&1
-          if ($LASTEXITCODE -eq 0 -or $escaped -match '9f64a747') {
+          $escapedExit = $LASTEXITCODE
+          if ($escapedExit -eq 0 -or $escaped -match '9f64a747') {
             throw 'Attachment root traversal was not rejected.'
           }
           Remove-Item -LiteralPath $artifact
