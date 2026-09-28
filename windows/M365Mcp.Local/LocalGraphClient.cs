@@ -157,7 +157,12 @@ internal sealed class LocalGraphClient(
         CancellationToken cancellationToken)
     {
         var draftId = RequiredString(arguments, "draft_id");
-        var name = RequiredString(arguments, "name");
+        var selectedPath = await NativeFilePicker.SelectFileAsync(cancellationToken);
+        if (selectedPath is null)
+        {
+            return new JsonObject { ["attached"] = false, ["cancelled"] = true };
+        }
+        var name = Path.GetFileName(selectedPath);
         if (name.Length > 255 || name.Any(character =>
             char.IsControl(character) || character is '/' or '\\'))
         {
@@ -170,28 +175,14 @@ internal sealed class LocalGraphClient(
         {
             throw new InvalidToolArgumentException("content_type must be an ASCII MIME type");
         }
-        var encoded = OptionalString(arguments, "content_base64");
-        if (string.IsNullOrEmpty(encoded) || encoded.Length > ((MaxSendAttachmentBytes + 2) / 3) * 4)
+        await using var file = new FileStream(
+            selectedPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (file.Length is < 1 or > MaxSendAttachmentBytes)
         {
-            throw new InvalidToolArgumentException("content_base64 must contain 1 byte to 20 MiB");
+            throw new InvalidToolArgumentException("selected file must contain 1 byte to 20 MiB");
         }
-        if (encoded.Any(char.IsWhiteSpace))
-        {
-            throw new InvalidToolArgumentException("content_base64 must be valid base64");
-        }
-        byte[] content;
-        try
-        {
-            content = Convert.FromBase64String(encoded);
-        }
-        catch (FormatException)
-        {
-            throw new InvalidToolArgumentException("content_base64 must be valid base64");
-        }
-        if (content.Length is 0 or > MaxSendAttachmentBytes)
-        {
-            throw new InvalidToolArgumentException("content_base64 must contain 1 byte to 20 MiB");
-        }
+        var contentLength = checked((int)file.Length);
 
         var path = $"/me/messages/{Segment(draftId)}";
         var draft = await RequestAsync(
@@ -207,8 +198,12 @@ internal sealed class LocalGraphClient(
         }
 
         string? attachmentId = null;
-        if (content.Length < DirectAttachmentLimit)
+        string contentSha256;
+        if (contentLength < DirectAttachmentLimit)
         {
+            var content = new byte[contentLength];
+            await file.ReadExactlyAsync(content, cancellationToken);
+            contentSha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
             var result = await RequestAsync(
                 HttpMethod.Post,
                 path + "/attachments",
@@ -217,7 +212,7 @@ internal sealed class LocalGraphClient(
                     ["@odata.type"] = "#microsoft.graph.fileAttachment",
                     ["name"] = name,
                     ["contentType"] = contentType,
-                    ["contentBytes"] = encoded,
+                    ["contentBytes"] = Convert.ToBase64String(content),
                 },
                 cancellationToken);
             attachmentId = result["id"] is JsonValue idValue
@@ -236,7 +231,7 @@ internal sealed class LocalGraphClient(
                         ["attachmentType"] = "file",
                         ["name"] = name,
                         ["contentType"] = contentType,
-                        ["size"] = content.Length,
+                        ["size"] = contentLength,
                     },
                 },
                 cancellationToken);
@@ -246,17 +241,21 @@ internal sealed class LocalGraphClient(
                 throw new GraphOperationException("Graph upload session was invalid.");
             }
             var uri = ValidateUploadUrl(uploadUrl);
-            for (var start = 0; start < content.Length; start += UploadChunkBytes)
+            using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            var buffer = new byte[UploadChunkBytes];
+            for (var start = 0; start < contentLength; start += UploadChunkBytes)
             {
-                var length = Math.Min(UploadChunkBytes, content.Length - start);
+                var length = Math.Min(UploadChunkBytes, contentLength - start);
+                await file.ReadExactlyAsync(buffer.AsMemory(0, length), cancellationToken);
+                digest.AppendData(buffer, 0, length);
                 using var request = new HttpRequestMessage(HttpMethod.Put, uri);
-                request.Content = new ByteArrayContent(content, start, length);
+                request.Content = new ByteArrayContent(buffer, 0, length);
                 request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                 request.Content.Headers.ContentRange = new ContentRangeHeaderValue(
-                    start, start + length - 1, content.Length);
+                    start, start + length - 1, contentLength);
                 using var response = await httpClient.SendAsync(
                     request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-                var expected = start + length == content.Length
+                var expected = start + length == contentLength
                     ? HttpStatusCode.Created
                     : HttpStatusCode.OK;
                 if (response.StatusCode != expected)
@@ -265,6 +264,7 @@ internal sealed class LocalGraphClient(
                 }
                 await ReadBoundedAsync(response, cancellationToken);
             }
+            contentSha256 = Convert.ToHexString(digest.GetHashAndReset()).ToLowerInvariant();
         }
 
         return new JsonObject
@@ -273,8 +273,8 @@ internal sealed class LocalGraphClient(
             ["attachment_id"] = attachmentId,
             ["name"] = name,
             ["content_type"] = contentType,
-            ["content_length"] = content.Length,
-            ["content_sha256"] = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(),
+            ["content_length"] = contentLength,
+            ["content_sha256"] = contentSha256,
             ["attached"] = true,
         };
     }

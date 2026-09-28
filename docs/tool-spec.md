@@ -55,17 +55,29 @@ Add one file to an existing draft without sending it. Available in the remote
 server and Windows local executable in unreleased builds (not v0.1.0).
 Call once per file, before `mail_send_draft`.
 
-Input: `draft_id`, plain `name`, `content_base64`, and optional ASCII
-`content_type` (default `application/octet-stream`). The decoded file must be
-1 byte to 20 MiB. Graph uses a direct POST below 3 MB and a sequential upload
-session for larger files. The MCP client must supply the bytes; neither runtime
-reads arbitrary file paths or writes temporary attachment files. A 20 MiB file
-expands to about 27 MiB of base64 in one MCP request, so remote reverse proxies
-must permit a request body above that size. The result includes `attached=true`,
-`content_length`, SHA-256, and an attachment ID for the small-file POST (large
-upload responses leave `attachment_id` null); it never
-returns bytes or the secret upload URL. On failure, inspect the draft and its
-attachment list before retrying because upload outcome can be ambiguous.
+Remote MCP input is `draft_id` and `upload_handle`. First send 1 byte to 20 MiB
+of raw file bytes to `POST /uploads/attachments` with the same delegated Bearer
+token as `/mcp/`, `Content-Type: application/octet-stream`, a percent-encoded
+UTF-8 filename in `X-Attachment-Name`, and optional ASCII MIME type in
+`X-Attachment-Content-Type`. The response contains an opaque, user-bound,
+single-use `upload_handle`, file metadata, and SHA-256. The handle expires after
+five minutes and is stored only in bounded server RAM; it is not durable across
+server restarts or workers. The remote MCP tool consumes that handle and attaches
+the file. Client integrations must implement this binary upload step; the
+bundled WorkBuddy skill alone does not provide a file uploader.
+
+On Windows, the same tool takes `draft_id` and optional `content_type`, then
+opens the system file picker. The EXE reads only the selected file, never accepts
+an arbitrary path from the agent, and writes no temporary attachment file.
+Picker cancellation returns `attached=false, cancelled=true`; it requires an
+interactive desktop and does not support unattended attachment automation.
+
+Graph uses a direct POST below 3 MB and a sequential upload session for larger
+files. The result includes `attached=true`, `content_length`, SHA-256, and an
+attachment ID for the small-file POST (large upload results leave
+`attachment_id` null). Neither tool result includes file bytes or the secret
+Graph upload URL. On failure, inspect the draft and attachment list before
+retrying because upload outcome can be ambiguous.
 
 Before sending, review the exact draft and `mail_list_attachments` output.
 Interactive use requires separate send approval that includes the attachments;

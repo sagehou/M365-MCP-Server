@@ -212,7 +212,7 @@ class MailService:
         """Attach a file to a draft; return an ID when Graph provides one."""
         if not 1 <= len(content) <= MAX_SEND_ATTACHMENT_BYTES:
             raise InvalidToolInputError(
-                "content_base64", "invalid_size", "attachment must be 1 byte to 20 MiB"
+                "attachment", "invalid_size", "attachment must be 1 byte to 20 MiB"
             )
         path = f"/me/messages/{self._segment(draft_id)}"
         draft = await self.graph_client.request(

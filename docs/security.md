@@ -34,6 +34,14 @@ or agent responsibility. A Graph `202 Accepted` response is reported as
 accepted, not delivered. Ambiguous send failures must not be retried
 automatically.
 
+Remote attachment uploads use a separate Bearer-protected binary endpoint.
+Its short-lived, one-use handle is bound to the validated tenant and user;
+staged bytes are capped at 20 MiB each and 80 MiB total in server memory,
+never written to disk. The Graph upload-session URL remains server-side.
+The Windows EXE instead opens a native file picker and reads only the selected
+file; no agent-supplied file path is accepted. Neither attachment mode grants
+send authorization.
+
 ## Token validation
 
 The protected `/mcp/` endpoint requires:

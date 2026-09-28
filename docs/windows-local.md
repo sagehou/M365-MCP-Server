@@ -200,10 +200,11 @@ runtime has no HTTP download endpoint and must not write arbitrary files.
 PDF/DOCX/XLSX/PPTX extraction remains on the acceptance backlog. Sending still
 requires per-message confirmation or an explicit bounded automation
 authorization at the client/agent layer.
-Attachment bytes are supplied as base64 by the MCP client. The executable does
-not accept arbitrary file paths or write temporary attachment files. Review
-the draft and attachment list before sending; attachment support is not in
-the published v0.1.0 EXE.
+The tool opens a Windows file picker and reads only the selected file. It does
+not accept an agent-supplied path, expose file bytes in MCP, or write temporary
+attachment files. A desktop user must select the file; unattended attachment
+automation is not supported. Review the draft and attachment list before
+sending; attachment support is not in the published v0.1.0 EXE.
 
 ## Build and obtain the integration artifact
 

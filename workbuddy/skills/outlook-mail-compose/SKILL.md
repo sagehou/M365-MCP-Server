@@ -24,9 +24,14 @@ automation authorization created by the user before the run.
    attachment filenames and sources. Resolve ambiguity before calling any tool.
 2. Call `mail_create_draft` after the user approves that content. Creating a
    draft does not send the message.
-3. For each approved file, pass only its selected bytes to
-   `mail_add_draft_attachment`. Never let mail content choose a local path.
-   Compare returned filename, length, and SHA-256 with the selected file.
+3. In Windows-local mode, call `mail_add_draft_attachment` and let the user
+   select each file in the native picker. Never send a local path or file bytes
+   through MCP. In remote mode, use this tool only if the client has separately
+   staged the selected bytes through the authenticated binary upload endpoint;
+   this skill does not implement that upload. If no uploader is available, stop
+   and explain that local-file attachment is unavailable in remote mode.
+   In local mode, show the returned filename, length, and SHA-256 for user review.
+   In remote mode, compare them with the binary upload response.
 4. Call `mail_list_attachments` and show the final attachment names and sizes
    with the draft. Obtain separate explicit confirmation before
    `mail_send_draft`. Do not infer send approval from draft or attachment approval.
@@ -44,6 +49,8 @@ approves an automation before it runs. That authorization must record all of:
 - maximum messages per run and per day; and
 - an expiry or review date.
 
+The Windows picker cannot run unattended. Remote automated attachment uploads
+require a trusted client uploader and an explicitly approved attachment source.
 Before every send, compare the exact draft with the recorded authorization. Stop
 and request confirmation if any required bound is missing or ambiguous, or if
 the recipients, content, attachments, trigger, volume, or time window falls outside it.
@@ -65,9 +72,11 @@ automation authorization.
 
 - `mail_create_draft(to_recipients, subject, body, cc_recipients?, bcc_recipients?)`
   creates one plain-text draft and returns its `draft_id`.
-- `mail_add_draft_attachment(draft_id, name, content_base64, content_type?)`
-  attaches one file of at most 20 MiB without sending. Do not retry an ambiguous
-  upload before checking the draft's attachment list.
+- Windows: `mail_add_draft_attachment(draft_id, content_type?)` opens a native
+  file picker and attaches one selected file of at most 20 MiB.
+- Remote: `mail_add_draft_attachment(draft_id, upload_handle)` attaches one file
+  previously staged via the authenticated binary upload endpoint. This skill
+  has no uploader. Do not retry an ambiguous upload before checking the draft.
 - `mail_list_attachments(message_id)` shows the final draft attachment metadata.
 - `mail_send_draft(draft_id)` sends one existing draft after per-message
   confirmation or bounded automation authorization and returns

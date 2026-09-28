@@ -147,6 +147,7 @@ class GraphClient:
                     "Content-Range": f"bytes {start}-{start + len(content) - 1}/{total}",
                 },
                 follow_redirects=False,
+                timeout=max(60.0, self.settings.http_timeout_seconds),
             )
         except httpx.RequestError:
             raise GraphTransportError(

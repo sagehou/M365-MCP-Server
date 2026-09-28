@@ -85,6 +85,8 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 exception is LocalAuthException
                 or GraphOperationException
                 or HttpRequestException
+                or IOException
+                or UnauthorizedAccessException
                 or TaskCanceledException)
             {
                 var reference = Convert.ToHexString(
@@ -159,15 +161,13 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 "draft_id"),
             Tool(
                 "mail_add_draft_attachment",
-                "Attach one file up to 20 MiB to an existing draft without sending; review attachment metadata before send.",
+                "Open the Windows file picker and attach one selected file up to 20 MiB to an existing draft without sending.",
                 new JsonObject
                 {
                     ["draft_id"] = StringProperty("Existing Outlook draft id."),
-                    ["name"] = StringProperty("Plain attachment filename."),
-                    ["content_base64"] = StringProperty("Base64-encoded file bytes, at most 20 MiB decoded."),
                     ["content_type"] = StringProperty("Optional ASCII MIME type."),
                 },
-                "draft_id", "name", "content_base64"),
+                "draft_id"),
             Tool(
                 "mail_list_attachments",
                 "List attachment metadata without returning file bytes.",

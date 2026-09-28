@@ -115,6 +115,24 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         assert not result.get("isError")
                         payload = json.loads(result["content"][0]["text"])
                         assert payload["message"]["id"] == "Bearer graph-" + user
+                    staged = await client.post(
+                        "/uploads/attachments",
+                        headers={
+                            "Authorization": "Bearer alice",
+                            "Content-Type": "application/octet-stream",
+                            "X-Attachment-Name": "note.txt",
+                            "X-Attachment-Content-Type": "text/plain",
+                        },
+                        content=b"hello",
+                    )
+                    assert staged.status_code == 201
+                    handle = staged.json()["upload_handle"]
+                    assert staged.json()["content_length"] == 5
+                    wrong_user = await rpc("bob", "tools/call", {
+                        "name": "mail_add_draft_attachment",
+                        "arguments": {"draft_id": "draft-id", "upload_handle": handle},
+                    })
+                    assert wrong_user["isError"]
                     cases = [
                         ("mail_search", {"query": "test"}, "messages"),
                         (
@@ -127,8 +145,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             "created",
                         ),
                         ("mail_add_draft_attachment", {
-                            "draft_id": "draft-id", "name": "note.txt",
-                            "content_base64": "aGVsbG8=", "content_type": "text/plain",
+                            "draft_id": "draft-id", "upload_handle": handle,
                         }, "attached"),
                         ("mail_send_draft", {"draft_id": "draft-id"}, "send_accepted"),
                         ("mail_list_attachments", {"message_id": "id"}, "attachments"),
@@ -149,7 +166,11 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             assert payload["content"] == "hello"
                         if name == "mail_add_draft_attachment":
                             assert payload["content_length"] == 5
-                            assert "content_base64" not in payload
+                            assert "upload_handle" not in payload
+                            repeated = await rpc("alice", "tools/call", {
+                                "name": name, "arguments": arguments,
+                            })
+                            assert repeated["isError"]
                     bad_date = await rpc("alice", "tools/call", {
                         "name": "mail_search",
                         "arguments": {"query": "test", "date_from": "2026-13-45"},
@@ -183,6 +204,10 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     assert "Verify mailbox state before retrying" in json.dumps(send_failure)
                     missing = await client.post("/mcp/", json={})
                     assert missing.status_code == 401
+                    upload_missing_auth = await client.post(
+                        "/uploads/attachments", content=b"x"
+                    )
+                    assert upload_missing_auth.status_code == 401
 
                     modern_meta = {
                         "io.modelcontextprotocol/protocolVersion": "2026-07-28",

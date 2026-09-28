@@ -24,7 +24,9 @@
   Client Flow。
 - 结构化脱敏 Audit Event；安全错误会返回可关联的 Event ID。
 - 未发布源码增加 `mail_add_draft_attachment`：可为现有草稿添加单个不超过
-  20 MiB 的文件，但不会发送；该功能不属于已发布的 v0.1.0。
+  20 MiB 的文件，但不会发送。远端客户端先走 Bearer 鉴权的二进制上传接口，
+  MCP 只传短期句柄；Windows EXE 弹出本机文件选择框。仓库内 WorkBuddy Skill
+  本身不提供本地文件上传器。该功能不属于已发布的 v0.1.0。
 
 ### Windows 本地 EXE
 

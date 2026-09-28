@@ -1,5 +1,4 @@
 import asyncio
-import base64
 from typing import Any
 
 import pytest
@@ -177,24 +176,6 @@ def test_add_attachment_rejects_non_draft_before_writing() -> None:
         ))
     assert raised.value.code == "not_draft"
     assert len(graph.calls) == 1
-
-
-@pytest.mark.parametrize("name,encoded", [
-    ("../secrets.txt", "YQ=="),
-    ("ok.txt", "not base64!"),
-    ("ok.txt", ""),
-    ("ok.txt", base64.b64encode(b"x" * (20 * 1024 * 1024 + 1)).decode()),
-])
-def test_add_attachment_rejects_invalid_input_before_graph(name, encoded) -> None:
-    class NoGraph:
-        async def add_draft_attachment(self, *args):
-            raise AssertionError("Graph must not be called")
-
-    service = MailToolService(NoGraph())  # type: ignore[arg-type]
-    with pytest.raises(InvalidToolInputError):
-        asyncio.run(service.add_draft_attachment(
-            make_context(), "draft", name, encoded
-        ))
 
 
 @pytest.mark.parametrize(

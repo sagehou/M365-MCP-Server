@@ -173,8 +173,10 @@ EXE 当前提供：
 本地 stdio Runtime 没有 HTTP Download Endpoint，并且不得任意写文件，因此暂不
 提供 `mail_download_attachment`。PDF/DOCX/XLSX/PPTX 解析仍在验收待办中。邮件
 发送仍必须在 Client/Agent 层逐封确认，或具有明确的受限自动化授权。
-附件字节由 MCP Client 以 Base64 提供；EXE 不接受任意文件路径，也不写临时
-附件文件。发送前核对草稿与附件列表。已发布的 v0.1.0 EXE 尚不包含此功能。
+工具调用时弹出 Windows 文件选择框，EXE 只读取用户选中的文件，不接受 Agent
+传入的任意路径、不通过 MCP 暴露文件字节，也不写临时附件文件。附件选择需要
+交互式桌面，暂不支持无人值守的自动附件发送。发送前核对草稿与附件列表。
+已发布的 v0.1.0 EXE 尚不包含此功能。
 
 ## 构建与取得集成产物
 
