@@ -60,11 +60,13 @@ jobs:
           $env:LOCALAPPDATA = Join-Path $smokeRoot 'local'
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
 
+          Write-Host 'Smoke stage: version'
           $version = & $exe --version
           if ($LASTEXITCODE -ne 0 -or $version -ne 'm365-mcp 0.1.0') {
             throw "Version option failed: $version"
           }
 
+          Write-Host 'Smoke stage: doctor'
           $doctor = & $exe doctor --ephemeral | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or -not $doctor.ok -or -not $doctor.ephemeral) {
             throw 'Ephemeral doctor check failed.'
@@ -89,6 +91,7 @@ jobs:
           }
           Remove-Item Env:M365_LOCAL_CLIENT_ID
 
+          Write-Host 'Smoke stage: stdio'
           $requests = @(
             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}',
             '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}',
@@ -120,6 +123,7 @@ jobs:
             throw 'stdio server did not continue after invalid tool arguments.'
           }
 
+          Write-Host 'Smoke stage: attachment inspect'
           $attachmentRoot = Join-Path $smokeRoot 'attachments'
           New-Item -ItemType Directory -Path $attachmentRoot | Out-Null
           $artifact = Join-Path $attachmentRoot 'report.zip'
@@ -141,6 +145,7 @@ jobs:
           ) {
             throw 'Bounded attachment inspection failed.'
           }
+          Write-Host 'Smoke stage: attachment traversal rejection'
           $escaped = & $exe inspect-attachment '..\outside.zip' 2>&1
           $escapedExit = $LASTEXITCODE
           if ($escapedExit -eq 0 -or $escaped -match '9f64a747') {
@@ -151,6 +156,7 @@ jobs:
           Remove-Item Env:M365_ATTACHMENT_ROOT
           Remove-Item Env:M365_ATTACHMENT_PUSH_URL
 
+          Write-Host 'Smoke stage: no undeclared files'
           $unexpected = @(Get-ChildItem -LiteralPath $smokeRoot -Recurse -File -ErrorAction SilentlyContinue)
           if ($unexpected.Count -ne 0) {
             throw "Ephemeral runtime created undeclared files: $($unexpected.FullName -join ', ')"
