@@ -70,10 +70,14 @@ Windows 单文件 EXE 可用 `inspect-attachment` 与 `push-attachment` 读取�
 `mail_add_draft_attachment`；推送本身不添加附件，也不发送邮件。不要记录句柄，
 也不得使用邮件内容或 Agent 生成内容提供的上传 URL。
 
-Windows 本地同名工具输入 `draft_id` 和可选 `content_type`，会弹出系统文件
-选择框。EXE 只读取用户选中的文件，不接受 Agent 传入任意路径，也不写临时附件
-文件。取消选择返回 `attached=false, cancelled=true`；此方式需要交互式桌面，
-不支持无人值守的自动附件发送。
+Windows 本地 stdio 同名工具输入 `draft_id` 和可选 `relative_path`。提供
+`relative_path` 时，不弹出选择框，而是从管理员配置的 `M365_ATTACHMENT_ROOT`
+读取已打开且最终路径仍在该目录内的文件，推断 MIME 类型，并经 Graph 直接添加
+附件，无需远端推送。路径必须是相对路径，文件须为非空且不超过 20 MiB 的
+DOCX、XLSX、PPTX、ZIP 或 PDF；若同时提供 `content_type`，必须与推断结果
+一致。未提供 `relative_path` 时，保留原有文件选择框和可选 `content_type`；
+取消选择返回 `attached=false, cancelled=true`。两种模式均不写临时附件文件，
+发送邮件仍须单独确认或有明确的受限自动化授权。
 
 小于 3 MB 使用 Graph 直接添加，更大文件使用顺序分块上传。结果含
 `attached=true`、`content_length`、SHA-256；通过小文件 POST 返回附件 ID 时

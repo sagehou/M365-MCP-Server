@@ -24,10 +24,12 @@
 - 结构化脱敏 Audit Event；安全错误会返回可关联的 Event ID。
 - 未发布源码增加 `mail_add_draft_attachment`：可为现有草稿添加单个不超过
   20 MiB 的文件，但不会发送。远端客户端可走 Bearer 鉴权的二进制上传接口，
-  MCP 只传短期句柄；Windows 本地 MCP 工具弹出文件选择框。无人值守的本机
-  产物可由远端 Connector 签发绑定草稿的上传凭据，再由同一个 EXE 经 WorkBuddy
+  MCP 只传短期句柄；Windows 本地 MCP 工具可读取指定产物目录下的相对路径，
+  也可弹出文件选择框。远端 Connector 的无人值守本机产物可签发绑定草稿的
+  上传凭据，再由同一个 EXE 经 WorkBuddy
   撰写 Skill 从指定目录主动推送。这些附件能力仍只在源码中，不属于已发布的
-  v0.1.0。详见[附件命令](docs/zh-CN/windows-local.md#远端-connector-的无人值守产物附件)。
+  v0.1.0。详见[Windows 本地附件自动化](docs/zh-CN/windows-local.md#windows-本地-connector-的无人值守产物附件)
+  和[远端附件推送](docs/zh-CN/windows-local.md#远端-connector-的无人值守产物附件)。
 
 ### Windows 本地 EXE
 

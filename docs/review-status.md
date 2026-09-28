@@ -75,7 +75,7 @@ consent, real Graph behavior, code-signing trust, or target-agent compatibility.
   Graph's search ordering/result limits; date-only queries use received time.
 - Plain-text draft creation and draft sending are implemented. The current source
   branch adds draft-file attachments up to 20 MiB through a binary upload and
-  one-use handle remotely, or a native file picker on Windows. This addition is
+  one-use handle remotely, or a bounded artifact path or native file picker on Windows. This addition is
   not part of the published v0.1.0 binaries. Sending requires per-message
   confirmation or explicit bounded automation authorization at the client/agent
   layer. Direct send, HTML composition, and automatic retry remain excluded.

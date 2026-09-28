@@ -174,10 +174,18 @@ EXE 当前提供：
 本地 stdio Runtime 没有 HTTP Download Endpoint，并且不得任意写文件，因此暂不
 提供 `mail_download_attachment`。PDF/DOCX/XLSX/PPTX 解析仍在验收待办中。邮件
 发送仍必须在 Client/Agent 层逐封确认，或具有明确的受限自动化授权。
-本地 `mail_add_draft_attachment` MCP 工具调用时弹出 Windows 文件选择框，
-EXE 只读取用户选中的文件，不接受 Agent 传入的任意路径、不通过 MCP 暴露文件
-字节，也不写临时附件文件。文件选择框仍需要交互式桌面。发送前核对草稿与附件
-列表。已发布的 v0.1.0 EXE 尚不包含此功能。
+
+### Windows 本地 Connector 的无人值守产物附件
+
+使用 Windows 本地 stdio Connector 做无人值守自动化时，在 Connector 进程环境中
+把 `M365_ATTACHMENT_ROOT` 配为可信的产物绝对目录，然后调用
+`mail_add_draft_attachment(draft_id, relative_path="reports\\weekly.docx")`。
+工具只读取最终路径仍在该目录内的已打开文件，限制为 20 MiB 以内的
+DOCX/XLSX/PPTX/ZIP/PDF，并通过本地登录用户的 Graph 会话直接添加附件；
+不需要浏览器上传、第二个 Connector、Bash 命令或远端 Push URL。不写临时附件
+文件，也不通过 MCP 返回文件字节。不传 `relative_path` 时，才使用原有的
+Windows 文件选择框。授权发送前须核对草稿和附件列表；已发布的 v0.1.0 EXE
+尚不包含此功能。
 
 ### 远端 Connector 的无人值守产物附件
 

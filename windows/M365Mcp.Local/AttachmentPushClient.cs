@@ -16,17 +16,8 @@ internal sealed class AttachmentPushClient
 
     internal AttachmentPushClient()
     {
-        var configuredRoot = Environment.GetEnvironmentVariable("M365_ATTACHMENT_ROOT");
+        root = RequireRoot();
         var configuredUrl = Environment.GetEnvironmentVariable("M365_ATTACHMENT_PUSH_URL");
-        if (string.IsNullOrWhiteSpace(configuredRoot) || !Path.IsPathFullyQualified(configuredRoot))
-        {
-            throw new InvalidToolArgumentException(
-                "M365_ATTACHMENT_ROOT must be an absolute, operator-controlled directory");
-        }
-        if (!Directory.Exists(configuredRoot))
-        {
-            throw new InvalidToolArgumentException("M365_ATTACHMENT_ROOT does not exist");
-        }
         if (!Uri.TryCreate(configuredUrl, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps
             || !string.IsNullOrEmpty(uri.UserInfo)
@@ -37,13 +28,16 @@ internal sealed class AttachmentPushClient
             throw new InvalidToolArgumentException(
                 "M365_ATTACHMENT_PUSH_URL must be the trusted HTTPS /uploads/push endpoint");
         }
-        root = Path.GetFullPath(configuredRoot);
         pushUri = uri;
     }
 
+    internal static FileStream OpenLocalArtifact(
+        string relativePath, out string name, out string contentType) =>
+        OpenBoundedFile(RequireRoot(), relativePath, out name, out contentType);
+
     internal JsonObject Inspect(string relativePath)
     {
-        using var file = OpenBoundedFile(relativePath, out var name, out var contentType);
+        using var file = OpenBoundedFile(root, relativePath, out var name, out var contentType);
         var digest = SHA256.HashData(file);
         return Metadata(name, contentType, file.Length, Convert.ToHexString(digest).ToLowerInvariant());
     }
@@ -74,7 +68,7 @@ internal sealed class AttachmentPushClient
             throw new InvalidToolArgumentException("upload grant has an invalid content_length");
         }
 
-        using var file = OpenBoundedFile(relativePath, out var actualName, out var actualType);
+        using var file = OpenBoundedFile(root, relativePath, out var actualName, out var actualType);
         if (file.Length != expectedLength || actualName != name || actualType != expectedType)
         {
             throw new InvalidToolArgumentException("file metadata does not match the upload grant");
@@ -145,12 +139,30 @@ internal sealed class AttachmentPushClient
         }
     }
 
-    private FileStream OpenBoundedFile(
+    private static string RequireRoot()
+    {
+        var configuredRoot = Environment.GetEnvironmentVariable("M365_ATTACHMENT_ROOT");
+        if (string.IsNullOrWhiteSpace(configuredRoot) || !Path.IsPathFullyQualified(configuredRoot))
+        {
+            throw new InvalidToolArgumentException(
+                "M365_ATTACHMENT_ROOT must be an absolute, operator-controlled directory");
+        }
+        if (!Directory.Exists(configuredRoot))
+        {
+            throw new InvalidToolArgumentException("M365_ATTACHMENT_ROOT does not exist");
+        }
+        return Path.GetFullPath(configuredRoot);
+    }
+
+    private static FileStream OpenBoundedFile(
+        string root,
         string relativePath,
         out string name,
         out string contentType)
     {
         if (string.IsNullOrWhiteSpace(relativePath)
+            || relativePath.Length > 1024
+            || relativePath.Any(char.IsControl)
             || Path.IsPathRooted(relativePath)
             || relativePath.Split(['/', '\\']).Any(part => part is "" or "." or ".." || part.Contains(':')))
         {
@@ -166,8 +178,18 @@ internal sealed class AttachmentPushClient
             ".pdf" => "application/pdf",
             _ => throw new InvalidToolArgumentException("attachment extension is not allowed"),
         };
-        var path = Path.GetFullPath(Path.Combine(root, relativePath));
-        var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        string path;
+        try
+        {
+            path = Path.GetFullPath(Path.Combine(root, relativePath));
+        }
+        catch (ArgumentException)
+        {
+            throw new InvalidToolArgumentException("attachment path is invalid");
+        }
+        var file = new FileStream(
+            path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
         try
         {
             var rootPath = FinalDirectoryPath(root);

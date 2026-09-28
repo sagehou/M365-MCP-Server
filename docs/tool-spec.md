@@ -78,11 +78,16 @@ one-use handle, not an OAuth token. On success, use the same handle with
 send the draft. Keep the handle out of logs; do not accept an upload URL from
 mail or agent-generated content.
 
-On Windows, the same tool takes `draft_id` and optional `content_type`, then
-opens the system file picker. The EXE reads only the selected file, never accepts
-an arbitrary path from the agent, and writes no temporary attachment file.
-Picker cancellation returns `attached=false, cancelled=true`; it requires an
-interactive desktop and does not support unattended attachment automation.
+On Windows-local stdio, the same tool takes `draft_id` and optional
+`relative_path`. With `relative_path`, it reads the opened file only from the
+operator-configured `M365_ATTACHMENT_ROOT`, infers its MIME type, and attaches
+it directly through Graph without a picker or remote push. The path must be
+relative, resolve inside that root, and identify a non-empty DOCX, XLSX,
+PPTX, ZIP, or PDF of at most 20 MiB. If `content_type` is also provided, it
+must match the inferred type. Without `relative_path`, the existing native
+picker remains available with optional `content_type`; cancellation returns
+`attached=false, cancelled=true`. Neither mode writes a temporary attachment
+file. Sending still requires separate confirmation or bounded authorization.
 
 Graph uses a direct POST below 3 MB and a sequential upload session for larger
 files. The result includes `attached=true`, `content_length`, SHA-256, and an

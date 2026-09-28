@@ -32,9 +32,10 @@ Server 只接收 Draft ID，授权检查由 Client 或 Agent 负责。Graph 的
 
 远端附件使用单独的 Bearer 鉴权二进制上传 Endpoint。短期一次性句柄绑定已验证
 的 Tenant 与 User；暂存文件每个最多 20 MiB、Server 内存总计最多 80 MiB，
-不写磁盘。Graph 上传会话 URL 不离开 Server。Windows EXE 则弹出原生文件
-选择框，只读取用户选中的文件，不接受 Agent 提供的文件路径。添加附件不构成
-发送授权。
+不写磁盘。Graph 上传会话 URL 不离开 Server。Windows 本地 EXE 可弹出原生文件
+选择框，也可接受管理员配置目录下的产物相对路径；后者核对已打开文件的最终路径、
+类型及 20 MiB 上限后使用本地 Graph 会话，不接受无限制的绝对路径。添加附件
+不构成发送授权。
 
 ## Token 校验
 
