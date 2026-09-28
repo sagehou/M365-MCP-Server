@@ -4,11 +4,11 @@
 
 ## Current Delivery Order
 
-1. `v0.1.0` is [released](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+1. `v0.1.1` is [released](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
    under MIT with a container image and Windows single EXE.
-2. Current source adds file attachments to drafts (up to 20 MiB) through binary
-   staging for remote clients, or a bounded relative artifact path and optional
-   native file picker for Windows. This is not part of the published v0.1.0 assets.
+2. Draft-file attachments up to 20 MiB are included: remote clients use binary
+   staging and an optional one-use push grant, while Windows local stdio uses a
+   bounded relative artifact path or optional native file picker.
 3. Future scope includes richer attachment extraction, search continuation,
    replies and forwarding, and broader Microsoft 365 workloads. Signing and
    antivirus false-positive handling are separate Windows distribution concerns.
@@ -32,6 +32,12 @@ Delivered in v0.1.0:
   mode
 - ten bounded mail tools, including draft creation and draft sending
 - explicit omission of arbitrary attachment file writes
+
+Added in v0.1.1:
+
+- eleven local mail tools, including bounded draft-file attachments
+- relative-path attachment automation under `M365_ATTACHMENT_ROOT`
+- `inspect-attachment` and `push-attachment` commands for remote connectors
 
 Current design boundaries:
 

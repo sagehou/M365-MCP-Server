@@ -60,7 +60,7 @@ consent, real Graph behavior, code-signing trust, or target-agent compatibility.
 
 ## Current release and remaining deployment work
 
-- `v0.1.0` is [published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+- `v0.1.1` is [published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
   under MIT; all four GHCR tags allow anonymous manifest access. Each deployment
   still needs its own Entra configuration and consent checks.
 - OAuth discovery, dynamic public-client registration, MSAL-backed interactive
@@ -73,10 +73,10 @@ consent, real Graph behavior, code-signing trust, or target-agent compatibility.
 - Search returns one bounded page and a next_link hint, not an exhaustive mailbox
   export. The tool does not yet accept continuation cursors. Keyword search obeys
   Graph's search ordering/result limits; date-only queries use received time.
-- Plain-text draft creation and draft sending are implemented. The current source
-  branch adds draft-file attachments up to 20 MiB through a binary upload and
-  one-use handle remotely, or a bounded artifact path or native file picker on Windows. This addition is
-  not part of the published v0.1.0 binaries. Sending requires per-message
+- Plain-text draft creation and draft sending are implemented. v0.1.1 adds
+  draft-file attachments up to 20 MiB through a binary upload and one-use
+  handle remotely, or a bounded artifact path or native file picker on Windows.
+  Sending requires per-message
   confirmation or explicit bounded automation authorization at the client/agent
   layer. Direct send, HTML composition, and automatic retry remain excluded.
 - OCR, replies, forwarding, shared mailboxes, enterprise RBAC/rate
@@ -84,7 +84,7 @@ consent, real Graph behavior, code-signing trust, or target-agent compatibility.
   items.
 - The stable Windows executable is published unsigned with SHA-256 and GitHub
   provenance. Antivirus false-positive handling, optional signing, and SBOM are
-  separate hardening concerns; they do not change the v0.1.0 artifact.
+  separate hardening concerns; they do not change the v0.1.1 artifact.
 - Windows local mode intentionally omits `mail_download_attachment` and rich
   binary-document extraction. It does not install a Windows Service: the stdio
   process is launched and owned by the agent. Service mode would require a

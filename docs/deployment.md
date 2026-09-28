@@ -123,13 +123,10 @@ fixed public origin, persistent SQLite database, and encryption key. See
 The stable release workflow is triggered only by a version tag matching vX.Y.Z.
 It runs the test suite, verifies that the tagged commit is in main, builds the
 production Dockerfile, smoke-tests that exact image, and only then publishes.
-For an approved release version, tag the reviewed main commit (example only):
-
-    git tag v0.1.0
-    git push origin v0.1.0
-
-For a v0.1.0 tag, the workflow publishes the version, major/minor, and latest
-GHCR tags. The workflow uses the repository GitHub token for package publishing;
+For an approved new release, create a new version tag on the reviewed main commit;
+never move an existing release tag. For v0.1.1, the workflow publishes the
+version, major/minor, and latest GHCR tags. It uses the repository GitHub token
+for package publishing;
 no registry secret is committed.
 
 The separate test-image workflow publishes `edge` and a commit-specific SHA tag

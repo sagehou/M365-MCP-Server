@@ -17,20 +17,19 @@ The executable currently provides:
 - the project `M365-MCP-Localhost` public client built in by default, with an
   enterprise client-ID override
 - current-user DPAPI protection for the optional persistent token state
-- MCP stdio with eleven bounded Outlook mail tools in the current source
+- MCP stdio with eleven bounded Outlook mail tools
 - an `--ephemeral` mode that neither reads nor writes persistent state
 - a Windows Actions gate that rejects anything except one executable, removes
   language runtimes from `PATH` during smoke testing, and fails if the
   ephemeral smoke run creates files
 
-The [v0.1.0 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+The [v0.1.1 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
 contains the stable Windows asset, its SHA-256 checksum, MIT notice, and GitHub
 Artifact Attestation for the exact smoke-tested binary. Actions artifacts from
 ordinary branch builds remain integration builds. The released EXE is unsigned;
 Authenticode signing, SBOM, and rich local attachment extraction remain separate
 hardening work. Optional WAM depends on deployment requirements. The published
-v0.1.0 EXE has ten mail tools; the attachment tool exists only in newer source
-and Actions integration artifacts.
+v0.1.1 EXE has eleven mail tools, including draft attachments.
 
 ## Runtime decision
 
@@ -188,7 +187,7 @@ The executable exposes these tools:
 - `mail_get`
 - `mail_create_draft`
 - `mail_send_draft`
-- `mail_add_draft_attachment` (one file up to 20 MiB per call; unreleased builds only)
+- `mail_add_draft_attachment` (one file up to 20 MiB per call)
 - `mail_list_attachments`
 - `mail_read_attachment` for bounded UTF-8 text, CSV, JSON, and XML
 - `mail_mark_read`
@@ -214,12 +213,11 @@ commands. It attaches directly through the locally signed-in user's Graph
 session: no browser upload, second connector, Bash command, or remote push URL
 is needed. It never writes a temporary attachment file or returns file bytes
 through MCP. Omit `relative_path` for the existing interactive Windows file
-picker. Review the draft and attachment list before an authorized send;
-attachment support is not in the published v0.1.0 EXE.
+picker. Review the draft and attachment list before an authorized send.
 
 ### Unattended artifacts for a remote connector
 
-In newer source builds, the same single EXE also provides
+The same released single EXE also provides
 `inspect-attachment <relative-path>` and `push-attachment <relative-path>`.
 These commands do not use Entra login or start an MCP connector. Set
 `M365_ATTACHMENT_ROOT` to a trusted, absolute directory containing completed
@@ -286,5 +284,5 @@ binary, and attaches the exact tested files to the GitHub Release.
   attachment reading, and representative mutations against a real mailbox.
 - Verify refresh, logout, corrupted-state recovery, two-account isolation, and
   tenant policy behavior.
-- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation are required for v0.1.0.
+- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation accompany v0.1.1.
 - Validate the published executable on a clean Windows x64 VM.

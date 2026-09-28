@@ -15,17 +15,17 @@
   S256 PKCE 登录；
 - 默认内置项目公共客户端 `M365-MCP-Localhost`，并允许企业覆盖 Client ID；
 - 使用当前 Windows 用户 DPAPI 保护可选持久 Token State；
-- 当前源码通过 MCP stdio 提供 11 个有边界的 Outlook Mail 工具；
+- 通过 MCP stdio 提供 11 个有边界的 Outlook Mail 工具；
 - `--ephemeral` 模式，不读取也不写入持久状态；
 - Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
   `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
 
-[v0.1.0 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)
+[v0.1.1 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
 已提供稳定版 Windows EXE、SHA-256 校验文件、MIT 许可声明和该精确 Smoke Test
 二进制文件的 GitHub Artifact Attestation。普通分支的 Actions Artifact 仍只是
 集成产物。已发布 EXE 尚无 Authenticode 签名；SBOM 与 PDF/Office 本地附件解析
-属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.0 EXE 提供 10 个
-邮件工具；添加附件工具仅在更新的源码与 Actions 集成产物中提供。
+属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.1 EXE 提供 11 个
+邮件工具，包括添加草稿附件。
 
 ## Runtime 决策
 
@@ -163,7 +163,7 @@ EXE 当前提供：
 - `mail_get`
 - `mail_create_draft`
 - `mail_send_draft`
-- `mail_add_draft_attachment`：每次最多添加 20 MiB 的单个文件（仅未发布构建）
+- `mail_add_draft_attachment`：每次最多添加 20 MiB 的单个文件
 - `mail_list_attachments`
 - `mail_read_attachment`：支持有边界的 UTF-8 Text、CSV、JSON 和 XML
 - `mail_mark_read`
@@ -184,12 +184,11 @@ EXE 当前提供：
 DOCX/XLSX/PPTX/ZIP/PDF，并通过本地登录用户的 Graph 会话直接添加附件；
 不需要浏览器上传、第二个 Connector、Bash 命令或远端 Push URL。不写临时附件
 文件，也不通过 MCP 返回文件字节。不传 `relative_path` 时，才使用原有的
-Windows 文件选择框。授权发送前须核对草稿和附件列表；已发布的 v0.1.0 EXE
-尚不包含此功能。
+Windows 文件选择框。授权发送前须核对草稿和附件列表。
 
 ### 远端 Connector 的无人值守产物附件
 
-较新源码构建中的同一个单文件 EXE 还提供
+已发布的同一个单文件 EXE 还提供
 `inspect-attachment <relative-path>` 和 `push-attachment <relative-path>`。
 这些命令不使用 Entra 登录，也不启动另一个 MCP Connector。把
 `M365_ATTACHMENT_ROOT` 配为存放已完成自动化产物的可信绝对目录，把
@@ -245,5 +244,5 @@ Smoke Test Windows x64 EXE，发布 SHA-256 校验文件和 MIT 许可声明，�
 - 在不解压 Runtime 的前提下增加安全的富文档附件解析。
 - 使用真实邮箱验证搜索、读取、草稿、确认发送、受限自动化发送、附件读取和代表性修改。
 - 验证 Refresh、Logout、损坏 State 恢复、双账户隔离和 Tenant Policy。
-- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.0 必须提供 SHA-256 Checksum 与 GitHub Artifact Attestation。
+- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.1 附有 SHA-256 Checksum 与 GitHub Artifact Attestation。
 - 在干净 Windows x64 VM 上验证已发布的精确 EXE。

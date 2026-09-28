@@ -47,19 +47,19 @@ Agent 兼容性。
 
 ## 当前发布状态与后续部署工作
 
-- `v0.1.0` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.0)；
+- `v0.1.1` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)；
   四个 GHCR 标签均允许匿名读取 Manifest。每个部署仍需单独核对 Entra 配置和同意。
 - OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。
 - 受限自动发送属于 Client/Agent 授权契约；Server 只收到 `draft_id`，不能据此判断是否已经取得授权。
 - Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
-- 已实现纯文本 Draft 创建和发送。当前源码还支持远端二进制上传加一次性句柄，
-  或 Windows 受限产物相对路径/原生文件选择框，将最多 20 MiB 的文件添加至草稿；此能力不在已发布的
-  v0.1.0 二进制文件中。Client/Agent 层必须逐封确认或具有明确的受限自动化授权。
+- 已实现纯文本 Draft 创建和发送。v0.1.1 还支持远端二进制上传加一次性句柄，
+  或 Windows 受限产物相对路径/原生文件选择框，将最多 20 MiB 的文件添加至草稿。
+  Client/Agent 层必须逐封确认或具有明确的受限自动化授权。
   一步式 Direct Send、HTML 撰写和自动重试仍不提供。
 - OCR、Reply、Forward、Shared Mailboxes、Enterprise RBAC / Rate Limiting /
   Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
 - 稳定版 Windows EXE 已作为未签名文件发布，并附有 SHA-256 与 GitHub 构建来源
-  证明。杀毒误报处理、可选签名和 SBOM 属于独立加固事项，不改变 v0.1.0 产物。
+  证明。杀毒误报处理、可选签名和 SBOM 属于独立加固事项，不改变 v0.1.1 产物。
 - Windows 本地模式有意不提供 `mail_download_attachment` 和丰富二进制文档提取。
   它不会安装 Windows Service：stdio 进程由 Agent 启动并管理。Service Mode
   需要独立 IPC 与安全设计。
