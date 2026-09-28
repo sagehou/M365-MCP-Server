@@ -13,7 +13,7 @@
     <Product>M365 MCP Server</Product>
     <Description>Windows local MCP server for Microsoft 365 mail</Description>
     <Copyright>Copyright (c) 2026 sagehou</Copyright>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <RootNamespace>M365Mcp.Local</RootNamespace>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>

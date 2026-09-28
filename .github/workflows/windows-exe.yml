@@ -42,7 +42,7 @@ jobs:
             $versionInfo.FileDescription -ne 'M365 MCP Server (Windows Local)' `
             -or $versionInfo.ProductName -ne 'M365 MCP Server' `
             -or $versionInfo.LegalCopyright -ne 'Copyright (c) 2026 sagehou' `
-            -or $versionInfo.FileVersion -ne '0.1.0.0'
+            -or $versionInfo.FileVersion -ne '0.1.1.0'
           ) {
             throw "Unexpected Windows version resource: $($versionInfo | Format-List | Out-String)"
           }
@@ -61,7 +61,7 @@ jobs:
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
 
           $version = & $exe --version
-          if ($LASTEXITCODE -ne 0 -or $version -ne 'm365-mcp 0.1.0') {
+          if ($LASTEXITCODE -ne 0 -or $version -ne 'm365-mcp 0.1.1') {
             throw "Version option failed: $version"
           }
 

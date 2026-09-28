@@ -186,7 +186,7 @@ of these live checks with the exact release image and connector archive:
 2. Connect from a clean WorkBuddy profile. Verify browser launch, Microsoft login
    and consent, then return to WorkBuddy through
    `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback`.
-3. Initialize MCP, list exactly eleven tools, then exercise search, single-message
+3. Initialize MCP, list exactly thirteen tools, then exercise search, single-message
    read, draft creation, separately confirmed draft sending, attachment extraction,
    one-time attachment download and deliberate mutations on disposable messages.
    Verify the new IDs returned by move and archive are used afterward.
