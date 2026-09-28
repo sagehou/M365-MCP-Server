@@ -216,7 +216,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     modern_tools = await modern_rpc(
                         "alice", "tools/list", {"_meta": modern_meta}
                     )
-                    assert len(modern_tools["tools"]) == 10
+                    assert len(modern_tools["tools"]) == 11
                     modern_result = await modern_rpc(
                         "bob",
                         "tools/call",
