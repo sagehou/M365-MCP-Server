@@ -126,11 +126,11 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             },
                             "created",
                         ),
-                        ("mail_send_draft", {"draft_id": "draft-id"}, "send_accepted"),
                         ("mail_add_draft_attachment", {
                             "draft_id": "draft-id", "name": "note.txt",
                             "content_base64": "aGVsbG8=", "content_type": "text/plain",
                         }, "attached"),
+                        ("mail_send_draft", {"draft_id": "draft-id"}, "send_accepted"),
                         ("mail_list_attachments", {"message_id": "id"}, "attachments"),
                         ("mail_read_attachment", {"message_id": "id", "attachment_id": "attachment"}, "content"),
                         ("mail_mark_read", {"message_id": "id", "is_read": False}, "is_read"),
@@ -147,6 +147,9 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             assert payload["message_id"] == "moved-id"
                         if name == "mail_read_attachment":
                             assert payload["content"] == "hello"
+                        if name == "mail_add_draft_attachment":
+                            assert payload["content_length"] == 5
+                            assert "content_base64" not in payload
                     bad_date = await rpc("alice", "tools/call", {
                         "name": "mail_search",
                         "arguments": {"query": "test", "date_from": "2026-13-45"},
@@ -252,6 +255,16 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                 "toRecipients": [
                     {"emailAddress": {"address": "recipient@example.com"}}
                 ],
+            },
+        ),
+        (
+            "POST",
+            "/v1.0/me/messages/draft-id/attachments",
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": "note.txt",
+                "contentType": "text/plain",
+                "contentBytes": "aGVsbG8=",
             },
         ),
         ("POST", "/v1.0/me/messages/draft-id/send", None),
