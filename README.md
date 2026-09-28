@@ -25,6 +25,9 @@ handling of Outlook mail and attachments.
 - A WorkBuddy connector package under `workbuddy/` with a mocked end-to-end
   client flow in CI.
 - Structured, redacted audit events with correlation IDs returned in safe errors.
+- In unreleased source, `mail_add_draft_attachment` adds a file of
+  up to 20 MiB to an existing draft; it does not send the message. This feature
+  is not part of the published v0.1.0 release.
 
 ### Windows local executable
 
@@ -64,7 +67,7 @@ GitHub Actions is the only build and test environment for this repository.
 
 - Live bounded-automation-send acceptance.
 - Search continuation cursors and folder discovery.
-- Reply and forward workflows; HTML and attachment composition.
+- Reply and forward workflows; HTML composition and live acceptance of attachment sending.
 - OCR, shared mailboxes, RBAC, read-only mode, dynamic tool exposure, and rate
   limiting.
 - Calendar, OneDrive, SharePoint, and Teams.

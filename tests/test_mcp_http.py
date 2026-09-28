@@ -43,7 +43,11 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                 "contentBytes": base64.b64encode(b"hello").decode(),
             })
         if request.url.path.endswith("/attachments"):
+            if request.method == "POST":
+                return httpx.Response(201, json={"id": "new-attachment"})
             return httpx.Response(200, json={"value": [{"id": "attachment", "name": "notes.txt"}]})
+        if request.method == "GET" and request.url.path == "/v1.0/me/messages/draft-id":
+            return httpx.Response(200, json={"id": "draft-id", "isDraft": True})
         if request.method == "POST" and request.url.path == "/v1.0/me/messages":
             return httpx.Response(201, json={"id": "draft-id"})
         if request.url.path == "/v1.0/me/messages/draft-id/send":
@@ -86,6 +90,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     listed = await rpc("alice", "tools/list", {})
                     assert {tool["name"] for tool in listed["tools"]} == {
                         "mail_search", "mail_get", "mail_create_draft", "mail_send_draft",
+                        "mail_add_draft_attachment",
                         "mail_list_attachments", "mail_read_attachment",
                         "mail_mark_read", "mail_archive", "mail_move", "mail_set_category",
                     }
@@ -122,6 +127,10 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                             "created",
                         ),
                         ("mail_send_draft", {"draft_id": "draft-id"}, "send_accepted"),
+                        ("mail_add_draft_attachment", {
+                            "draft_id": "draft-id", "name": "note.txt",
+                            "content_base64": "aGVsbG8=", "content_type": "text/plain",
+                        }, "attached"),
                         ("mail_list_attachments", {"message_id": "id"}, "attachments"),
                         ("mail_read_attachment", {"message_id": "id", "attachment_id": "attachment"}, "content"),
                         ("mail_mark_read", {"message_id": "id", "is_read": False}, "is_read"),

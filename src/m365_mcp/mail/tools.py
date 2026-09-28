@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import hashlib
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from ..extractors import (
 )
 from ..graph.client import GraphResponse
 from ..graph.mail import MailService
+from ..graph.mail import MAX_SEND_ATTACHMENT_BYTES
 from ..security import AuditLogger, untrusted_content_metadata
 from .downloads import AttachmentDownloadStore, DownloadPayload
 
@@ -308,6 +310,52 @@ class MailToolService:
             "delivery_confirmed": False,
         }
 
+    async def add_draft_attachment(
+        self,
+        context: AuthContext,
+        draft_id: str,
+        name: str,
+        content_base64: str,
+        content_type: str = "application/octet-stream",
+    ) -> dict[str, Any]:
+        if (
+            not isinstance(name, str)
+            or not name.strip()
+            or len(name) > 255
+            or any(ord(char) < 32 or ord(char) == 127 or char in "/\\" for char in name)
+        ):
+            raise InvalidToolInputError("name", "invalid_name", "use a plain filename of at most 255 characters")
+        if (
+            not isinstance(content_type, str)
+            or not content_type
+            or len(content_type) > 127
+            or not content_type.isascii()
+            or any(ord(char) < 33 or ord(char) > 126 for char in content_type)
+        ):
+            raise InvalidToolInputError("content_type", "invalid_type", "use an ASCII MIME type")
+        if not isinstance(content_base64, str) or not content_base64:
+            raise InvalidToolInputError("content_base64", "empty", "base64 content is required")
+        if len(content_base64) > ((MAX_SEND_ATTACHMENT_BYTES + 2) // 3) * 4:
+            raise InvalidToolInputError("content_base64", "too_large", "attachment exceeds 20 MiB")
+        try:
+            content = base64.b64decode(content_base64, validate=True)
+        except (ValueError, binascii.Error):
+            raise InvalidToolInputError("content_base64", "invalid_base64", "invalid base64 content") from None
+        if not content or len(content) > MAX_SEND_ATTACHMENT_BYTES:
+            raise InvalidToolInputError("content_base64", "invalid_size", "attachment must be 1 byte to 20 MiB")
+        attachment_id = await self.mail_service.add_draft_attachment(
+            context, draft_id, name, content_type, content
+        )
+        return {
+            "draft_id": draft_id,
+            "attachment_id": attachment_id,
+            "name": name,
+            "content_type": content_type,
+            "content_length": len(content),
+            "content_sha256": hashlib.sha256(content).hexdigest(),
+            "attached": True,
+        }
+
 
 def register_mail_tools(
     mcp: FastMCP,
@@ -430,6 +478,28 @@ def register_mail_tools(
         return await audited(
             "mail_send_draft",
             lambda context: service.send_draft(context, draft_id),
+            write_operation=True,
+        )
+
+    @mcp.tool(
+        name="mail_add_draft_attachment",
+        description=(
+            "Attach one file up to 20 MiB to an existing Outlook draft without sending. "
+            "Pass base64 file bytes, a plain filename, and optional MIME type. "
+            "Review the exact draft and attachment list before sending."
+        ),
+    )
+    async def mail_add_draft_attachment(
+        draft_id: str,
+        name: str,
+        content_base64: str,
+        content_type: str = "application/octet-stream",
+    ) -> dict[str, Any]:
+        return await audited(
+            "mail_add_draft_attachment",
+            lambda context: service.add_draft_attachment(
+                context, draft_id, name, content_base64, content_type
+            ),
             write_operation=True,
         )
 

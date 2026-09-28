@@ -40,7 +40,7 @@ Automations must compare it with the user's recorded bounded authorization.
 Send one existing draft by `draft_id` after either per-message explicit user
 confirmation or an explicit bounded automation authorization. The automation
 authorization must constrain recipients/domains, trigger, content-generation
-rules and trusted sources, per-run and daily volume, and expiry. Any deviation
+rules and trusted sources, approved attachment names/content, per-run and daily volume, and expiry. Any deviation
 requires confirmation.
 
 The server receives only the `draft_id` and cannot prove which client-side
@@ -48,6 +48,28 @@ authorization path was used; the integrating client or agent is responsible for
 enforcing it before this call. `send_accepted=true` means Microsoft Graph
 accepted the request; `delivery_confirmed=false` makes clear that final delivery
 is not proven. Do not automatically retry an ambiguous failure.
+
+### mail_add_draft_attachment
+
+Add one file to an existing draft without sending it. Available in the remote
+server and Windows local executable in unreleased builds (not v0.1.0).
+Call once per file, before `mail_send_draft`.
+
+Input: `draft_id`, plain `name`, `content_base64`, and optional ASCII
+`content_type` (default `application/octet-stream`). The decoded file must be
+1 byte to 20 MiB. Graph uses a direct POST below 3 MB and a sequential upload
+session for larger files. The MCP client must supply the bytes; neither runtime
+reads arbitrary file paths or writes temporary attachment files. A 20 MiB file
+expands to about 27 MiB of base64 in one MCP request, so remote reverse proxies
+must permit a request body above that size. The result includes `attached=true`,
+`content_length`, SHA-256, and an attachment ID for the small-file POST (large
+upload responses leave `attachment_id` null); it never
+returns bytes or the secret upload URL. On failure, inspect the draft and its
+attachment list before retrying because upload outcome can be ambiguous.
+
+Before sending, review the exact draft and `mail_list_attachments` output.
+Interactive use requires separate send approval that includes the attachments;
+bounded automation must explicitly authorize their source and content.
 
 ### mail_list_attachments
 

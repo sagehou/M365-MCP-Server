@@ -54,6 +54,34 @@ def make_settings(**overrides: Any) -> Settings:
     return Settings(**values)
 
 
+def test_upload_session_uses_only_validated_outlook_url_without_bearer() -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(201)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            graph = GraphClient(make_settings(), StubObo(), http_client=client)
+            url = "https://outlook.office.com/api/v2.0/AttachmentSessions('id')?authtoken=opaque"
+            result = await graph.upload_attachment_chunk(url, b"abc", 0, 3)
+            assert result.status_code == 201
+            for bad in (
+                "http://outlook.office.com/api/v2.0/AttachmentSessions('id')?x=y",
+                "https://evil.example/api/v2.0/AttachmentSessions('id')?x=y",
+                "https://outlook.office.com.evil.example/api/v2.0/AttachmentSessions('id')?x=y",
+            ):
+                with pytest.raises(GraphPathError):
+                    await graph.upload_attachment_chunk(bad, b"abc", 0, 3)
+
+    asyncio.run(exercise())
+    assert len(requests) == 1
+    assert "authorization" not in requests[0].headers
+    assert requests[0].headers["content-range"] == "bytes 0-2/3"
+    assert requests[0].content == b"abc"
+
+
 def test_graph_client_honors_retry_after_and_uses_delegated_token() -> None:
     attempts: list[httpx.Request] = []
     responses = [

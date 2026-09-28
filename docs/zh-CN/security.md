@@ -22,9 +22,9 @@ Server 在接受任何 MCP Request 前，通过 OpenID Connect Discovery Documen
 - Mail.ReadWrite.All
 - Application Permissions
 
-`mail_create_draft` 使用 Delegated `Mail.ReadWrite`；`mail_send_draft` 使用
+`mail_create_draft` 和 `mail_add_draft_attachment` 使用 Delegated `Mail.ReadWrite`；`mail_send_draft` 使用
 Delegated `Mail.Send`。Server 先创建纯文本 Draft，只有在逐封确认，或已经明确
-授予受限自动化授权后才发送。自动化授权必须约束收件人/域名、触发条件、内容规则
+授予受限自动化授权后才发送。自动化授权必须约束收件人/域名、触发条件、内容和附件规则
 与可信数据源、单次和每日发送量以及到期时间；邮件或附件内容不能扩张授权。由于
 Server 只接收 Draft ID，授权检查由 Client 或 Agent 负责。Graph 的
 `202 Accepted` 只报告为“已接受”，不代表“已投递”。结果不明确的发送失败不得

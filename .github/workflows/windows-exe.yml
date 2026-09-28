@@ -94,27 +94,29 @@ jobs:
             '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}',
             '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":42,"arguments":{}}}',
             '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"mail_mark_read","arguments":{"message_id":"test","is_read":"true"}}}',
-            '{"jsonrpc":"2.0","id":5,"method":"ping","params":{}}'
+            '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"mail_add_draft_attachment","arguments":{"draft_id":"draft","name":"test.txt","content_base64":"invalid!"}}}',
+            '{"jsonrpc":"2.0","id":6,"method":"ping","params":{}}'
           )
           $responses = @($requests | & $exe stdio --ephemeral)
-          if ($LASTEXITCODE -ne 0 -or $responses.Count -ne 5) {
+          if ($LASTEXITCODE -ne 0 -or $responses.Count -ne 6) {
             throw "stdio smoke test failed with $($responses.Count) responses."
           }
           $initialize = $responses[0] | ConvertFrom-Json
           $tools = $responses[1] | ConvertFrom-Json
           $invalidName = $responses[2] | ConvertFrom-Json
           $invalidBoolean = $responses[3] | ConvertFrom-Json
-          $ping = $responses[4] | ConvertFrom-Json
+          $invalidAttachment = $responses[4] | ConvertFrom-Json
+          $ping = $responses[5] | ConvertFrom-Json
           if ($initialize.result.serverInfo.name -ne 'M365 MCP Server (Windows Local)') {
             throw 'Unexpected MCP server identity.'
           }
-          if (@($tools.result.tools).Count -ne 10) {
-            throw "Expected 10 local mail tools; found $(@($tools.result.tools).Count)."
+          if (@($tools.result.tools).Count -ne 11) {
+            throw "Expected 11 local mail tools; found $(@($tools.result.tools).Count)."
           }
-          if (-not $invalidName.result.isError -or -not $invalidBoolean.result.isError) {
+          if (-not $invalidName.result.isError -or -not $invalidBoolean.result.isError -or -not $invalidAttachment.result.isError) {
             throw 'Invalid tool argument handling failed.'
           }
-          if ($ping.id -ne 5 -or $null -eq $ping.result) {
+          if ($ping.id -ne 6 -or $null -eq $ping.result) {
             throw 'stdio server did not continue after invalid tool arguments.'
           }
 

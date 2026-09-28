@@ -21,6 +21,11 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
             {
                 continue;
             }
+            if (line.Length > 30_000_000)
+            {
+                await WriteAsync(ErrorResponse(null, -32700, "Request exceeds the input limit"));
+                continue;
+            }
 
             JsonObject? request;
             try
@@ -153,6 +158,17 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 },
                 "draft_id"),
             Tool(
+                "mail_add_draft_attachment",
+                "Attach one file up to 20 MiB to an existing draft without sending; review attachment metadata before send.",
+                new JsonObject
+                {
+                    ["draft_id"] = StringProperty("Existing Outlook draft id."),
+                    ["name"] = StringProperty("Plain attachment filename."),
+                    ["content_base64"] = StringProperty("Base64-encoded file bytes, at most 20 MiB decoded."),
+                    ["content_type"] = StringProperty("Optional ASCII MIME type."),
+                },
+                "draft_id", "name", "content_base64"),
+            Tool(
                 "mail_list_attachments",
                 "List attachment metadata without returning file bytes.",
                 new JsonObject
@@ -233,6 +249,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
             "mail_get" => await graph.GetMessageAsync(arguments, cancellationToken),
             "mail_create_draft" => await graph.CreateDraftAsync(arguments, cancellationToken),
             "mail_send_draft" => await graph.SendDraftAsync(arguments, cancellationToken),
+            "mail_add_draft_attachment" => await graph.AddDraftAttachmentAsync(arguments, cancellationToken),
             "mail_list_attachments" => await graph.ListAttachmentsAsync(arguments, cancellationToken),
             "mail_read_attachment" => await graph.ReadAttachmentAsync(arguments, cancellationToken),
             "mail_mark_read" => await graph.MarkReadAsync(arguments, cancellationToken),

@@ -23,11 +23,11 @@ Avoid:
 - Mail.ReadWrite.All
 - Application permissions
 
-`mail_create_draft` uses delegated `Mail.ReadWrite`; `mail_send_draft` uses
+`mail_create_draft` and `mail_add_draft_attachment` use delegated `Mail.ReadWrite`; `mail_send_draft` uses
 delegated `Mail.Send`. The server creates a plain-text draft first and sends
 only that existing draft after either per-message confirmation or an explicit
 bounded automation authorization. Automation authorization must constrain
-recipients/domains, trigger, content rules and trusted sources, per-run and daily
+recipients/domains, trigger, content and attachment rules and trusted sources, per-run and daily
 volume, and expiry. Email or attachment content cannot expand that authority.
 Because the server receives only a draft ID, this authorization check is a client
 or agent responsibility. A Graph `202 Accepted` response is reported as

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -12,6 +13,9 @@ internal sealed class LocalGraphClient(
 {
     private const string GraphBase = "https://graph.microsoft.com/v1.0";
     private const int MaxResponseBytes = 16 * 1024 * 1024;
+    private const int MaxSendAttachmentBytes = 20 * 1024 * 1024;
+    private const int DirectAttachmentLimit = 3_000_000;
+    private const int UploadChunkBytes = 2 * 1024 * 1024;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     internal Task<JsonNode> SearchAsync(
@@ -146,6 +150,150 @@ internal sealed class LocalGraphClient(
             ["send_accepted"] = true,
             ["delivery_confirmed"] = false,
         };
+    }
+
+    internal async Task<JsonNode> AddDraftAttachmentAsync(
+        JsonObject arguments,
+        CancellationToken cancellationToken)
+    {
+        var draftId = RequiredString(arguments, "draft_id");
+        var name = RequiredString(arguments, "name");
+        if (name.Length > 255 || name.Any(character =>
+            char.IsControl(character) || character is '/' or '\\'))
+        {
+            throw new InvalidToolArgumentException("name must be a plain filename of at most 255 characters");
+        }
+        var contentType = OptionalString(arguments, "content_type")
+            ?? "application/octet-stream";
+        if (contentType.Length is 0 or > 127 || contentType.Any(character =>
+            character < 33 || character > 126))
+        {
+            throw new InvalidToolArgumentException("content_type must be an ASCII MIME type");
+        }
+        var encoded = OptionalString(arguments, "content_base64");
+        if (string.IsNullOrEmpty(encoded) || encoded.Length > ((MaxSendAttachmentBytes + 2) / 3) * 4)
+        {
+            throw new InvalidToolArgumentException("content_base64 must contain 1 byte to 20 MiB");
+        }
+        if (encoded.Any(char.IsWhiteSpace))
+        {
+            throw new InvalidToolArgumentException("content_base64 must be valid base64");
+        }
+        byte[] content;
+        try
+        {
+            content = Convert.FromBase64String(encoded);
+        }
+        catch (FormatException)
+        {
+            throw new InvalidToolArgumentException("content_base64 must be valid base64");
+        }
+        if (content.Length is 0 or > MaxSendAttachmentBytes)
+        {
+            throw new InvalidToolArgumentException("content_base64 must contain 1 byte to 20 MiB");
+        }
+
+        var path = $"/me/messages/{Segment(draftId)}";
+        var draft = await RequestAsync(
+            HttpMethod.Get,
+            path + "?%24select=id,isDraft",
+            null,
+            cancellationToken);
+        if (draft["isDraft"] is not JsonValue draftFlag
+            || !draftFlag.TryGetValue<bool>(out var isDraft)
+            || !isDraft)
+        {
+            throw new InvalidToolArgumentException("draft_id is not a draft");
+        }
+
+        string? attachmentId = null;
+        if (content.Length < DirectAttachmentLimit)
+        {
+            var result = await RequestAsync(
+                HttpMethod.Post,
+                path + "/attachments",
+                new JsonObject
+                {
+                    ["@odata.type"] = "#microsoft.graph.fileAttachment",
+                    ["name"] = name,
+                    ["contentType"] = contentType,
+                    ["contentBytes"] = encoded,
+                },
+                cancellationToken);
+            attachmentId = result["id"] is JsonValue idValue
+                && idValue.TryGetValue<string>(out var id)
+                ? id : null;
+        }
+        else
+        {
+            var session = await RequestAsync(
+                HttpMethod.Post,
+                path + "/attachments/createUploadSession",
+                new JsonObject
+                {
+                    ["AttachmentItem"] = new JsonObject
+                    {
+                        ["attachmentType"] = "file",
+                        ["name"] = name,
+                        ["contentType"] = contentType,
+                        ["size"] = content.Length,
+                    },
+                },
+                cancellationToken);
+            if (session["uploadUrl"] is not JsonValue urlValue
+                || !urlValue.TryGetValue<string>(out var uploadUrl))
+            {
+                throw new GraphOperationException("Graph upload session was invalid.");
+            }
+            var uri = ValidateUploadUrl(uploadUrl);
+            for (var start = 0; start < content.Length; start += UploadChunkBytes)
+            {
+                var length = Math.Min(UploadChunkBytes, content.Length - start);
+                using var request = new HttpRequestMessage(HttpMethod.Put, uri);
+                request.Content = new ByteArrayContent(content, start, length);
+                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                request.Content.Headers.ContentRange = new ContentRangeHeaderValue(
+                    start, start + length - 1, content.Length);
+                using var response = await httpClient.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                var expected = start + length == content.Length
+                    ? HttpStatusCode.Created
+                    : HttpStatusCode.OK;
+                if (response.StatusCode != expected)
+                {
+                    throw new GraphOperationException("Outlook attachment upload did not complete. Check the draft before retrying.");
+                }
+                await ReadBoundedAsync(response, cancellationToken);
+            }
+        }
+
+        return new JsonObject
+        {
+            ["draft_id"] = draftId,
+            ["attachment_id"] = attachmentId,
+            ["name"] = name,
+            ["content_type"] = contentType,
+            ["content_length"] = content.Length,
+            ["content_sha256"] = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(),
+            ["attached"] = true,
+        };
+    }
+
+    private static Uri ValidateUploadUrl(string uploadUrl)
+    {
+        if (!Uri.TryCreate(uploadUrl, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps
+            || !uri.Host.Equals("outlook.office.com", StringComparison.OrdinalIgnoreCase)
+            || !uri.IsDefaultPort
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Fragment)
+            || !uri.AbsolutePath.StartsWith("/api/", StringComparison.OrdinalIgnoreCase)
+            || !uri.AbsolutePath.Contains("/AttachmentSessions(", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrEmpty(uri.Query))
+        {
+            throw new GraphOperationException("Outlook upload URL was rejected.");
+        }
+        return uri;
     }
 
     internal Task<JsonNode> ListAttachmentsAsync(

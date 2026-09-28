@@ -162,6 +162,7 @@ EXE 当前提供：
 - `mail_get`
 - `mail_create_draft`
 - `mail_send_draft`
+- `mail_add_draft_attachment`：每次最多添加 20 MiB 的单个文件（仅未发布构建）
 - `mail_list_attachments`
 - `mail_read_attachment`：支持有边界的 UTF-8 Text、CSV、JSON 和 XML
 - `mail_mark_read`
@@ -172,6 +173,8 @@ EXE 当前提供：
 本地 stdio Runtime 没有 HTTP Download Endpoint，并且不得任意写文件，因此暂不
 提供 `mail_download_attachment`。PDF/DOCX/XLSX/PPTX 解析仍在验收待办中。邮件
 发送仍必须在 Client/Agent 层逐封确认，或具有明确的受限自动化授权。
+附件字节由 MCP Client 以 Base64 提供；EXE 不接受任意文件路径，也不写临时
+附件文件。发送前核对草稿与附件列表。已发布的 v0.1.0 EXE 尚不包含此功能。
 
 ## 构建与取得集成产物
 

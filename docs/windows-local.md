@@ -187,6 +187,7 @@ The executable exposes these tools:
 - `mail_get`
 - `mail_create_draft`
 - `mail_send_draft`
+- `mail_add_draft_attachment` (one file up to 20 MiB per call; unreleased builds only)
 - `mail_list_attachments`
 - `mail_read_attachment` for bounded UTF-8 text, CSV, JSON, and XML
 - `mail_mark_read`
@@ -199,6 +200,10 @@ runtime has no HTTP download endpoint and must not write arbitrary files.
 PDF/DOCX/XLSX/PPTX extraction remains on the acceptance backlog. Sending still
 requires per-message confirmation or an explicit bounded automation
 authorization at the client/agent layer.
+Attachment bytes are supplied as base64 by the MCP client. The executable does
+not accept arbitrary file paths or write temporary attachment files. Review
+the draft and attachment list before sending; attachment support is not in
+the published v0.1.0 EXE.
 
 ## Build and obtain the integration artifact
 

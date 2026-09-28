@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from typing import Any
 
 import pytest
@@ -115,6 +116,85 @@ def test_mail_create_and_send_draft_build_graph_requests() -> None:
             "path": "/me/messages/draft%2Fid/send",
         },
     ]
+
+
+def test_add_small_draft_attachment_uses_graph_file_attachment() -> None:
+    class Graph(StubGraphClient):
+        async def request(self, context, method, path, **kwargs):
+            result = await super().request(context, method, path, **kwargs)
+            if method == "GET":
+                return GraphResponse(200, {"isDraft": True}, None, {})
+            return GraphResponse(201, {"id": "attachment-1"}, None, {})
+
+    graph = Graph()
+    service = MailService(graph)  # type: ignore[arg-type]
+    attachment_id = asyncio.run(service.add_draft_attachment(
+        make_context(), "draft/id", "report.txt", "text/plain", b"hello"
+    ))
+    assert attachment_id == "attachment-1"
+    assert graph.calls[0]["params"] == {"$select": "id,isDraft"}
+    assert graph.calls[1]["path"] == "/me/messages/draft%2Fid/attachments"
+    assert graph.calls[1]["json_body"]["contentBytes"] == "aGVsbG8="
+
+
+def test_add_large_draft_attachment_uses_ordered_upload_ranges() -> None:
+    class Graph(StubGraphClient):
+        def __init__(self):
+            super().__init__()
+            self.ranges = []
+
+        async def request(self, context, method, path, **kwargs):
+            await super().request(context, method, path, **kwargs)
+            if method == "GET":
+                data = {"isDraft": True}
+            else:
+                data = {"uploadUrl": "https://outlook.office.com/api/v2.0/AttachmentSessions('id')?token=x"}
+            return GraphResponse(201, data, None, {})
+
+        async def upload_attachment_chunk(self, url, content, start, total):
+            self.ranges.append((start, len(content), total))
+            status = 201 if start + len(content) == total else 200
+            return GraphResponse(status, {}, None, {})
+
+    graph = Graph()
+    service = MailService(graph)  # type: ignore[arg-type]
+    data = b"x" * 3_000_000
+    assert asyncio.run(service.add_draft_attachment(
+        make_context(), "draft", "large.bin", "application/octet-stream", data
+    )) is None
+    assert graph.calls[1]["path"].endswith("/attachments/createUploadSession")
+    assert graph.calls[1]["json_body"]["AttachmentItem"]["size"] == len(data)
+    assert graph.ranges == [(0, 2 * 1024 * 1024, len(data)),
+                            (2 * 1024 * 1024, len(data) - 2 * 1024 * 1024, len(data))]
+
+
+def test_add_attachment_rejects_non_draft_before_writing() -> None:
+    graph = StubGraphClient()
+    service = MailService(graph)  # type: ignore[arg-type]
+    with pytest.raises(InvalidToolInputError) as raised:
+        asyncio.run(service.add_draft_attachment(
+            make_context(), "sent", "a.txt", "text/plain", b"a"
+        ))
+    assert raised.value.code == "not_draft"
+    assert len(graph.calls) == 1
+
+
+@pytest.mark.parametrize("name,encoded", [
+    ("../secrets.txt", "YQ=="),
+    ("ok.txt", "not base64!"),
+    ("ok.txt", ""),
+    ("ok.txt", base64.b64encode(b"x" * (20 * 1024 * 1024 + 1)).decode()),
+])
+def test_add_attachment_rejects_invalid_input_before_graph(name, encoded) -> None:
+    class NoGraph:
+        async def add_draft_attachment(self, *args):
+            raise AssertionError("Graph must not be called")
+
+    service = MailToolService(NoGraph())  # type: ignore[arg-type]
+    with pytest.raises(InvalidToolInputError):
+        asyncio.run(service.add_draft_attachment(
+            make_context(), "draft", name, encoded
+        ))
 
 
 @pytest.mark.parametrize(

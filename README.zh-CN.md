@@ -23,6 +23,8 @@
 - `workbuddy/` 中提供 WorkBuddy Connector Package，CI 覆盖完整的 Mock
   Client Flow。
 - 结构化脱敏 Audit Event；安全错误会返回可关联的 Event ID。
+- 未发布源码增加 `mail_add_draft_attachment`：可为现有草稿添加单个不超过
+  20 MiB 的文件，但不会发送；该功能不属于已发布的 v0.1.0。
 
 ### Windows 本地 EXE
 
@@ -60,7 +62,7 @@ GitHub Actions 是本仓库唯一的构建与测试环境。
 
 - 受限自动发送的真实验收。
 - Search Continuation Cursor 与 Folder Discovery。
-- Reply、Forward 工作流，以及 HTML 和附件撰写。
+- Reply、Forward 工作流、HTML 撰写，以及附件发送的真实环境验收。
 - OCR、Shared Mailbox、RBAC、Read-only Mode、Dynamic Tool Exposure 和 Rate
   Limiting。
 - Calendar、OneDrive、SharePoint 和 Teams。

@@ -38,12 +38,31 @@
 
 在用户逐封明确确认，或已经明确授予有边界的自动化授权后，按 `draft_id` 发送
 一封现有草稿。自动化授权必须约束收件人/域名、触发条件、内容生成规则与可信数据
-源、单次和每日发送量以及到期时间；任何越界都需要确认。
+源、获准的附件名称与内容、单次和每日发送量以及到期时间；任何越界都需要确认。
 
 Server 只接收 `draft_id`，无法证明 Client 使用了哪种授权路径；集成 Client 或
 Agent 必须在调用前执行该策略。`send_accepted=true` 表示 Microsoft Graph 已接受
 请求；`delivery_confirmed=false` 明确表示尚未证明最终投递成功。对结果不明确的
 失败不得自动重试。
+
+### mail_add_draft_attachment
+
+为现有草稿添加一个文件，不发送邮件。未发布构建的远端 Server 和 Windows
+本地 EXE 均支持；不属于已发布的 v0.1.0。每个文件调用一次，随后才能调用
+`mail_send_draft`。
+
+输入为 `draft_id`、普通文件名 `name`、`content_base64` 以及可选的 ASCII
+`content_type`（默认 `application/octet-stream`）。解码后单个文件须为 1 字节至
+20 MiB。小于 3 MB 使用 Graph 直接添加，更大文件使用顺序分块上传。附件字节由
+MCP Client 提供；两种 Runtime 都不读取任意文件路径，也不写临时附件文件。
+20 MiB 文件在单次 MCP 请求中会膨胀至约 27 MiB Base64，远端反向代理须允许
+高于此值的请求体。结果含 `attached=true`、`content_length`、SHA-256；Graph
+通过小文件 POST 返回附件 ID 时也返回 ID（大文件结果中的 `attachment_id` 为
+null），但绝不返回字节或敏感的上传 URL。失败后先检查草稿及
+附件列表，再决定是否重试，因为上传结果可能不明确。
+
+发送前核对完整草稿及 `mail_list_attachments`。交互模式的单独发送确认须包含附件；
+受限自动化授权须明确限定附件来源和内容。
 
 ### mail_list_attachments
 

@@ -118,6 +118,49 @@ class GraphClient:
 
         raise GraphTransportError("Microsoft Graph request exhausted retries")
 
+    async def upload_attachment_chunk(
+        self, upload_url: str, content: bytes, start: int, total: int
+    ) -> GraphResponse:
+        """PUT one Outlook upload-session range without a delegated bearer token."""
+        parsed = urlsplit(upload_url)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "outlook.office.com"
+            or parsed.port is not None
+            or parsed.username is not None
+            or parsed.password is not None
+            or not parsed.path.startswith("/api/")
+            or "/AttachmentSessions(" not in parsed.path
+            or not parsed.query
+            or parsed.fragment
+        ):
+            raise GraphPathError("Outlook upload URL was rejected")
+        if not content or start < 0 or total < start + len(content):
+            raise GraphPathError("Invalid Outlook upload byte range")
+        try:
+            response = await self._request_bounded(
+                "PUT",
+                upload_url,
+                content=content,
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "Content-Range": f"bytes {start}-{start + len(content) - 1}/{total}",
+                },
+                follow_redirects=False,
+            )
+        except httpx.RequestError:
+            raise GraphTransportError(
+                "Outlook attachment upload failed; draft state may be unknown"
+            ) from None
+        if response.status_code not in {200, 201}:
+            raise GraphTransportError("Outlook attachment upload was rejected")
+        return GraphResponse(
+            status_code=response.status_code,
+            data=self._response_data(response),
+            request_id=self._request_id(response),
+            headers=dict(response.headers),
+        )
+
     async def _request_bounded(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         # Bound decoded bytes even for chunked or compressed responses, before JSON parsing.
         async with self._client.stream(method, url, **kwargs) as response:
