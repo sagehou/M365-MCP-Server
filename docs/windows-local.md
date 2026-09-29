@@ -215,7 +215,7 @@ is needed. It never writes a temporary attachment file or returns file bytes
 through MCP. Omit `relative_path` for the existing interactive Windows file
 picker. Review the draft and attachment list before an authorized send.
 
-### Unattended artifacts for a remote connector
+### Local EXE helper for a remote connector
 
 The same released single EXE also provides
 `inspect-attachment <relative-path>` and `push-attachment <relative-path>`.
@@ -227,16 +227,12 @@ root; the EXE checks the opened file's resolved path, permits DOCX, XLSX,
 PPTX, ZIP, and PDF, and rejects empty files or files over 20 MiB. It creates
 no temporary file.
 
-1. Inspect the completed local artifact. The command returns its filename,
-   MIME type, byte length, and SHA-256.
-2. Create the draft via the remote MCP connector. Call
-   `mail_prepare_attachment_push` with the draft ID and inspected metadata.
-3. Pass the returned grant JSON on standard input to `push-attachment` for
-   the same relative path. The EXE verifies the configured URL and rechecks
-   the file against the grant before posting raw bytes. It never receives the
-   user's OAuth token, and it does not follow HTTP redirects.
-4. Call remote `mail_add_draft_attachment` with that draft ID and the returned
-   `upload_handle`. Verify `mail_list_attachments` before an authorized send.
+`inspect-attachment` returns the local file's name, MIME type, byte length and
+SHA-256. `push-attachment` accepts the complete grant JSON through standard
+input for the same path. The EXE checks the configured URL and the file again
+before posting raw bytes; it receives no user OAuth token and does not follow
+HTTP redirects. The full server-side grant, upload, attachment and send
+sequence belongs to the [remote MCP server guide](mcp-server.md).
 
 For example, in PowerShell with an already received MCP grant JSON held only in
 `$grantJson`:
@@ -248,9 +244,8 @@ $env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
 $grantJson | & 'C:\Tools\m365-mcp.exe' push-attachment 'reports\weekly.docx'
 ```
 
-The handle is a five-minute capability: do not log it or place it in command
-arguments. If inspection and push differ, regenerate the grant; never guess
-the hash. A successful push alone neither attaches nor sends the draft.
+Do not log the grant or place it in command arguments. If inspection and push
+differ, regenerate the grant; never guess the hash.
 The WorkBuddy compose Skill can invoke these commands through its Bash tool;
 the EXE must be installed at an operator-approved path. A bounded automation
 authorization must still name the permitted output source, recipients, sizes,

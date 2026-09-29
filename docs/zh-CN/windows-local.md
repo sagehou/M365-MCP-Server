@@ -186,7 +186,7 @@ DOCX/XLSX/PPTX/ZIP/PDF，并通过本地登录用户的 Graph 会话直接添加
 文件，也不通过 MCP 返回文件字节。不传 `relative_path` 时，才使用原有的
 Windows 文件选择框。授权发送前须核对草稿和附件列表。
 
-### 远端 Connector 的无人值守产物附件
+### 远端 Connector 的本机 EXE 辅助命令
 
 已发布的同一个单文件 EXE 还提供
 `inspect-attachment <relative-path>` 和 `push-attachment <relative-path>`。
@@ -196,14 +196,11 @@ Windows 文件选择框。授权发送前须核对草稿和附件列表。
 调用者只能给出该目录下的相对路径；EXE 校验打开文件的最终路径，仅允许
 DOCX、XLSX、PPTX、ZIP 和 PDF，拒绝空文件及超过 20 MiB 的文件，不创建临时文件。
 
-1. 检查已完成的本机产物，取得文件名、MIME 类型、字节数和 SHA-256。
-2. 经远端 MCP Connector 创建草稿，并用草稿 ID 与检查所得元数据调用
-   `mail_prepare_attachment_push`。
-3. 将返回的 Grant JSON 经标准输入传给同一相对路径的 `push-attachment`。
-   EXE 核对配置的 URL 并重新核验文件，再发送原始字节；它不接收用户 OAuth
-   Token，也不跟随 HTTP Redirect。
-4. 用草稿 ID 和返回的 `upload_handle` 调用远端
-   `mail_add_draft_attachment`。授权发送前检查 `mail_list_attachments`。
+`inspect-attachment` 返回本机文件名、MIME 类型、字节数及 SHA-256。
+`push-attachment` 从标准输入读取同一路径的完整 Grant JSON；EXE 会再次检查
+配置的 URL 和文件，再推送原始字节，不接收用户 OAuth Token，也不跟随 HTTP
+Redirect。Server 端的 Grant、上传、添加附件和发送完整步骤见
+[远端 MCP Server 指南](mcp-server.md)。
 
 例如 PowerShell 中已经把 MCP 工具返回的 Grant JSON 暂存在 `$grantJson` 时：
 
@@ -214,9 +211,8 @@ $env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
 $grantJson | & 'C:\Tools\m365-mcp.exe' push-attachment 'reports\weekly.docx'
 ```
 
-句柄是五分钟有效的 Capability：不要记录它或放在命令行参数中。如检查与推送
-之间文件已变化，重新签发 Grant，不要猜测哈希。推送成功本身既不添加附件，也
-不发送邮件。WorkBuddy 撰写 Skill 可通过 Bash 工具调用这些命令；EXE 必须放在
+不要记录 Grant 或放在命令行参数中。如检查与推送之间文件已变化，重新签发
+Grant，不要猜测哈希。WorkBuddy 撰写 Skill 可通过 Bash 工具调用这些命令；EXE 必须放在
 管理员认可的位置。受限自动化授权仍须明确约束产物来源、收件人、大小、邮件
 数量与有效期。EXE 的目录限制只约束该命令；WorkBuddy 的通用 Bash 权限仍可能
 访问其他文件，还需要依赖客户端自身的沙箱与工具审批策略。

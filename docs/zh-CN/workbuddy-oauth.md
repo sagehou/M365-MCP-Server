@@ -2,6 +2,9 @@
 
 # WorkBuddy OAuth
 
+本文说明远端 Server 认证。草稿文件上传与 WorkBuddy 本机产物推送流程见
+[远端 MCP Server 指南](mcp-server.md#为远端草稿添加文件)。
+
 ## 当前阶段
 
 Server 当前实现 Discovery、Registration 与 Interactive Authorization-code Flow：
@@ -109,7 +112,7 @@ MSAL 会让用户同时授权同一个 App 的 `api://<CLIENT_ID>/access_as_user
 
 GitHub Actions 会针对真实 ASGI/FastMCP Application 运行 Mock WorkBuddy E2E Test：解析 401 `resource_metadata` Challenge，发现两份 Metadata，动态注册 WorkBuddy Private Callback，通过 Mock Entra Callback 完成 S256 Authorization，兑换 Local Code，初始化 MCP，轮换 Refresh Token，再使用刷新后的 Access Token 列出 Tools。该测试不连接真实 Tenant，也不会修改邮箱。
 
-生产启用 OAuth 或把 v0.1 标记为 Ready 之前，必须针对精确 Release Image 和 Connector Archive 执行并记录以下 Live Checks：
+部署中启用 OAuth 之前，须针对使用的精确 Server Image 和 Connector Archive 执行并记录以下 Live Checks：
 
 1. 在 WorkBuddy 4.24.0 或更高版本安装 Connector，确认不会出现 Token 填写表单。
 2. 使用干净 WorkBuddy Profile 连接，确认 Browser Launch、Microsoft Login 与 Consent，并通过 `workbuddy://workbuddy/mcp/connector%3Asagehou-m365-mcp-server/oauth/callback` 返回 WorkBuddy。
