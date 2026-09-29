@@ -2,6 +2,9 @@
 
 # WorkBuddy OAuth
 
+This guide covers remote-server authentication. For draft-file upload and the
+WorkBuddy local-artifact push sequence, see the [remote MCP server guide](mcp-server.md#add-a-file-to-a-remote-draft).
+
 ## Current phase
 
 The server currently implements discovery, registration and the interactive
@@ -178,8 +181,8 @@ the local code, initializes MCP, rotates the refresh token and lists tools with
 the refreshed access token. This proves the repository flow without contacting a
 tenant or changing a mailbox.
 
-Before enabling OAuth in production or calling v0.1 ready, perform and record all
-of these live checks with the exact release image and connector archive:
+Before enabling OAuth in a deployment, perform and record these live checks
+with its exact server image and connector archive:
 
 1. Install the connector in WorkBuddy 4.24.0 or later and verify that no token
    entry form appears.

@@ -4,6 +4,10 @@
 
 ## Supported deployment artifact
 
+For the server/client workflow and both draft-attachment upload routes, start
+with the [remote MCP server guide](mcp-server.md). This page covers deployment
+and operations.
+
 The supported delivery artifact is the container image:
 
     ghcr.io/sagehou/m365-mcp-server:<version>
@@ -177,15 +181,17 @@ and `api://<CLIENT_ID>` audience forms.
    credential are reused for interactive sign-in; no second registration or
    second credential set exists. Interactive sign-in, local
    authorization-code exchange and encrypted refresh sessions remain behind the
-   disabled feature flag; live acceptance remains a release blocker.
+   default-off feature flag. Each deployment must validate its own client flow.
 5. Confirm /healthz returns 200 and /mcp/ without a bearer token returns 401.
    These checks do not validate tenant credentials, Graph consent or OBO.
-6. With two test users, initialize MCP, list the eleven tools and read a known
+6. With two test users, initialize MCP, list the eleven default-mode tools
+   (or thirteen with server-managed OAuth enabled) and read a known
    message from each mailbox. Verify cross-user message access is denied.
    Exercise updates only on disposable test messages, verify moved IDs, and send
    only a reviewed or policy-matched draft to a controlled test recipient.
-7. Read representative attachments and redeem a generated download URL exactly
-   once; verify expiry/replay returns 404. Verify JSON audit events contain identity,
+7. Read representative attachments. With server-managed OAuth enabled, redeem a
+   generated download URL exactly once and verify expiry/replay returns 404.
+   Verify JSON audit events contain identity,
    tool, outcome and timestamp but no message text, filenames, URL tickets or tokens.
    If OBO/tool calls fail, inspect audit error type and Entra sign-in diagnostics;
    do not enable payload/token logging.

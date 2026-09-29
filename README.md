@@ -15,6 +15,9 @@ handling of Outlook mail and attachments.
 
 ### Remote MCP server
 
+Start with the [remote MCP server guide](docs/mcp-server.md) for the container,
+client connection and attachment-upload paths.
+
 - FastMCP Streamable HTTP endpoint at `/mcp/`.
 - Microsoft Entra bearer-token validation with tenant and scope enforcement.
 - Microsoft Graph delegated access through On-Behalf-Of (OBO).
@@ -24,18 +27,17 @@ handling of Outlook mail and attachments.
 - A WorkBuddy connector package under `workbuddy/` with a mocked end-to-end
   client flow in CI.
 - Structured, redacted audit events with correlation IDs returned in safe errors.
-- `mail_add_draft_attachment` adds a file of
-  up to 20 MiB to an existing draft without sending. Remote clients can use
-  a Bearer-authenticated binary upload endpoint and pass only its short-lived
-  handle to MCP; the Windows local MCP tool can attach a file by relative path
-  under a configured artifact root or open a file picker. For unattended
-  local artifacts with a remote connector, the server can issue a draft-bound upload grant
-  and the same EXE can push a file from a configured directory through the
-  WorkBuddy compose Skill. These attachment paths are included in v0.1.1. See
-  [Windows-local attachment automation](docs/windows-local.md#unattended-artifacts-for-a-windows-local-connector)
-  and [remote attachment push](docs/windows-local.md#unattended-artifacts-for-a-remote-connector).
+- `mail_add_draft_attachment` adds up to 20 MiB to an existing draft without
+  sending. A remote client explicitly uploads raw bytes, then passes a
+  short-lived handle to MCP. For unattended client-side artifacts, OAuth mode
+  can issue a draft-bound push grant; a trusted local uploader supplies the
+  bytes. See [remote draft attachments](docs/mcp-server.md#add-a-file-to-a-remote-draft).
 
 ### Windows local executable
+
+See the [Windows local guide](docs/windows-local.md) for `stdio`, local login,
+relative-path draft attachments and the optional EXE helper for a remote
+connector.
 
 The Windows x64 NativeAOT local runtime is included in v0.1.1. The release
 provides:

@@ -13,6 +13,9 @@
 
 ### 远端 MCP Server
 
+容器部署、客户端连接和附件上传路径从[远端 MCP Server 指南](docs/zh-CN/mcp-server.md)
+开始阅读。
+
 - FastMCP Streamable HTTP Endpoint：`/mcp/`。
 - Microsoft Entra Bearer Token 校验，并执行 Tenant 与 Scope 约束。
 - 通过 On-Behalf-Of（OBO）使用 Microsoft Graph 委托权限。
@@ -22,16 +25,15 @@
 - `workbuddy/` 中提供 WorkBuddy Connector Package，CI 覆盖完整的 Mock
   Client Flow。
 - 结构化脱敏 Audit Event；安全错误会返回可关联的 Event ID。
-- `mail_add_draft_attachment` 可为现有草稿添加单个不超过
-  20 MiB 的文件，但不会发送。远端客户端可走 Bearer 鉴权的二进制上传接口，
-  MCP 只传短期句柄；Windows 本地 MCP 工具可读取指定产物目录下的相对路径，
-  也可弹出文件选择框。远端 Connector 的无人值守本机产物可签发绑定草稿的
-  上传凭据，再由同一个 EXE 经 WorkBuddy
-  撰写 Skill 从指定目录主动推送。这两条附件路径均包含在 v0.1.1 中。详见
-  [Windows 本地附件自动化](docs/zh-CN/windows-local.md#windows-本地-connector-的无人值守产物附件)
-  和[远端附件推送](docs/zh-CN/windows-local.md#远端-connector-的无人值守产物附件)。
+- `mail_add_draft_attachment` 可为现有草稿添加单个不超过 20 MiB 的附件，
+  但不会发送。远端客户端须主动上传原始字节，再向 MCP 提供短时句柄。无人值守
+  本机产物可在 OAuth 模式下取得绑定草稿的 Push Grant，由受信任的本机程序
+  提供文件字节。见[远端草稿附件](docs/zh-CN/mcp-server.md#为远端草稿添加文件)。
 
 ### Windows 本地 EXE
+
+`stdio`、本地登录、相对路径草稿附件，以及配合远端 Connector 的可选 EXE
+辅助命令，见 [Windows 本地指南](docs/zh-CN/windows-local.md)。
 
 Windows x64 NativeAOT 本地 Runtime 已包含在 v0.1.1 中。Release 提供：
 

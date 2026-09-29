@@ -99,6 +99,7 @@ retrying because upload outcome can be ambiguous.
 Before sending, review the exact draft and `mail_list_attachments` output.
 Interactive use requires separate send approval that includes the attachments;
 bounded automation must explicitly authorize their source and content.
+For both remote upload sequences, see the [remote MCP server guide](mcp-server.md#add-a-file-to-a-remote-draft).
 
 ### mail_list_attachments
 

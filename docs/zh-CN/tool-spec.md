@@ -87,6 +87,7 @@ DOCX、XLSX、PPTX、ZIP 或 PDF；若同时提供 `content_type`，必须与推
 
 发送前核对完整草稿及 `mail_list_attachments`。交互模式的单独发送确认须包含附件；
 受限自动化授权须明确限定附件来源和内容。
+两条远端上传路径的完整步骤见[远端 MCP Server 指南](mcp-server.md#为远端草稿添加文件)。
 
 ### mail_list_attachments
 
