@@ -1,0 +1,192 @@
+name: QDE NativeAOT diagnostic
+
+on:
+  push:
+    branches:
+      - codex/qde-nativeaot-diagnostic
+    paths:
+      - .github/workflows/qde-nativeaot-diagnostic.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qde-nativeaot-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-diagnostic:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    env:
+      RELEASE_SOURCE_COMMIT: 3b88f49e51d323c53a9c5adf7e2c9eacae945d52
+      ORIGINAL_RELEASE_SHA256: 66c72a5cc770daf2eff474261554abd10ed522a007cd1d34ad58a6083f740278
+      DIAGNOSTIC_SDK: 8.0.425
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Checkout exact v0.1.1 source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SOURCE_COMMIT }}
+          path: release-source
+          persist-credentials: false
+      - name: Setup release SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DIAGNOSTIC_SDK }}
+      - name: Prepare minimal baseline with unchanged project settings
+        shell: pwsh
+        run: |
+          $sdk = @{
+            sdk = @{
+              version = $env:DIAGNOSTIC_SDK
+              rollForward = 'disable'
+              allowPrerelease = $false
+            }
+          } | ConvertTo-Json
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText(
+            (Join-Path $env:GITHUB_WORKSPACE 'global.json'), $sdk, $utf8)
+          $actualSdk = & dotnet --version
+          if ($LASTEXITCODE -ne 0 -or $actualSdk -ne $env:DIAGNOSTIC_SDK) {
+            throw "Unexpected SDK: $actualSdk"
+          }
+
+          $baseline = New-Item -ItemType Directory -Path 'diagnostic-source'
+          Copy-Item -LiteralPath 'release-source/windows/M365Mcp.Local/M365Mcp.Local.csproj' `
+            -Destination (Join-Path $baseline.FullName 'M365Mcp.Local.csproj')
+          [System.IO.File]::WriteAllText(
+            (Join-Path $baseline.FullName 'Program.cs'),
+            'Console.WriteLine("NativeAOT diagnostic baseline");', $utf8)
+
+          $sourceHash = (Get-FileHash `
+            'release-source/windows/M365Mcp.Local/M365Mcp.Local.csproj').Hash
+          $baselineHash = (Get-FileHash 'diagnostic-source/M365Mcp.Local.csproj').Hash
+          if ($sourceHash -ne $baselineHash) {
+            throw 'Baseline project settings differ from the release project.'
+          }
+      - name: Publish minimal NativeAOT baseline
+        shell: pwsh
+        run: >
+          dotnet publish diagnostic-source/M365Mcp.Local.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output artifacts/qde-nativeaot-diagnostic/baseline
+          -p:TreatWarningsAsErrors=true
+      - name: Rebuild v0.1.1 in the same environment for comparison
+        shell: pwsh
+        run: >
+          dotnet publish release-source/windows/M365Mcp.Local/M365Mcp.Local.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output artifacts/qde-nativeaot-diagnostic/rebuilt-v0.1.1
+          -p:TreatWarningsAsErrors=true
+      - name: Verify diagnostic executables and record provenance
+        shell: pwsh
+        run: |
+          $root = (Resolve-Path 'artifacts/qde-nativeaot-diagnostic').Path
+          $dotnetInfo = @(& dotnet --info)
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Unable to record .NET environment.'
+          }
+          $cases = @(
+            @{ name = 'baseline'; expected = 'NativeAOT diagnostic baseline'; arguments = @() },
+            @{ name = 'rebuilt-v0.1.1'; expected = 'm365-mcp 0.1.1'; arguments = @('--version') }
+          )
+          $records = @()
+          $checksums = @()
+          foreach ($case in $cases) {
+            $directory = Join-Path $root $case.name
+            $files = @(Get-ChildItem -LiteralPath $directory -File -Recurse)
+            if ($files.Count -ne 1 -or $files[0].Name -ne 'm365-mcp.exe') {
+              throw "Expected a single NativeAOT EXE for $($case.name)."
+            }
+            $file = $files[0]
+            $version = $file.VersionInfo
+            if (
+              $version.FileDescription -ne 'M365 MCP Server (Windows Local)' `
+              -or $version.ProductName -ne 'M365 MCP Server' `
+              -or $version.LegalCopyright -ne 'Copyright (c) 2026 sagehou' `
+              -or $version.FileVersion -ne '0.1.1.0'
+            ) {
+              throw "Unexpected version resources for $($case.name)."
+            }
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($signature.Status -ne 'NotSigned') {
+              throw "Unexpected signature status for $($case.name): $($signature.Status)"
+            }
+            $arguments = $case.arguments
+            $output = @(& $file.FullName @arguments)
+            if ($LASTEXITCODE -ne 0 -or $output.Count -ne 1 -or $output[0] -ne $case.expected) {
+              throw "Diagnostic smoke test failed for $($case.name): $output"
+            }
+            $relativePath = "$($case.name)/m365-mcp.exe"
+            $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $records += [ordered]@{
+              path = $relativePath
+              sha256 = $hash
+              bytes = $file.Length
+              signature_status = $signature.Status.ToString()
+            }
+            $checksums += "$hash  $relativePath"
+          }
+          $manifest = [ordered]@{
+            diagnostic_only = $true
+            release_tag = 'v0.1.1'
+            release_source_commit = $env:RELEASE_SOURCE_COMMIT
+            original_release_sha256 = $env:ORIGINAL_RELEASE_SHA256
+            workflow_commit = $env:GITHUB_SHA
+            run_url = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            sdk = $env:DIAGNOSTIC_SDK
+            runner_image = $env:ImageOS
+            runner_image_version = $env:ImageVersion
+            project_sha256 = (Get-FileHash `
+              'diagnostic-source/M365Mcp.Local.csproj' -Algorithm SHA256).Hash.ToLowerInvariant()
+            dotnet_info = $dotnetInfo
+            samples = $records
+          }
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText(
+            (Join-Path $root 'manifest.json'), ($manifest | ConvertTo-Json -Depth 6), $utf8)
+          [System.IO.File]::WriteAllLines(
+            (Join-Path $root 'SHA256SUMS.txt'), [string[]]$checksums, $utf8)
+          $notes = @(
+            '# QDE NativeAOT diagnostic samples'
+            ''
+            'Diagnostic artifacts only. This workflow does not publish or replace a release.'
+            ''
+            '- baseline/m365-mcp.exe: minimal console program; not an MCP server.'
+            '- rebuilt-v0.1.1/m365-mcp.exe: unchanged v0.1.1 source rebuilt alongside the baseline.'
+            '- Both use identical project settings, version resources, SDK and runner.'
+            '- The rebuilt sample is not the original GitHub Release binary; its hash may differ.'
+            '- Hosted runner and compiler components may differ from the original release run.'
+            ''
+            'Compare these samples and the original v0.1.1 EXE on the same Qianxin endpoint.'
+            'Running either sample is unnecessary for the reported pre-execution detection.'
+            'Record engine and definition versions, policy, cloud connectivity, time and detection name.'
+            'Do not disable endpoint protection or add broad exclusions for this experiment.'
+            'A successful build or smoke test does not demonstrate that a QDE detection is resolved.'
+            'Even a clean baseline does not by itself identify the exact cause of the detection.'
+          )
+          [System.IO.File]::WriteAllLines(
+            (Join-Path $root 'README.md'), [string[]]$notes, $utf8)
+          $summary = @(
+            '## Diagnostic-only NativeAOT comparison'
+            ''
+            "Pinned SDK: $env:DIAGNOSTIC_SDK"
+            ''
+            'No release, tag, signing request or business-code change.'
+            ''
+          ) + $checksums
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+      - name: Upload diagnostic samples
+        uses: actions/upload-artifact@v6
+        with:
+          name: qde-nativeaot-diagnostic
+          path: artifacts/qde-nativeaot-diagnostic/
+          if-no-files-found: error
+          retention-days: 7
