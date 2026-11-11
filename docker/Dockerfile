@@ -1,16 +1,15 @@
-FROM python:3.12-slim
+FROM python:3.12-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 MCP_HOST=0.0.0.0 MCP_PORT=8000 \
     PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get upgrade --yes --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/* \
-    && addgroup --system app \
-    && adduser --system --ingroup app app \
-    && mkdir --parents /data \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache libstdc++ \
+    && addgroup -S -g 101 app \
+    && adduser -S -D -H -u 100 -G app app \
+    && mkdir -p /data \
     && chown app:app /data
 
 COPY pyproject.toml uv.lock README.md LICENSE ./
