@@ -20,7 +20,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const version = "0.1.2"
+const version = "0.1.3"
 const builtInClientID = "6e35216e-2623-43cc-b867-83bec0865cf3"
 
 func main() {
