@@ -14,12 +14,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const version = "0.1.2"
+const builtInClientID = "6e35216e-2623-43cc-b867-83bec0865cf3"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -30,7 +32,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "M365 MCP for Windows\nCommands: login --client-id ID [--tenant ID], serve [--http --port 8000], connection [--http --port 8000], logout, version")
+		fmt.Fprintln(os.Stderr, "M365 MCP for Windows\nCommands: login [--client-id ID] [--tenant ID], serve [--http --port 8000], connection [--http --port 8000], logout, version\nBuilt-in public Client ID: "+builtInClientID+"\nLogin overrides: M365_LOCAL_CLIENT_ID, M365_LOCAL_TENANT_ID; command-line flags take precedence.")
 		return nil
 	}
 	if args[0] == "version" {
@@ -44,8 +46,7 @@ func run(args []string) error {
 		return errors.New("this application requires Windows 10/11; use the Python container on other platforms")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
-	clientID := flags.String("client-id", "", "Microsoft Entra public-client application ID")
-	tenant := flags.String("tenant", "organizations", "Tenant ID, organizations, or common")
+	loginConfig := loginFlags(flags)
 	httpMode := flags.Bool("http", false, "Use authenticated loopback Streamable HTTP instead of stdio")
 	port := flags.Int("port", 8000, "Local HTTP port")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -70,7 +71,7 @@ func run(args []string) error {
 	defer cancel()
 	switch args[0] {
 	case "login":
-		config := localConfig{ClientID: *clientID, Tenant: *tenant}
+		config := *loginConfig
 		if err := config.validate(); err != nil {
 			return err
 		}
@@ -127,6 +128,19 @@ func run(args []string) error {
 	default:
 		return errors.New("unknown command; use login, serve, connection, logout, or version")
 	}
+}
+
+func loginFlags(flags *flag.FlagSet) *localConfig {
+	config := &localConfig{ClientID: builtInClientID, Tenant: "organizations"}
+	if value := strings.TrimSpace(os.Getenv("M365_LOCAL_CLIENT_ID")); value != "" {
+		config.ClientID = value
+	}
+	if value := strings.TrimSpace(os.Getenv("M365_LOCAL_TENANT_ID")); value != "" {
+		config.Tenant = value
+	}
+	flags.StringVar(&config.ClientID, "client-id", config.ClientID, "Microsoft Entra public-client application ID")
+	flags.StringVar(&config.Tenant, "tenant", config.Tenant, "Tenant ID, organizations, or common")
+	return config
 }
 
 func authenticatedMCP(server *mcp.Server, token string) http.Handler {

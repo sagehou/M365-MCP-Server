@@ -11,10 +11,30 @@ Client Secret。安装前用 `SHA256SUMS.txt` 核对压缩包。
 若下载单 EXE 的 Artifact，先将程序重命名为 `m365-mcp-windows-local-go.exe`，
 再使用下文命令。
 
-## 配置 Microsoft 登录
+## 登录
 
-Go 版没有内置 Client ID，`login --client-id` 必须填写所选应用的 ID。组织部署建议在
-自己的租户中注册、管理独立的 Desktop/Public Client 应用。
+两套本机版默认使用同一个项目公共客户端应用：
+
+```text
+应用：M365-MCP-Localhost
+Client ID：6e35216e-2623-43cc-b867-83bec0865cf3
+租户：organizations
+```
+
+在解压目录打开 PowerShell：
+
+```powershell
+.\m365-mcp-windows-local-go.exe login
+```
+
+在系统浏览器完成 Microsoft 登录。程序使用 S256 PKCE 和随机端口的本机回调，后续调用绑定
+此次选择的账户；刷新失败时不会切换到缓存中的其他账户。租户策略可能要求管理员批准
+委托权限，使用内置应用时也一样。
+
+## 使用自建应用
+
+组织部署建议在自己的租户中注册、管理独立的 Desktop/Public Client 应用；使用内置应用
+不需要自行注册。
 
 1. 在 Microsoft Entra 注册应用，选择需要支持的账户类型。
 2. 在「身份验证」添加「移动和桌面应用程序」平台，回调地址填写 `http://localhost`。
@@ -22,29 +42,32 @@ Go 版没有内置 Client ID，`login --client-id` 必须填写所选应用的 I
 4. 记录应用程序（客户端）ID。单组织使用 Tenant ID；跨组织工作/学校账户使用
    `organizations`。只有应用同时支持个人 Microsoft 账户时才使用 `common`。
 
-本机版以登录用户身份申请委托权限，没有内置或使用 Client Secret；自建公共客户端应用也
-不需要 Secret。此流程不应授予邮箱 Application 权限。租户策略仍可能要求管理员批准
-这些委托权限。
+通过命令行覆盖本次登录的默认值：
+
+```powershell
+.\m365-mcp-windows-local-go.exe login --client-id 你的应用ID --tenant 你的租户ID
+```
+
+也可使用与 NativeAOT 版相同的环境变量：
+
+```powershell
+$env:M365_LOCAL_CLIENT_ID = '你的应用ID'
+$env:M365_LOCAL_TENANT_ID = '你的租户ID'
+.\m365-mcp-windows-local-go.exe login
+```
+
+登录时的优先级为：命令行参数 → 环境变量 → 内置默认值。登录成功后保存所选应用和租户，
+`serve` 使用保存的配置。修改任一值后，先停止服务，再重新执行 `login`；重新登录后还需
+重新生成 HTTP 客户端配置。
 
 <details>
 <summary>ⓘ Client ID 与 Client Secret</summary>
 
-Client ID 是公开的应用标识，Client Secret 是需要保密的应用凭据。NativeAOT 版仅内置
-项目维护的 Client ID；Go 版需要显式指定 ID。两套本机版均使用无需 Client Secret 的
-公共客户端认证。Python 服务端的机密客户端配置是独立的另一套流程。
+Client ID 是公开的应用标识，Client Secret 是需要保密的应用凭据。两套本机版均内置
+同一个公开 Client ID 并允许覆盖，均没有内置或使用 Client Secret。自建公共客户端在此流程
+同样不需要 Secret 或邮箱 Application 权限。Python 服务端的机密客户端配置是独立流程。
 
 </details>
-
-## 登录
-
-在解压目录打开 PowerShell：
-
-```powershell
-.\m365-mcp-windows-local-go.exe login --client-id 你的应用ID --tenant organizations
-```
-
-在系统浏览器完成 Microsoft 登录。程序使用 S256 PKCE 和随机端口的本机回调，后续调用绑定
-此次选择的账户；刷新失败时不会切换到缓存中的其他账户。
 
 ## 连接 MCP 客户端
 

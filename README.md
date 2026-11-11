@@ -61,6 +61,8 @@ authenticity checks; a changed EXE needs new hashes and a new allowlist review.
 The [Go edition](docs/windows-local-go.md) uses its own `windows-local-go`
 workflow to produce standalone AMD64 and ARM64 executables. It supports browser
 sign-in, stdio, authenticated loopback HTTP, and attachment text extraction.
+Run `login` to use the same built-in public Client ID as NativeAOT, or override
+it with `--client-id` or `M365_LOCAL_CLIENT_ID`.
 The existing NativeAOT workflow and release assets remain available.
 
 For stdio, set the executable as `command` and `["serve"]` as `args` in the MCP

@@ -54,6 +54,8 @@ MD5 和 SHA-1 仅用于兼容旧式白名单表单，不是可信性验证；EXE
 
 [Go 版](docs/zh-CN/windows-local-go.md)通过独立的 `windows-local-go` 流水线
 生成 AMD64、ARM64 单文件 EXE，支持浏览器登录、stdio、本机鉴权 HTTP 和附件文本提取。
+执行 `login` 默认使用与 NativeAOT 相同的内置公开 Client ID，也可通过 `--client-id` 或
+`M365_LOCAL_CLIENT_ID` 覆盖。
 原有 NativeAOT 流水线和发布产物继续保留。
 
 stdio 接入时，将 EXE 路径填入 `command`，将 `["serve"]` 填入 `args`，见
