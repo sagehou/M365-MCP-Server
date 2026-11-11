@@ -5,4 +5,4 @@ image="${1:?image tag required}"
 docker run --rm \
   --volume /var/run/docker.sock:/var/run/docker.sock:ro \
   ghcr.io/aquasecurity/trivy:0.76.2 image \
-  --scanners vuln --severity HIGH,CRITICAL --exit-code 1 "$image"
+  --scanners vuln --exit-code 1 "$image"

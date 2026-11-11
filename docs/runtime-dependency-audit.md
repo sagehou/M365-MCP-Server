@@ -2,17 +2,18 @@
 
 # Runtime dependency audit
 
-The Python runtime and development dependencies are pinned in `pyproject.toml`;
-`uv.lock` records the complete resolution and distribution hashes. CI and the
-production image both install with `uv sync --frozen`.
+## Python dependencies
 
-## Resolved versions
+`pyproject.toml` pins direct and build dependencies. `uv.lock` contains 103
+registry packages, including development and platform-specific dependencies,
+with distribution hashes. CI and Docker install with `uv sync --frozen`.
+The updated lock was resolved on GitHub Actions, not in the editing environment.
 
 | Package | Resolved version |
 | --- | ---: |
 | `cryptography` | 50.0.2 |
-| `fastapi` | 0.162.2 |
-| `fastmcp` / `fastmcp-slim` | 4.1.7 |
+| `fastapi` | 0.162.4 |
+| `fastmcp` / `fastmcp-slim` | 4.1.8 |
 | `mcp` / `mcp-types` | 2.3.0 |
 | `authlib` | 1.9.5 |
 | `joserfc` | 1.8.0 |
@@ -20,7 +21,7 @@ production image both install with `uv sync --frozen`.
 | `httpx2` | 2.16.0 |
 | `msal` | 1.39.0 |
 | `PyJWT` | 2.15.1 |
-| `pypdf` | 7.0.0 |
+| `pypdf` | 7.0.1 |
 | `python-docx` | 1.2.0 |
 | `openpyxl` | 3.1.5 |
 | `python-pptx` | 1.0.2 |
@@ -28,66 +29,72 @@ production image both install with `uv sync --frozen`.
 | `pydantic-settings` | 2.16.2 |
 | `starlette` | 1.10.0 |
 | `uvicorn` | 0.54.0 |
+| `annotated-doc` | 0.0.6 |
+| `markdown-it-py` | 4.3.0 |
+| `uncalled-for` | 0.6.1 |
 | `pytest` | 9.2.0 |
 | `pip-audit` | 2.10.1 |
 
-The project intentionally contains both HTTP client families. Application-owned
-Graph and OpenID Connect traffic continues to use the direct `httpx` dependency.
-FastMCP 4 and MCP SDK v2 use the separate, transitive `httpx2` stack internally.
-They have different owners and neither dependency is an accidental duplicate.
+PyPI metadata was checked for every locked registry package. The six packages
+updated in this review are FastAPI, FastMCP, pypdf, annotated-doc,
+markdown-it-py and uncalled-for; FastMCP also updates fastmcp-slim. The full lock
+was checked against OSV and CI runs `pip-audit --skip-editable` independently.
+No withdrawn locked distributions were found. Build tools remain
+`setuptools==84.2.1`, `wheel==0.48.0` and `uv==0.13.7`.
 
-Build requirements are `setuptools==84.2.1` and `wheel==0.48.0`; installs use
-`uv==0.13.7`. Python remains on the supported 3.12 runtime line.
-The pypdf 7 upgrade removes the old upper bound that blocked
-the fix for [GHSA-59jv-x5x2-gg4c](https://github.com/py-pdf/pypdf/security/advisories/GHSA-59jv-x5x2-gg4c).
+Application Graph and OIDC requests use `httpx`. FastMCP 4 and MCP SDK v2 use
+`httpx2`; both have active callers. FastMCP's client API is also used by the
+protocol integration tests. Neither HTTP dependency is an accidental duplicate.
+The pypdf 7 line includes the fix for
+[GHSA-59jv-x5x2-gg4c](https://github.com/py-pdf/pypdf/security/advisories/GHSA-59jv-x5x2-gg4c).
 
-## Compatibility evidence
+## Native dependencies and runtimes
 
-CI is configured to run the complete Python suite and `pip-audit --skip-editable`
-with the locked dependencies. This upgrade still requires a successful CI run.
-The production application factory, real ASGI/MCP transport, OAuth refresh
-rotation, and mocked Graph/OBO flows remain covered by the suite. Date schema
-metadata uses Pydantic's supported `json_schema_extra` API.
+| Component | Version or policy |
+| --- | --- |
+| Python | Supported 3.12 runtime line |
+| Go | 1.27.4 in `native/go.mod` |
+| Go MSAL | `github.com/AzureAD/microsoft-authentication-library-for-go` v1.10.1 |
+| Go MCP SDK | `github.com/modelcontextprotocol/go-sdk` v1.8.0 |
+| Go PDF | `github.com/ledongthuc/pdf` v0.0.0-20261020125853-5e46805f718e |
+| Go XLSX | `github.com/xuri/excelize/v2` v2.11.1 |
+| Go Windows API | `golang.org/x/sys` v0.50.0 |
+| .NET | .NET 10 LTS; no direct NuGet dependencies; Actions selects the latest 10.0.x SDK |
 
-The suite covers both protocol eras on that same endpoint:
+The current .NET metadata reports SDK 10.0.404 and runtime 10.0.15; .NET 10 is
+supported through 2028-11-14. All 24 Go direct/transitive module versions were
+compared with the Go module proxy. Three dependencies intentionally use commits
+newer than their latest stable tags: `x/crypto`, `xuri/efp` and `xuri/nfp`.
+Do not downgrade them to the older tags.
 
-- Legacy `2025-03-26`: initialize, tools/list, every one of the eleven mail tools,
-  sanitized failures and concurrent Alice/Bob identity isolation.
-- Modern `2026-07-28`: server/discover, tools/list and tools/call with request
-  metadata and no MCP session identifier.
-- The full unit/integration suite, including health, unauthenticated MCP
-  rejection, and isolated extraction checks.
+The `x/crypto` pin `v0.58.1-0.20261009181718-2f1f834330b2` includes the upstream
+[GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) fix and removes retired
+OpenPGP code. The application does not import OpenPGP. Older release dates alone
+do not establish abandonment: the reviewed UUID, browser, godebug, asm and URI
+template repositories are not archived, and the selected versions remain their
+current releases. Their compiled Windows use is checked with `govulncheck` for
+both AMD64 and ARM64.
 
-CI additionally builds and smoke-tests the production Docker image, non-root
-worker, and Compose configuration. The smoke script rejects known Authlib JOSE
-and HTTPX migration warnings. All builds and tests must run in CI; the editing
-environment must not create test environments or execute local tests.
+## Container and delivery gates
 
-Historical FastMCP 4 migration evidence: [before](https://github.com/sagehou/M365-MCP-Server/actions/runs/35195153651)
-and [after](https://github.com/sagehou/M365-MCP-Server/actions/runs/35195810661).
+The runtime image uses the supported Python 3.12 Alpine base with system
+security updates and the C++ runtime required by native wheels. It omits the
+Debian mount/login/Perl tools implicated by the previous base-image scan. `pip`
+and `uv` are removed after dependency installation. The existing non-root
+UID/GID and `/data` ownership are preserved for persisted OAuth state.
 
-## Scope boundary
+CI scans the exact candidate with Trivy 0.76.2. Both test-image publication and
+stable releases run the same scanner before pushing. Known findings at every
+severity fail the gate, including findings without a published fix; there is
+no vulnerability ignore list. Image smoke checks exercise startup, OAuth
+storage and isolated TXT/PDF/DOCX/XLSX/PPTX extraction on the installed image.
 
-The Python server retains bearer validation, Entra OBO, and the existing
-feature-flagged OAuth service. The [Windows local Go edition](windows-local.md#configure-go)
-has its own Go module and public-client browser login; it does not embed a
-server credential or replace the multi-user server. Go versions and checksums
-are recorded in `native/go.mod` and `native/go.sum`.
-
-The existing NativeAOT Windows host and workflows are retained. Its SDK/runtime
-target moves from .NET 8 to .NET 10 LTS; it has no direct NuGet dependencies.
-Both Windows workflows use current GitHub Actions versions. The Go artifact
-names include `windows-local-go` and cannot replace the existing Windows assets.
-
-The Go module pins the upstream `x/crypto` fix
-`v0.58.1-0.20261009181718-2f1f834330b2` for
-[GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932). That commit removes the
-retired OpenPGP package; the application does not import OpenPGP.
-
-Dependency and lock-file updates require CI verification with
-`uv sync --frozen --extra dev`, the complete tests, and `pip-audit` before images
-are published. Record deployed image digests separately from source locks.
+[PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) contains the source
+changes and hosted check results. Functional, static and artifact coverage is
+recorded in the [implementation review](review-status.md). Runtime dependency
+reports remain in the CI logs; deployment image digests must be recorded for
+the actual deployed image.
 
 ---
 
-Mock tests do not certify real tenant/client behavior. Updated: 2026-11-10.
+Version and advisory checks describe the reviewed snapshot and cannot guarantee that unknown vulnerabilities do not exist. Live tenant/client behavior and Windows ARM64 execution require separate validation. All builds, tests and audit tools run on GitHub Actions; no local test environment or dependency installation was used. Updated: 2026-11-11.

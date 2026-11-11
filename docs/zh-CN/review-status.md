@@ -1,65 +1,53 @@
 [English](../review-status.md) | **简体中文**
 
-# 实现复核跟进
+# 实现复核
 
-## 已修正问题
+## 实现范围
 
-- 配置：环境变量模板中的空替代凭据；Runtime Limit 必须为正且有边界；Required Scopes 不允许为空。
-- 身份认证：Signing Key Rollover Refresh，并设置一分钟 Miss Cooldown；补充 Signature/Audience/Issuer/Expiry/Application-token 负向测试。
-- Runtime：每个请求使用 Stateless MCP HTTP Identity；OBO 移出 Event Loop；补充 initialize、tools/list 和两个并发用户 tools/call 集成测试。
-- Graph/Mail：分离 KQL Search 与 OData Filtering；Move/Archive 后保留新 ID；不重放语义不明确的写操作；不缩短 Retry-After；拒绝 Path Traversal 并限制 Response Bytes。
-- Audit：默认 Logging 下输出真实 JSON Event，包含 Timestamp 与 Identity；进入 Framework 前清理错误信息。
-- Attachments：列表只返回 Metadata；增加 Pre-decode / Expanded Archive Limits；Parser 使用受监督的进程，并配置 Resource、Timeout 和 Cancellation Limits。
-- Delivery：从 Docker Context 排除 Credentials；测试可配置端口 Health Check、Non-root Worker Startup；Compose 私有绑定，并在发布前 Smoke-test 精确镜像。
-- 发布加固：固定 Hosted Runner 和 Action 主版本；验证安全 MCP Error Reference 与
-  Audit Event ID 完全一致；将接受的日期输入明确为带时区的 ISO 8601 Timestamp。
-- 发布交付：要求 Tag 与 Project Version 一致并存在双语 Notes；Smoke-test 精确
-  Linux x64 Image、校验 Compose、发布明确的 Semantic Image Tag，并只在 Image
-  发布后创建 GitHub Release。
-- 本地 Runtime 基础：使用 Provider Interface 隔离 Graph Token 获取，并允许 Tool
-  身份上下文在没有 HTTP Request 时注入；现有 HTTP/OBO 行为仍是托管 Runtime。
-- OAuth 完成页体验：WorkBuddy Callback 使用 No-store、CSP 保护的完成页启动
-  Private Callback URI，尝试自动关闭标签页，从可见浏览器历史中移除 Callback
-  参数，并保留手动返回入口；Loopback 与 HTTPS Client 仍使用正常 Redirect。
-- Windows 本地集成构建：增加 .NET 10 NativeAOT MCP stdio Host，支持 Public-client
-  PKCE 登录、当前用户 DPAPI 状态、Ephemeral Mode、十个有边界的邮件工具，以及
-  CI 生成的单个 Windows x64 可执行文件。
+| 版本 | 接入方式 | 工具 | 附件读取 |
+| --- | --- | --- | --- |
+| Python 服务器版 | 认证的 Streamable HTTP | 11 个核心工具；开启 OAuth 后另提供下载及上传授权工具 | 在隔离的 Linux Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
+| Windows .NET 版 | stdio | 11 个邮件工具 | 有大小限制的 UTF-8 文本、JSON、CSV、XML |
+| Windows Go 版 | stdio；带认证的本机回环 Streamable HTTP | 12 个邮件工具，包含本机下载 | 在 Windows Job Object Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 
-## CI 能证明什么
+三套实现均支持纯文本草稿及最多 20 MiB 的草稿附件。发送结果只表示 Graph 已接受请求，
+不表示已送达；逐封确认或受限自动化授权仍由客户端或 Agent 负责。搜索只返回一个有边界的
+分页；续页游标、回复、转发、共享邮箱、OCR、Calendar、Drive、SharePoint、Teams 尚未实现。
+最新已发布版本为 `v0.1.3`；本次复核对应
+[PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) 中的源码变更。
 
-Unit Tests 和 Integration Tests 使用 Mocked Entra Metadata、OBO 和 Graph
-Transport，对真实 ASGI/FastMCP Stack 进行测试。Mock WorkBuddy Client Flow
-会从 401 Discovery Challenge 开始，依次覆盖 DCR、S256 Authorization、Entra
-Callback、Local Token Exchange、Authenticated MCP Initialization、
-Refresh-token Rotation 以及刷新后的再次认证调用。Connector Package Tests
-还会检查官方目录结构、无嵌入凭据的 OAuth 模式和四个最小权限 Skills。
-Docker Smoke Test 使用安装后的 Non-root Production Image。构建和测试全部在
-GitHub Actions 执行。
+## 发现与修正
 
-Windows Workflow 只在 Publish Directory 恰好包含一个 `m365-mcp-windows-local-amd64.exe` 时发布
-NativeAOT 集成产物。隔离烟测只在 `PATH` 中保留 Windows 系统目录，执行
-`doctor --ephemeral`、MCP `initialize` 和 `tools/list`，核对预期的十一个
-Tools，并检查隔离 Data Root 没有产生文件。
+- .NET 的关键词加日期查询改为在 KQL 中组合日期；仅日期查询使用 OData 过滤及收件时间排序。
+  拒绝不带时区的日期和类型错误的可选参数。
+- .NET 允许使用空分类数组清空分类；为草稿文本、收件人、资源 ID、MIME 类型补充明确的校验和边界。
+- .NET 列出附件时只请求元数据，避免下载文件内容；Graph 返回异常数据、JSON-RPC 请求格式错误时，
+  返回错误并保持 stdio 继续可用。
+- .NET 拒绝格式错误的令牌响应和无效有效期，限制加密状态文件读取大小，并在浏览器显示登录成功前保存状态。
+- 删除未使用的 Python `MailService.list_messages` 包装、`tenant_id` 配置字段、未使用导入，
+  以及从未被赋值的 .NET 用户资料字段。移除实际不可用的第 1 版缓存解析分支；旧缓存不可读时需
+  退出并重新登录，有效的第 2 版缓存保持兼容。
+- 更新 Python 直接及传递依赖。容器改用应用系统安全更新的 Alpine，去掉存在未修复公告且应用
+  不需要的 Debian 工具，安装完成后移除 `pip`、`uv`。详见[依赖审计](runtime-dependency-audit.md)。
 
-这些测试不会读取或修改生产邮箱数据。CI 能证明 Artifact 形态与 Mock/Protocol
-行为，但不能证明真实 Tenant Consent、真实 Graph 行为、代码签名信任或目标
-Agent 兼容性。
+OAuth 服务、附件 Worker、令牌提供器接口及非 Windows Go 适配代码都有实际调用或平台/测试用途，
+予以保留。两套 HTTP 客户端均有用途：项目 Graph/OIDC 请求使用 `httpx`，FastMCP/MCP 使用
+`httpx2`。历史发布修复流水线继续作为明确的手动工具保留。
 
-## 当前发布状态与后续部署工作
+## GitHub Actions 验证
 
-- `v0.1.1` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)；
-  四个 GHCR 标签均允许匿名读取 Manifest。每个部署仍需单独核对 Entra 配置和同意。
-- OAuth Discovery、Dynamic Public-client Registration、MSAL Interactive Authorization、S256 PKCE、一次性 Local Authorization-code Exchange，以及带 Rotation/Replay Prevention 的 Persistent Encrypted Refresh Session 已在默认关闭的 Feature Flag 后实现；WorkBuddy Connector 与 CI Client-flow Coverage 也已提供。
-- 受限自动发送属于 Client/Agent 授权契约；Server 只收到 `draft_id`，不能据此判断是否已经取得授权。
-- Search 只返回一个有边界的 Page 和 `next_link` Hint，不是全邮箱导出。Tool 当前还不接受 Continuation Cursor。Keyword Search 受 Graph Search Ordering/Result Limits 约束；仅日期查询使用 Received Time。
-- 已实现纯文本 Draft 创建和发送。v0.1.1 还支持远端二进制上传加一次性句柄，
-  或 Windows 受限产物相对路径/原生文件选择框，将最多 20 MiB 的文件添加至草稿。
-  Client/Agent 层必须逐封确认或具有明确的受限自动化授权。
-  一步式 Direct Send、HTML 撰写和自动重试仍不提供。
-- OCR、Reply、Forward、Shared Mailboxes、Enterprise RBAC / Rate Limiting /
-  Observability、Calendar、Drive、SharePoint 和 Teams 仍属于 Roadmap。
-- 稳定版 Windows EXE 已作为未签名文件发布，并附有 SHA-256 与 GitHub 构建来源
-  证明。杀毒误报处理、可选签名和 SBOM 属于独立加固事项，不改变 v0.1.1 产物。
-- Windows 本地模式有意不提供 `mail_download_attachment` 和丰富二进制文档提取。
-  它不会安装 Windows Service：stdio 进程由 Agent 启动并管理。Service Mode
-  需要独立 IPC 与安全设计。
+PR 检查覆盖以下路径；CI、测试镜像发布和稳定版发布使用各自产物所需的依赖与安全检查。
+
+| 检查 | 覆盖范围 |
+| --- | --- |
+| Python 测试及 `pip-audit` | 应用工厂、两代 MCP 协议、全部核心邮件工具、身份隔离、JWT/OBO、OAuth 发现/PKCE/刷新轮换/重放防护、上传下载句柄及 Worker 限额 |
+| Ruff、Vulture | 未使用导入、未定义名称、重复定义、不可达代码及置信度 100% 的未使用变量；三个 SDK 协议关键字参数使用逐行排除标注 |
+| Docker 烟测及 Trivy | 安装后的确切非 root 镜像、健康检查、认证、OAuth 存储、附件 Worker、Compose；阻止所有严重程度的已知容器问题，包括尚无修复的项目 |
+| Windows .NET 功能检查 | 通过 stdio 和模拟 Graph 覆盖全部 11 个工具，日期/搜索/分类/草稿校验，小附件及分块上传，错误脱敏、不重放结果不明确的写操作，DPAPI 绑定/临时状态、刷新及异常令牌响应 |
+| Windows .NET 产物 | NativeAOT 单文件、Windows 详细信息、默认及覆盖 Client ID、PATH 无运行时时的启动 |
+| Windows Go 检查 | Windows/Linux 竞态测试、模块校验、vet、应用不可达函数检查，以及 Windows AMD64/ARM64 漏洞分析 |
+| Windows Go 产物 | AMD64/ARM64 单文件构建、详细信息、ZIP/校验值、AMD64 无外部运行时启动 |
+
+---
+
+已知漏洞扫描和静态分析反映被检查的快照，不能证明缺陷或漏洞绝对为零。这些检查未验证真实租户同意、真实 Graph 投递、目标 Agent 集成、Windows ARM64 实机运行、交互式文件选择框及杀毒/代码签名信任。本次未在本地测试、构建、安装依赖或创建虚拟环境。更新日期：2026-11-11。

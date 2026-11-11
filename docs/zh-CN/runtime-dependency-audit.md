@@ -2,16 +2,17 @@
 
 # 运行时依赖审计
 
-Python 运行时及开发依赖在 `pyproject.toml` 中固定版本，`uv.lock` 记录完整解析结果及
-分发文件哈希。CI 和生产镜像共同使用 `uv sync --frozen` 安装。
+## Python 依赖
 
-## 实际解析版本
+`pyproject.toml` 固定直接依赖和构建依赖；`uv.lock` 记录包含开发及平台条件依赖在内的
+103 个注册表包及分发文件哈希。CI 和 Docker 使用 `uv sync --frozen` 安装。
+更新后的锁文件由 GitHub Actions 解析，没有在编辑环境中执行解析或安装。
 
 | Package | 实际解析版本 |
 | --- | ---: |
 | `cryptography` | 50.0.2 |
-| `fastapi` | 0.162.2 |
-| `fastmcp` / `fastmcp-slim` | 4.1.7 |
+| `fastapi` | 0.162.4 |
+| `fastmcp` / `fastmcp-slim` | 4.1.8 |
 | `mcp` / `mcp-types` | 2.3.0 |
 | `authlib` | 1.9.5 |
 | `joserfc` | 1.8.0 |
@@ -19,7 +20,7 @@ Python 运行时及开发依赖在 `pyproject.toml` 中固定版本，`uv.lock` 
 | `httpx2` | 2.16.0 |
 | `msal` | 1.39.0 |
 | `PyJWT` | 2.15.1 |
-| `pypdf` | 7.0.0 |
+| `pypdf` | 7.0.1 |
 | `python-docx` | 1.2.0 |
 | `openpyxl` | 3.1.5 |
 | `python-pptx` | 1.0.2 |
@@ -27,59 +28,60 @@ Python 运行时及开发依赖在 `pyproject.toml` 中固定版本，`uv.lock` 
 | `pydantic-settings` | 2.16.2 |
 | `starlette` | 1.10.0 |
 | `uvicorn` | 0.54.0 |
+| `annotated-doc` | 0.0.6 |
+| `markdown-it-py` | 4.3.0 |
+| `uncalled-for` | 0.6.1 |
 | `pytest` | 9.2.0 |
 | `pip-audit` | 2.10.1 |
 
-项目有意同时保留两套 HTTP Client。项目自身的 Graph 和 OpenID Connect
-请求继续使用直接依赖 `httpx`；FastMCP 4 与 MCP SDK v2 内部使用独立的传递依赖
-`httpx2`。两者责任方不同，不是意外的重复依赖。
+已逐一查询所有锁定注册表包的 PyPI 元数据。本次更新六个包：FastAPI、FastMCP、pypdf、
+annotated-doc、markdown-it-py、uncalled-for；FastMCP 同步更新 fastmcp-slim。
+全部锁定版本已查询 OSV，CI 另独立运行 `pip-audit --skip-editable`。
+未发现被撤回的锁定分发版本。构建工具保持 `setuptools==84.2.1`、`wheel==0.48.0`、`uv==0.13.7`。
 
-构建依赖为 `setuptools==84.2.1`、`wheel==0.48.0`，安装工具为 `uv==0.13.7`。
-Python 保持受支持的 3.12 运行时边界。pypdf 升级到 7，移除了阻止
+项目 Graph 和 OIDC 请求使用 `httpx`，FastMCP 4 与 MCP SDK v2 使用 `httpx2`，两套客户端
+均有实际调用；协议集成测试也使用 FastMCP 客户端 API，因此它们不是意外的重复依赖。
+pypdf 7 已包含
 [GHSA-59jv-x5x2-gg4c](https://github.com/py-pdf/pypdf/security/advisories/GHSA-59jv-x5x2-gg4c)
-安全修复的旧版本上限。
+修复。
 
-## 兼容性证据
+## 原生依赖及运行时
 
-CI 已配置为使用锁定依赖运行完整 Python 测试及 `pip-audit --skip-editable`，此次升级仍需
-通过 CI 验证。测试继续覆盖生产 Application Factory、真实 ASGI/MCP Transport、
-OAuth Refresh Rotation 和 Mock Graph/OBO 流程。日期 Schema 元数据已改用 Pydantic 支持的
-`json_schema_extra` API。
+| 组件 | 版本或策略 |
+| --- | --- |
+| Python | 受支持的 3.12 运行时系列 |
+| Go | `native/go.mod` 中固定 1.27.4 |
+| Go MSAL | `github.com/AzureAD/microsoft-authentication-library-for-go` v1.10.1 |
+| Go MCP SDK | `github.com/modelcontextprotocol/go-sdk` v1.8.0 |
+| Go PDF | `github.com/ledongthuc/pdf` v0.0.0-20261020125853-5e46805f718e |
+| Go XLSX | `github.com/xuri/excelize/v2` v2.11.1 |
+| Go Windows API | `golang.org/x/sys` v0.50.0 |
+| .NET | .NET 10 LTS；无直接 NuGet 依赖；Actions 选择最新 10.0.x SDK |
 
-测试在同一端点覆盖两代协议：
+当前 .NET 元数据为 SDK 10.0.404、运行时 10.0.15，.NET 10 支持至 2028-11-14。
+已对全部 24 个 Go 直接及传递模块查询 Go 模块代理；其中 `x/crypto`、`xuri/efp`、`xuri/nfp`
+固定在比最新稳定标签更新的提交，不应降级到旧标签。
 
-- Legacy `2025-03-26`：initialize、tools/list、全部 11 个 Mail Tools、
-  Sanitized Failure，以及 Alice/Bob 并发身份隔离。
-- Modern `2026-07-28`：携带 Request Metadata 且无 MCP Session ID 的
-  server/discover、tools/list 和 tools/call。
-- 完整 Unit/Integration Suite，包括 Health、未认证 MCP 拒绝和隔离附件解析检查。
+`x/crypto` 固定的 `v0.58.1-0.20261009181718-2f1f834330b2` 包含上游
+[GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) 修复并移除了停止维护的 OpenPGP 代码，
+本程序不导入 OpenPGP。不能仅凭发布日期较早认定依赖已废弃：已核对的 UUID、browser、godebug、
+asm、URI 模板仓库未归档，所选版本仍是各自当前版本；CI 对 AMD64、ARM64 两种 Windows 编译目标
+运行 `govulncheck` 检查实际调用路径。
 
-CI 另外构建并 Smoke-test 生产 Docker Image、Non-root Worker 和 Compose 配置，脚本继续
-拒绝已知 Authlib JOSE、HTTPX 迁移告警。所有构建和测试必须在 CI 中执行，此编辑环境禁止
-创建测试环境或运行本地测试。
+## 容器及交付检查
 
-FastMCP 4 历史迁移证据：[迁移前](https://github.com/sagehou/M365-MCP-Server/actions/runs/35195153651)、
-[迁移后](https://github.com/sagehou/M365-MCP-Server/actions/runs/35195810661)。
+运行镜像使用受支持的 Python 3.12 Alpine 基础镜像，应用系统安全更新，并安装原生 Wheel 所需的
+C++ 运行时。此前 Debian 镜像扫描涉及的挂载、登录、Perl 工具不再进入运行镜像；依赖安装完成后
+移除 `pip`、`uv`。保留原有非 root 用户 UID/GID 及 `/data` 所有权，兼容持久化 OAuth 状态。
 
-## 范围边界
+CI 使用 Trivy 0.76.2 扫描确切候选镜像，测试镜像和稳定版也在推送前运行同一检查。
+所有严重程度的已知问题都会使检查失败，包括上游尚无修复的项目；未设置漏洞忽略列表。
+镜像烟测覆盖启动、OAuth 存储，以及安装后镜像中的 TXT/PDF/DOCX/XLSX/PPTX 隔离提取。
 
-Python 服务保留 Bearer Validation、Entra OBO 和原有 Feature Flag 后的 OAuth 服务。
-[Windows 本地 Go 版](windows-local.md#配置-go)使用独立 Go Module 和公共客户端浏览器登录，
-不内置服务器凭据，也不替代多用户服务。Go 版本和依赖校验值记录在 `native/go.mod`、
-`native/go.sum` 中。
-
-原有 NativeAOT Windows 主机和流水线继续保留，SDK/运行时目标从 .NET 8 升级为 .NET 10 LTS；
-它没有直接 NuGet 依赖。两套 Windows 流水线同步升级 GitHub Actions 依赖。Go 产物名包含
-`windows-local-go`，不会替换原有 Windows 发布文件。
-
-Go Module 为 [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) 固定了上游
-`x/crypto` 修复提交 `v0.58.1-0.20261009181718-2f1f834330b2`，该提交移除了停止维护的
-OpenPGP 包；本程序不导入 OpenPGP。
-
-依赖和锁文件更新后，必须通过 CI 执行 `uv sync --frozen --extra dev`、完整测试及
-`pip-audit`，验证通过后再发布镜像。
-实际部署的镜像 Digest 需另行记录。
+[PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) 包含源码变更及远程检查结果；
+功能、静态分析及产物检查范围见[实现复核](review-status.md)。运行时依赖报告保留在 CI 日志中；
+实际部署时需记录所用镜像的 Digest。
 
 ---
 
-Mock 测试不能代替真实租户和客户端验收。更新日期：2026-11-10。
+版本和安全公告检查只反映被审计的快照，不能保证不存在未知漏洞；真实租户/客户端行为及 Windows ARM64 实机运行仍需单独验收。构建、测试和审计工具全部在 GitHub Actions 执行，本次未在本地创建测试环境或安装依赖。更新日期：2026-11-11。
