@@ -11,8 +11,7 @@ PC does not need Python, .NET, Docker, Git, or an installer.
 
 The existing workflow is retained. The separately built
 [Go edition](windows-local-go.md) has its own workflow and artifact names.
-The published v0.1.1 executable continues to use .NET 8; this branch upgrades
-the build target to .NET 10 LTS.
+The published v0.1.2 NativeAOT executable uses .NET 10 LTS.
 
 The executable currently provides:
 
@@ -28,13 +27,13 @@ The executable currently provides:
   language runtimes from `PATH` during smoke testing, and fails if the
   ephemeral smoke run creates files
 
-The [v0.1.1 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
+The [v0.1.2 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2)
 contains the stable Windows asset, its SHA-256 checksum, MIT notice, and GitHub
 Artifact Attestation for the exact smoke-tested binary. Actions artifacts from
 ordinary branch builds remain integration builds. The released EXE is unsigned;
 Authenticode signing, SBOM, and rich local attachment extraction remain separate
 hardening work. Optional WAM depends on deployment requirements. The published
-v0.1.1 EXE has eleven mail tools, including draft attachments.
+v0.1.2 EXE has eleven mail tools, including draft attachments.
 
 ## Runtime decision
 
@@ -284,5 +283,5 @@ binary, and attaches the exact tested files to the GitHub Release.
   attachment reading, and representative mutations against a real mailbox.
 - Verify refresh, logout, corrupted-state recovery, two-account isolation, and
   tenant policy behavior.
-- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation accompany v0.1.1.
+- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation accompany v0.1.2.
 - Validate the published executable on a clean Windows x64 VM.

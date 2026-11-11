@@ -9,7 +9,7 @@
 不需要 Python、.NET、Docker、Git 或安装器。
 
 原有流水线继续保留；新增的 [Go 版](windows-local-go.md)使用独立流水线和产物名。
-已发布的 v0.1.1 EXE 仍使用 .NET 8，本分支将构建目标升级为 .NET 10 LTS。
+已发布的 v0.1.2 NativeAOT EXE 使用 .NET 10 LTS。
 
 当前 EXE 已提供：
 
@@ -23,11 +23,11 @@
 - Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
   `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
 
-[v0.1.1 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
+[v0.1.2 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2)
 已提供稳定版 Windows EXE、SHA-256 校验文件、MIT 许可声明和该精确 Smoke Test
 二进制文件的 GitHub Artifact Attestation。普通分支的 Actions Artifact 仍只是
 集成产物。已发布 EXE 尚无 Authenticode 签名；SBOM 与 PDF/Office 本地附件解析
-属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.1 EXE 提供 11 个
+属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.2 EXE 提供 11 个
 邮件工具，包括添加草稿附件。
 
 ## Runtime 决策
@@ -243,5 +243,5 @@ Smoke Test Windows x64 EXE，发布 SHA-256 校验文件和 MIT 许可声明，�
 - 在不解压 Runtime 的前提下增加安全的富文档附件解析。
 - 使用真实邮箱验证搜索、读取、草稿、确认发送、受限自动化发送、附件读取和代表性修改。
 - 验证 Refresh、Logout、损坏 State 恢复、双账户隔离和 Tenant Policy。
-- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.1 附有 SHA-256 Checksum 与 GitHub Artifact Attestation。
+- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.2 附有 SHA-256 Checksum 与 GitHub Artifact Attestation。
 - 在干净 Windows x64 VM 上验证已发布的精确 EXE。
