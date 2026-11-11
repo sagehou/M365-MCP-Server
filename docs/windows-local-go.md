@@ -37,17 +37,93 @@ including when using the built-in application.
 ## Use your own application
 
 For organization deployments, we recommend registering and managing a dedicated
-desktop/public-client application in your own tenant. Using the built-in
-application does not require creating your own registration.
+desktop/public-client application in your own tenant. The built-in application
+remains available without a new registration.
 
-1. Create a Microsoft Entra app registration for the intended account type.
-2. Under **Authentication**, add a **Mobile and desktop applications** platform
-   with the redirect URI `http://localhost`.
-3. Add Microsoft Graph **delegated** permissions `User.Read`, `Mail.ReadWrite`,
-   and `Mail.Send`.
-4. Copy the application (client) ID. Use a tenant ID for one organization, or
-   `organizations` for work/school accounts across organizations. Use `common`
-   only when the registration also supports personal Microsoft accounts.
+1. Open the [Microsoft Entra admin center](https://entra.microsoft.com/), switch
+   to the tenant that will own the application, then select **Entra ID > App
+   registrations > New registration**. Enter a name such as
+   `M365-MCP-Local-Custom` and choose **Supported account types** from the table
+   below. Leave the initial redirect URI empty and select **Register**.
+2. On **Overview**, copy **Application (client) ID** and **Directory (tenant)
+   ID**. Use the application ID for `M365_LOCAL_CLIENT_ID`; the **Object ID** is
+   a different identifier and must not be used here.
+3. Open **Authentication > Add a platform > Mobile and desktop applications**.
+   Add `http://localhost` as a custom redirect URI and save. Use the root path;
+   do not append `/callback`, specify a fixed port, or add the same URI under
+   **Web** or **Single-page application**. No client secret or certificate is
+   needed.
+4. Open **API permissions > Add a permission > Microsoft Graph > Delegated
+   permissions**, add the three permissions below, and save. If the tenant
+   allows user consent, continue with local sign-in. Use the organization's
+   admin-consent process only when policy requires approval.
+
+| Supported account types in the registration | Login `--tenant` / `M365_LOCAL_TENANT_ID` |
+| --- | --- |
+| Accounts in this organizational directory only | The owning Directory (tenant) ID; recommended for one organization |
+| Accounts in any organizational directory | `organizations`, or a specific organizational tenant ID |
+| Accounts in any organizational directory and personal Microsoft accounts | `common` for both organizational and personal accounts |
+
+| Microsoft Graph delegated permission | Use in the current release | Admin consent required by the permission itself |
+| --- | --- | --- |
+| `User.Read` | Included in the default sign-in request; mail operations do not use the profile API | No |
+| `Mail.ReadWrite` | Read and modify mail, drafts, and attachments | No |
+| `Mail.Send` | Send mail as the signed-in user | No |
+
+<details>
+<summary>ⓘ Public-client settings and account types</summary>
+
+The registered **Mobile and desktop applications** redirect identifies the
+browser-based Authorization Code + S256 PKCE flow as a public client. Entra
+ignores the random port when matching `http://localhost`, but the path must
+match. **Allow public client flows** can remain at its default **No** for this
+flow; that switch enables other flows such as device code, username/password,
+and Integrated Windows Authentication. See Microsoft's
+[desktop registration](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration)
+and [public-client guidance](https://learn.microsoft.com/en-us/entra/identity-platform/msal-client-applications).
+
+The Go edition accepts a tenant GUID, `organizations`, or `common`; it does not
+accept `consumers`. To include Outlook.com accounts, use the third registration
+option and `common`. Changing the login authority does not change which account
+types the registration supports. The selected account must have an accessible
+Outlook/Exchange mailbox. If **New registration** is unavailable, ask the tenant
+administrator for application-registration access; this is separate from consent
+to mailbox permissions.
+
+A Client ID is a public identifier. Both local editions embed the same public
+Client ID and allow an override; neither embeds or uses a Client Secret. Create
+a dedicated desktop registration instead of distributing credentials from the
+Python server's confidential-client/OBO registration. Mailbox **Application
+permissions** and an exposed `access_as_user` API are not needed for local use.
+
+</details>
+
+<details>
+<summary>ⓘ User.Read and administrator approval</summary>
+
+`User.Read` is not required by the mail endpoints or by PKCE sign-in itself.
+The current Go release still requests all three scopes above, so configure the
+application to match that request. Removing a permission from **API permissions**
+does not remove it from the EXE's sign-in request. The Go edition currently has
+no custom-scope flag and does not read `M365_LOCAL_GRAPH_SCOPES`.
+
+Microsoft lists **AdminConsentRequired: No** for all three
+[delegated permissions](https://learn.microsoft.com/en-us/graph/permissions-reference).
+The tenant's [user-consent policy](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/configure-user-consent)
+can still require approval: user consent may be disabled, the application may
+not meet publisher requirements, or the mail permissions may not be classified
+as low impact. Removing `User.Read` does not bypass those policies.
+
+If approval is required, give the administrator the application ID, target
+tenant, requested delegated permissions, and the sign-in error code. For an
+application registered in that tenant, an authorized administrator can review
+**App registrations > your app > API permissions > Grant admin consent for
+the tenant**. For another tenant, use that tenant's admin-consent workflow;
+consent in the application's home tenant does not grant consent elsewhere.
+Approval must cover the current permissions and be renewed if new permissions
+are added or the grant is revoked.
+
+</details>
 
 Override the defaults for a login:
 
@@ -55,28 +131,59 @@ Override the defaults for a login:
 .\m365-mcp-windows-local-go.exe login --client-id YOUR-APPLICATION-ID --tenant YOUR-TENANT-ID
 ```
 
+Check that the browser shows your custom application's name before granting
+consent. A successful login prints `Signed in. Run connection to generate your
+MCP client configuration.`; this edition has no `doctor` or `status` command.
+
 Or use the same environment variables as the NativeAOT edition:
 
 ```powershell
 $env:M365_LOCAL_CLIENT_ID = 'YOUR-APPLICATION-ID'
 $env:M365_LOCAL_TENANT_ID = 'YOUR-TENANT-ID'
 .\m365-mcp-windows-local-go.exe login
+.\m365-mcp-windows-local-go.exe connection
 ```
 
 At login, command-line flags take precedence over environment variables, then
 the built-in defaults. The selected application and tenant are saved after
-successful sign-in; `serve` uses those saved settings. Stop the server and run
-`login` again after changing either value. Regenerate HTTP client configuration
-after signing in again.
+successful sign-in; `serve` and `connection` use those saved settings, so the MCP
+client does not need the login environment variables. Merely changing a variable
+or passing `--client-id` to `serve` does not switch the saved application.
 
 <details>
-<summary>ⓘ Client ID and Client Secret</summary>
+<summary>ⓘ Switch applications or return to the built-in application</summary>
 
-A Client ID is a public application identifier. A Client Secret is a confidential
-credential. Both local editions embed the same public Client ID and allow it to
-be overridden; neither embeds or uses a Client Secret. A self-managed public
-client also needs no Secret or application mailbox permissions for this flow.
-The Python server's confidential-client configuration is separate.
+Stop the MCP client/server, run `logout`, and repeat `login` with the new
+application and tenant. Run `connection` again afterward; re-login rotates the
+local HTTP bearer token, so replace any existing HTTP client configuration.
+Stdio clients continue to use the same executable path and `serve` argument.
+
+To return to the built-in application from PowerShell:
+
+```powershell
+.\m365-mcp-windows-local-go.exe logout
+Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID -ErrorAction SilentlyContinue
+.\m365-mcp-windows-local-go.exe login
+.\m365-mcp-windows-local-go.exe connection
+```
+
+These environment changes affect this PowerShell session. A later `login` from
+another process may inherit different values; explicit login flags take
+precedence. Local logout does not revoke tenant consent or browser sessions.
+
+</details>
+
+<details>
+<summary>ⓘ Troubleshoot custom-application sign-in</summary>
+
+| Sign-in message or symptom | Check or action |
+| --- | --- |
+| Need admin approval / `AADSTS90094` / `AADSTS65001` | Check the target tenant's consent grant and user-consent policy; `65001` can also mean the user has not yet granted consent. |
+| `AADSTS50011` / redirect URI mismatch | Register the root `http://localhost` under **Mobile and desktop applications**, with no extra path. |
+| `AADSTS7000218` / client secret requested | Check the redirect's platform; this EXE uses a desktop public client. Correct a Web-platform registration rather than adding a secret. |
+| `AADSTS700016` / application not found | Check Application (client) ID, tenant selection, and supported account types. |
+| Wrong account or old application after changing configuration | Stop `serve`, run `logout`, then repeat `login` with explicit flags and regenerate `connection`. |
+| Sign-in succeeds but Graph returns `403` | Check the delegated mail grants and the account's Exchange/Outlook mailbox availability; a successful sign-in alone does not prove mailbox access. |
 
 </details>
 

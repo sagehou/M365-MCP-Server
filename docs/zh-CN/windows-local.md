@@ -96,29 +96,77 @@ Application (client) ID：6e35216e-2623-43cc-b867-83bec0865cf3
 Authority：organizations
 ```
 
-默认客户端使用以下 Entra 配置：
+使用内置应用不需要自行注册。组织部署建议在自己的租户中注册、管理独立的
+Desktop/Public Client 应用：
 
-1. 添加 **移动和桌面应用程序（Mobile and desktop applications）**平台。
-2. 注册精确的根 Redirect URI：`http://localhost`。EXE 每次登录会监听随机
-   Loopback Port；Microsoft Entra 匹配 Native App 的 localhost Redirect 时忽略
-   Port，但 Path 仍必须一致。
-3. 在 **Advanced settings** 中把 **Allow public client flows** 设为 **Yes**。
-4. 配置 Microsoft Graph 委托权限：`User.Read`、`Mail.ReadWrite` 和
-   `Mail.Send`。
-5. 不创建或分发 Client Secret 或证书。
+1. 打开 [Microsoft Entra 管理中心](https://entra.microsoft.com/)，切换到管理此应用的租户，
+   进入 **Entra ID > 应用注册 > 新注册**。名称可填 `M365-MCP-Local-Custom`，
+   按下表选择**支持的账户类型**，暂不填写重定向 URI，然后选择**注册**。
+2. 在**概述**复制**应用程序（客户端）ID**和**目录（租户）ID**。
+   `M365_LOCAL_CLIENT_ID` 使用应用程序 ID，不能填写**对象 ID**。
+3. 进入**身份验证 > 添加平台 > 移动和桌面应用程序**，添加自定义重定向 URI
+   `http://localhost` 并保存。使用根路径，不加 `/callback` 或固定端口，也不要在
+   **Web** 或**单页应用程序**平台重复添加同一个 URI。无需创建 Client Secret 或证书。
+4. 进入 **API 权限 > 添加权限 > Microsoft Graph > 委托的权限**，添加下表三项权限并
+   保存。租户允许用户自行同意时，继续在本机登录；仅在策略要求时走组织的管理员同意流程。
 
-用户不需要为了运行默认版本自行创建 App Registration。目标租户的策略仍可能要求
-管理员针对此应用和当前权限集合完成一次同意；新增权限或撤销同意后需要重新批准。
+| 注册时支持的账户类型 | `M365_LOCAL_TENANT_ID` |
+| --- | --- |
+| 仅此组织目录中的账户 | 应用所属目录（租户）ID；单组织使用建议选此项 |
+| 任何组织目录中的账户 | `organizations`，或指定组织的租户 ID |
+| 任何组织目录中的账户和个人 Microsoft 账户 | `common`，同时允许组织和个人账户 |
+| 仅个人 Microsoft 账户 | 此 NativeAOT 版使用 `consumers` |
 
-组织部署建议在自己的租户中注册、管理独立的 Desktop/Public Client App，通过
-`M365_LOCAL_CLIENT_ID` 覆盖内置 Client ID。自建公共客户端同样不需要 Client Secret 或
-邮箱 Application 权限。自定义应用必须遵循上面相同的平台、
-Redirect URI、Public Client Flow 和委托权限配置；需要限制到单一租户时，再同时设置
-`M365_LOCAL_TENANT_ID`。Client ID 或 Tenant ID 变更后，已有 DPAPI State 不会跨应用
-复用，需要重新执行 `login`。
+| Microsoft Graph 委托权限 | 当前版本中的用途 | 权限本身是否强制管理员同意 |
+| --- | --- | --- |
+| `User.Read` | 默认登录仍会请求；邮件功能未调用用户资料 API | 否 |
+| `Mail.ReadWrite` | 读取、修改邮件、草稿和附件 | 否 |
+| `Mail.Send` | 以登录用户身份发送邮件 | 否 |
 
-远端 Server 现有的 Confidential-client/OBO App Registration 保持不变，不能把
-它的凭据作为 Public Desktop Credential 分发。
+<details>
+<summary>ⓘ 公共客户端设置与账户类型</summary>
+
+在**移动和桌面应用程序**注册回调后，浏览器 Authorization Code + S256 PKCE 流程会按
+公共客户端处理。Entra 匹配 `http://localhost` 时忽略随机端口，但路径必须一致。
+此流程的 **Allow public client flows（允许公共客户端流）**可保持默认 **No**；该开关
+用于设备代码、用户名/密码、Windows 集成身份验证等其他流程。参见微软的
+[桌面应用注册](https://learn.microsoft.com/zh-cn/entra/identity-platform/scenario-desktop-app-configuration)
+和[公共客户端说明](https://learn.microsoft.com/zh-cn/entra/identity-platform/msal-client-applications)。
+
+租户配置接受 GUID、`organizations`、`common`、`consumers`；修改它不会改变应用注册支持的
+账户类型。登录账户需要有可访问的 Outlook/Exchange 邮箱。若没有**新注册**入口，需由
+租户管理员授予应用注册权限；它与邮箱权限的管理员同意是两件事。
+
+Client ID 是公开标识。应独立注册桌面应用，不要分发 Python 服务端机密客户端/OBO 应用的
+凭据。本机使用无需邮箱 **Application 权限**，也不需要暴露 `access_as_user` API。
+
+</details>
+
+<details>
+<summary>ⓘ User.Read、自定义 Scope 与管理员批准</summary>
+
+邮件接口和 PKCE 登录本身不依赖 `User.Read`，但当前 EXE 仍默认请求它。仅从注册的
+**API 权限**列表删除此项，不会改变登录请求。NativeAOT 版支持显式覆盖 Scope，例如：
+
+```powershell
+$env:M365_LOCAL_GRAPH_SCOPES = 'openid profile offline_access https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send'
+```
+
+此变量会替换完整的默认 Scope 列表。保留 `offline_access`，否则 EXE 无法获取所需的
+Refresh Token。先停止 MCP 客户端/服务，执行 `logout`，再重新 `login`；MCP 客户端
+的 `env` 也要携带同一 Scope 配置。Go 版不支持此变量。
+
+微软[委托权限表](https://learn.microsoft.com/zh-cn/graph/permissions-reference)中，这三项的
+**AdminConsentRequired** 均为 **No**。[租户用户同意策略](https://learn.microsoft.com/zh-cn/entra/identity/enterprise-apps/configure-user-consent)
+仍可能要求批准：例如禁用用户自行同意、应用不满足发布者验证要求，或未将邮件权限列为
+低影响权限。移除 `User.Read` 不能绕过这些策略。
+
+需要批准时，向管理员提供应用 ID、目标租户、请求的委托权限和登录错误码。应用注册在该
+租户时，有权限的管理员可在**应用注册 > 此应用 > API 权限 > 代表租户授予管理员同意**
+中审核。跨租户使用需走目标租户自己的管理员同意流程；在应用所属租户同意，不代表其他
+租户也已同意。批准需覆盖当前权限集合；新增权限或撤销授权后需要重新同意。
+
+</details>
 
 ## 运行
 
@@ -134,30 +182,77 @@ Redirect URI、Public Client Flow 和委托权限配置；需要限制到单一�
 
 ```powershell
 $env:M365_LOCAL_CLIENT_ID = "<custom-desktop-public-client-id>"
-$env:M365_LOCAL_TENANT_ID = "<tenant-id-or-organizations>"
+$env:M365_LOCAL_TENANT_ID = "<directory-tenant-id>"
+.\m365-mcp-windows-local-amd64.exe doctor
+.\m365-mcp-windows-local-amd64.exe login
+.\m365-mcp-windows-local-amd64.exe status
 ```
+
+先设置以上变量，再执行 `login`。`doctor` 应显示自建应用的 `client_id`、选择的 `tenant`
+以及 `client_id_source: "environment"`；缓存 Access Token 可用时，`status` 显示
+`authenticated: true`。
 
 `login` 会打开系统浏览器，通过 Loopback 完成 PKCE，然后保存 DPAPI 保护的 State。
 不允许认证状态跨进程保留时，对 `login` 或 `stdio` 增加 `--ephemeral`。
 
-MCP Client 配置示例：
+自建应用的 MCP 客户端配置：
 
 ```json
 {
   "mcpServers": {
     "m365-local": {
       "command": "C:\\Tools\\m365-mcp-windows-local-amd64.exe",
-      "args": ["stdio"]
+      "args": ["stdio"],
+      "env": {
+        "M365_LOCAL_CLIENT_ID": "<custom-desktop-public-client-id>",
+        "M365_LOCAL_TENANT_ID": "<directory-tenant-id>"
+      }
     }
   }
 }
 ```
 
-使用自定义 Entra 应用时，在该 Server 配置的 `env` 中增加
-`M365_LOCAL_CLIENT_ID`；需要时同时增加 `M365_LOCAL_TENANT_ID`。
+将路径和两个 ID 替换为实际值。NativeAOT 版每次启动都会读取这些环境变量；PowerShell
+中的 `$env:` 赋值只影响当前会话及其子进程，不会修改已经运行的 MCP 客户端。
+`login` 与 MCP 配置中的 Client ID、Tenant 必须一致；使用内置应用时省略 `env`。
+登录、`stdio` 和退出登录需使用同一个 Windows 用户，才能读取对应的 DPAPI State。
 
 如果没有可用状态，首次 Tool Call 也可以触发交互登录；Agent 必须给用户留出足够
 时间完成浏览器流程。
+
+<details>
+<summary>ⓘ 切换应用或恢复内置应用</summary>
+
+先停止 MCP 客户端，执行 `logout`，设置新的应用和租户，再执行 `doctor` 和 `login`。
+同步修改 MCP 客户端的 `env` 并重启。Client ID 或 Tenant ID 变更后，不会复用旧的
+DPAPI Token State。
+
+在 PowerShell 中恢复内置应用：
+
+```powershell
+.\m365-mcp-windows-local-amd64.exe logout
+Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID, Env:M365_LOCAL_GRAPH_SCOPES -ErrorAction SilentlyContinue
+.\m365-mcp-windows-local-amd64.exe doctor
+.\m365-mcp-windows-local-amd64.exe login
+```
+
+同时移除 MCP 客户端 `env` 中的这些覆盖值。本机退出登录不会撤销租户同意或浏览器会话。
+
+</details>
+
+<details>
+<summary>ⓘ 自建应用登录排查</summary>
+
+| 登录提示或现象 | 检查与处理 |
+| --- | --- |
+| 需要管理员批准 / `AADSTS90094` / `AADSTS65001` | 检查目标租户的授权记录及用户同意策略；`65001` 也可能只是用户尚未完成同意。 |
+| `AADSTS50011` / 重定向 URI 不匹配 | 在**移动和桌面应用程序**注册根地址 `http://localhost`，不加额外路径。 |
+| `AADSTS7000218` / 要求 Client Secret | 检查回调所属平台；应修正误配的 Web 平台，不应添加 Secret。 |
+| `AADSTS700016` / 找不到应用 | 检查应用程序（客户端）ID、租户选择及支持的账户类型。 |
+| PowerShell 登录成功，但 MCP 客户端再次要求登录 | 检查两个进程是否使用同一 Windows 用户及相同 `env`；`--ephemeral` 不会跨进程保存状态。 |
+| `doctor` 成功，但登录或邮件访问失败 | `doctor` 只检查本机配置；仍需单独检查 Entra 同意及账户的 Exchange/Outlook 邮箱可用性。 |
+
+</details>
 
 ## 当前本地工具面
 

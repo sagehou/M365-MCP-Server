@@ -36,11 +36,68 @@ Client ID：6e35216e-2623-43cc-b867-83bec0865cf3
 组织部署建议在自己的租户中注册、管理独立的 Desktop/Public Client 应用；使用内置应用
 不需要自行注册。
 
-1. 在 Microsoft Entra 注册应用，选择需要支持的账户类型。
-2. 在「身份验证」添加「移动和桌面应用程序」平台，回调地址填写 `http://localhost`。
-3. 添加 Microsoft Graph **委托权限**：`User.Read`、`Mail.ReadWrite`、`Mail.Send`。
-4. 记录应用程序（客户端）ID。单组织使用 Tenant ID；跨组织工作/学校账户使用
-   `organizations`。只有应用同时支持个人 Microsoft 账户时才使用 `common`。
+1. 打开 [Microsoft Entra 管理中心](https://entra.microsoft.com/)，切换到管理此应用的租户，
+   进入 **Entra ID > 应用注册 > 新注册**。名称可填 `M365-MCP-Local-Custom`，
+   按下表选择**支持的账户类型**，暂不填写重定向 URI，然后选择**注册**。
+2. 在**概述**复制**应用程序（客户端）ID**和**目录（租户）ID**。
+   `M365_LOCAL_CLIENT_ID` 使用应用程序 ID，不能填写**对象 ID**。
+3. 进入**身份验证 > 添加平台 > 移动和桌面应用程序**，添加自定义重定向 URI
+   `http://localhost` 并保存。使用根路径，不加 `/callback` 或固定端口，也不要在
+   **Web** 或**单页应用程序**平台重复添加同一个 URI。无需创建 Client Secret 或证书。
+4. 进入 **API 权限 > 添加权限 > Microsoft Graph > 委托的权限**，添加下表三项权限并
+   保存。租户允许用户自行同意时，继续在本机登录；仅在策略要求时走组织的管理员同意流程。
+
+| 注册时支持的账户类型 | 登录 `--tenant` / `M365_LOCAL_TENANT_ID` |
+| --- | --- |
+| 仅此组织目录中的账户 | 应用所属目录（租户）ID；单组织使用建议选此项 |
+| 任何组织目录中的账户 | `organizations`，或指定组织的租户 ID |
+| 任何组织目录中的账户和个人 Microsoft 账户 | `common`，同时允许组织和个人账户 |
+
+| Microsoft Graph 委托权限 | 当前版本中的用途 | 权限本身是否强制管理员同意 |
+| --- | --- | --- |
+| `User.Read` | 默认登录仍会请求；邮件功能未调用用户资料 API | 否 |
+| `Mail.ReadWrite` | 读取、修改邮件、草稿和附件 | 否 |
+| `Mail.Send` | 以登录用户身份发送邮件 | 否 |
+
+<details>
+<summary>ⓘ 公共客户端设置与账户类型</summary>
+
+在**移动和桌面应用程序**注册回调后，浏览器 Authorization Code + S256 PKCE 流程会按
+公共客户端处理。Entra 匹配 `http://localhost` 时忽略随机端口，但路径必须一致。
+此流程的 **Allow public client flows（允许公共客户端流）**可保持默认 **No**；该开关
+用于设备代码、用户名/密码、Windows 集成身份验证等其他流程。参见微软的
+[桌面应用注册](https://learn.microsoft.com/zh-cn/entra/identity-platform/scenario-desktop-app-configuration)
+和[公共客户端说明](https://learn.microsoft.com/zh-cn/entra/identity-platform/msal-client-applications)。
+
+Go 版接受租户 GUID、`organizations`、`common`，不接受 `consumers`。
+如需 Outlook.com 个人账户，选择表中第三种注册类型并使用 `common`。修改登录 Authority
+不会改变应用注册支持的账户类型。登录账户需要有可访问的 Outlook/Exchange 邮箱。
+若没有**新注册**入口，需由租户管理员授予应用注册权限；它与邮箱权限的管理员同意是两件事。
+
+Client ID 是公开标识。两套本机版均内置同一个公开 Client ID 并允许覆盖，均没有内置或
+使用 Client Secret。应独立注册桌面应用，不要分发 Python 服务端机密客户端/OBO 应用的
+凭据。本机使用无需邮箱 **Application 权限**，也不需要暴露 `access_as_user` API。
+
+</details>
+
+<details>
+<summary>ⓘ User.Read 与管理员批准</summary>
+
+邮件接口和 PKCE 登录本身不依赖 `User.Read`，但当前 Go 版仍默认请求以上三项 Scope，
+因此自建应用应与当前请求保持一致。仅从 **API 权限**列表删除某项，不会改变 EXE 的登录
+请求。Go 版目前没有自定义 Scope 参数，也不读取 `M365_LOCAL_GRAPH_SCOPES`。
+
+微软[委托权限表](https://learn.microsoft.com/zh-cn/graph/permissions-reference)中，这三项的
+**AdminConsentRequired** 均为 **No**。[租户用户同意策略](https://learn.microsoft.com/zh-cn/entra/identity/enterprise-apps/configure-user-consent)
+仍可能要求批准：例如禁用用户自行同意、应用不满足发布者验证要求，或未将邮件权限列为
+低影响权限。移除 `User.Read` 不能绕过这些策略。
+
+需要批准时，向管理员提供应用 ID、目标租户、请求的委托权限和登录错误码。应用注册在该
+租户时，有权限的管理员可在**应用注册 > 此应用 > API 权限 > 代表租户授予管理员同意**
+中审核。跨租户使用需走目标租户自己的管理员同意流程；在应用所属租户同意，不代表其他
+租户也已同意。批准需覆盖当前权限集合；新增权限或撤销授权后需要重新同意。
+
+</details>
 
 通过命令行覆盖本次登录的默认值：
 
@@ -48,24 +105,55 @@ Client ID：6e35216e-2623-43cc-b867-83bec0865cf3
 .\m365-mcp-windows-local-go.exe login --client-id 你的应用ID --tenant 你的租户ID
 ```
 
+授权前核对浏览器显示的是否为自建应用名称。登录成功后输出
+`Signed in. Run connection to generate your MCP client configuration.`；此版本没有
+`doctor` 或 `status` 命令。
+
 也可使用与 NativeAOT 版相同的环境变量：
 
 ```powershell
 $env:M365_LOCAL_CLIENT_ID = '你的应用ID'
 $env:M365_LOCAL_TENANT_ID = '你的租户ID'
 .\m365-mcp-windows-local-go.exe login
+.\m365-mcp-windows-local-go.exe connection
 ```
 
 登录时的优先级为：命令行参数 → 环境变量 → 内置默认值。登录成功后保存所选应用和租户，
-`serve` 使用保存的配置。修改任一值后，先停止服务，再重新执行 `login`；重新登录后还需
-重新生成 HTTP 客户端配置。
+`serve` 和 `connection` 使用保存的配置，MCP 客户端不需要再携带登录环境变量。
+仅修改环境变量，或给 `serve` 传入 `--client-id`，都不会切换已保存的应用。
 
 <details>
-<summary>ⓘ Client ID 与 Client Secret</summary>
+<summary>ⓘ 切换应用或恢复内置应用</summary>
 
-Client ID 是公开的应用标识，Client Secret 是需要保密的应用凭据。两套本机版均内置
-同一个公开 Client ID 并允许覆盖，均没有内置或使用 Client Secret。自建公共客户端在此流程
-同样不需要 Secret 或邮箱 Application 权限。Python 服务端的机密客户端配置是独立流程。
+先停止 MCP 客户端/服务，执行 `logout`，再用新的应用和租户重新执行 `login`，然后执行
+`connection`。重新登录会轮换本机 HTTP Bearer Token，已有 HTTP 客户端配置需要替换；
+stdio 客户端仍使用原来的 EXE 路径和 `serve` 参数。
+
+在 PowerShell 中恢复内置应用：
+
+```powershell
+.\m365-mcp-windows-local-go.exe logout
+Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID -ErrorAction SilentlyContinue
+.\m365-mcp-windows-local-go.exe login
+.\m365-mcp-windows-local-go.exe connection
+```
+
+以上环境变量修改只影响当前 PowerShell 会话。以后从其他进程执行 `login` 时可能继承
+不同的变量；显式登录参数优先级最高。本机退出登录不会撤销租户同意或浏览器会话。
+
+</details>
+
+<details>
+<summary>ⓘ 自建应用登录排查</summary>
+
+| 登录提示或现象 | 检查与处理 |
+| --- | --- |
+| 需要管理员批准 / `AADSTS90094` / `AADSTS65001` | 检查目标租户的授权记录及用户同意策略；`65001` 也可能只是用户尚未完成同意。 |
+| `AADSTS50011` / 重定向 URI 不匹配 | 在**移动和桌面应用程序**注册根地址 `http://localhost`，不加额外路径。 |
+| `AADSTS7000218` / 要求 Client Secret | 检查回调所属平台；EXE 使用桌面公共客户端，应修正误配的 Web 平台，不应添加 Secret。 |
+| `AADSTS700016` / 找不到应用 | 检查应用程序（客户端）ID、租户选择及支持的账户类型。 |
+| 修改配置后仍使用旧账户或旧应用 | 停止 `serve`，执行 `logout`，用显式参数重新 `login`，再生成 `connection`。 |
+| 登录成功但 Graph 返回 `403` | 检查委托邮件权限及账户的 Exchange/Outlook 邮箱可用性；登录成功不等于已能访问邮箱。 |
 
 </details>
 
