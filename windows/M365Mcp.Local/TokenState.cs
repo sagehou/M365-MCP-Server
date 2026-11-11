@@ -8,10 +8,7 @@ internal sealed record TokenState(
     string RefreshToken,
     long ExpiresAtUnixSeconds,
     string ClientId,
-    string TenantId,
-    string? UserId,
-    string? DisplayName,
-    string? UserPrincipalName)
+    string TenantId)
 {
     internal bool IsUsable(long minimumLifetimeSeconds = 120) =>
         !string.IsNullOrWhiteSpace(AccessToken)
@@ -25,9 +22,6 @@ internal sealed record TokenState(
         ["expires_at"] = ExpiresAtUnixSeconds,
         ["client_id"] = ClientId,
         ["tenant_id"] = TenantId,
-        ["user_id"] = UserId,
-        ["display_name"] = DisplayName,
-        ["user_principal_name"] = UserPrincipalName,
     };
 
     internal static TokenState FromJson(ReadOnlySpan<byte> json)
@@ -35,7 +29,7 @@ internal sealed record TokenState(
         var root = JsonNode.Parse(json) as JsonObject
             ?? throw new JsonException("Authentication state is not an object.");
         var version = root["version"]?.GetValue<int>();
-        if (version is not 1 and not 2)
+        if (version != 2)
         {
             throw new JsonException("Authentication state version is unsupported.");
         }
@@ -47,9 +41,9 @@ internal sealed record TokenState(
         var tenantId = root["tenant_id"]?.GetValue<string>();
         if (string.IsNullOrWhiteSpace(accessToken)
             || string.IsNullOrWhiteSpace(refreshToken)
-            || expiresAt is null
-            || (version == 2
-                && (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(tenantId))))
+            || expiresAt is null or < 0 or > 253402300799
+            || string.IsNullOrWhiteSpace(clientId)
+            || string.IsNullOrWhiteSpace(tenantId))
         {
             throw new JsonException("Authentication state is incomplete.");
         }
@@ -58,11 +52,8 @@ internal sealed record TokenState(
             accessToken,
             refreshToken,
             expiresAt.Value,
-            clientId ?? string.Empty,
-            tenantId ?? string.Empty,
-            root["user_id"]?.GetValue<string>(),
-            root["display_name"]?.GetValue<string>(),
-            root["user_principal_name"]?.GetValue<string>());
+            clientId,
+            tenantId);
     }
 }
 

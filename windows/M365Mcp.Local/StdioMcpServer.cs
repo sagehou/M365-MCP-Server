@@ -47,17 +47,22 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
             var hasId = request.ContainsKey("id");
             var id = request["id"]?.DeepClone();
             var method = StringValue(request["method"]);
-            if (string.IsNullOrWhiteSpace(method))
+            if (StringValue(request["jsonrpc"]) != "2.0"
+                || string.IsNullOrWhiteSpace(method)
+                || (hasId && (id is not JsonValue idValue
+                    || !(idValue.TryGetValue<string>(out _) || idValue.TryGetValue<long>(out _)))))
             {
-                if (hasId)
-                {
-                    await WriteAsync(ErrorResponse(id, -32600, "Invalid request"));
-                }
+                await WriteAsync(ErrorResponse(null, -32600, "Invalid request"));
                 continue;
             }
 
             if (!hasId)
             {
+                continue;
+            }
+            if (request["params"] is not null and not JsonObject)
+            {
+                await WriteAsync(ErrorResponse(id, -32602, "params must be an object"));
                 continue;
             }
 
@@ -87,6 +92,8 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 or HttpRequestException
                 or IOException
                 or UnauthorizedAccessException
+                or JsonException
+                or InvalidOperationException
                 or TaskCanceledException)
             {
                 var reference = Convert.ToHexString(
@@ -223,7 +230,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 new JsonObject
                 {
                     ["message_id"] = StringProperty("Outlook message id."),
-                    ["categories"] = StringArrayProperty("Replacement category names."),
+                    ["categories"] = StringArrayProperty("Replacement category names; an empty array removes all categories."),
                 },
                 "message_id", "categories")),
     };

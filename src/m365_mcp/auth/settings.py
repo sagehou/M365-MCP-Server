@@ -33,7 +33,6 @@ class Settings(BaseSettings):
         enable_decoding=False,
     )
 
-    tenant_id: str | None = None
     client_id: str | None = None
     client_secret: SecretStr | None = None
     client_cert_path: Path | None = None

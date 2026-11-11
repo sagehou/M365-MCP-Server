@@ -42,6 +42,15 @@ jobs:
         run: go mod verify
       - name: Vet
         run: go vet ./...
+      - name: Check unreachable application functions
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          go install golang.org/x/tools/cmd/deadcode@v0.52.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $unreachable = @(deadcode -filter 'github.com/sagehou/M365-MCP-Server/native' .)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($unreachable.Count -ne 0) { throw "Unreachable application functions: $($unreachable -join '; ')" }
       - name: Test
         run: go test -race -timeout 120s ./...
       - name: Install vulnerability checker
@@ -49,11 +58,11 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
       - name: Audit Windows dependencies
         if: runner.os == 'Linux'
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: '0'
-        run: govulncheck ./...
+        shell: bash
+        run: |
+          for arch in amd64 arm64; do
+            GOOS=windows GOARCH="$arch" CGO_ENABLED=0 govulncheck ./...
+          done
 
   build-windows-local-go:
     needs: test

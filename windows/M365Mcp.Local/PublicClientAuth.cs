@@ -113,20 +113,16 @@ internal sealed class PublicClientAuth(
                 throw new LocalAuthException("Microsoft 365 sign-in was not completed.");
             }
 
+            TokenState token;
             try
             {
-                var token = await RedeemAuthorizationCodeAsync(
+                token = await RedeemAuthorizationCodeAsync(
                     callback.Code,
                     redirectUri,
                     verifier,
                     cancellationToken);
-                await WriteBrowserResponseAsync(
-                    callback.Client,
-                    succeeded: true,
-                    cancellationToken);
-                memoryState = token;
                 stateStore.Save(token);
-                return token;
+                memoryState = token;
             }
             catch
             {
@@ -136,6 +132,11 @@ internal sealed class PublicClientAuth(
                     cancellationToken);
                 throw;
             }
+            await WriteBrowserResponseAsync(
+                callback.Client,
+                succeeded: true,
+                cancellationToken);
+            return token;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -157,9 +158,6 @@ internal sealed class PublicClientAuth(
                 ? null
                 : DateTimeOffset.FromUnixTimeSeconds(state.ExpiresAtUnixSeconds)
                     .ToString("O"),
-            ["user_id"] = state?.UserId,
-            ["display_name"] = state?.DisplayName,
-            ["user_principal_name"] = state?.UserPrincipalName,
             ["ephemeral"] = configuration.Ephemeral,
         };
     }
@@ -256,24 +254,27 @@ internal sealed class PublicClientAuth(
         {
             using var document = JsonDocument.Parse(payload);
             var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                throw new JsonException("Authorization response is not an object.");
+            }
             var accessToken = RequiredString(root, "access_token");
             var refreshToken = OptionalString(root, "refresh_token")
                 ?? previous?.RefreshToken
                 ?? throw new LocalAuthException(
                     "Microsoft 365 did not return a refresh token.");
             var expiresIn = root.TryGetProperty("expires_in", out var expiry)
+                && expiry.ValueKind == JsonValueKind.Number
                 && expiry.TryGetInt64(out var seconds)
+                && seconds is > 0 and <= int.MaxValue
                 ? seconds
-                : 3600;
+                : throw new LocalAuthException("Microsoft 365 returned an invalid token lifetime.");
             return new TokenState(
                 accessToken,
                 refreshToken,
-                DateTimeOffset.UtcNow.ToUnixTimeSeconds() + Math.Max(60, expiresIn),
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds() + expiresIn,
                 configuration.ClientId,
-                configuration.TenantId,
-                previous?.UserId,
-                previous?.DisplayName,
-                previous?.UserPrincipalName);
+                configuration.TenantId);
         }
         catch (JsonException)
         {

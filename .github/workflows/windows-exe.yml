@@ -28,6 +28,9 @@ jobs:
           --self-contained true
           --output artifacts/windows-local-amd64
           -p:TreatWarningsAsErrors=true
+      - name: Check all local tools with mocked Graph and Windows DPAPI
+        shell: pwsh
+        run: dotnet run --project windows/M365Mcp.Local.Checks --configuration Release
       - name: Verify single-file output
         id: artifact
         shell: pwsh

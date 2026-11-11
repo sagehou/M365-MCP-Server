@@ -23,6 +23,10 @@ internal sealed class LocalGraphClient(
         CancellationToken cancellationToken)
     {
         var query = OptionalString(arguments, "query") ?? string.Empty;
+        if (query.Length > 2048)
+        {
+            throw new InvalidToolArgumentException("query must not exceed 2048 characters");
+        }
         var limit = OptionalInt(arguments, "limit") ?? 25;
         if (limit is < 1 or > 50)
         {
@@ -41,24 +45,36 @@ internal sealed class LocalGraphClient(
             new("$top", limit.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new("$select", "id,subject,from,toRecipients,ccRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview"),
         };
-        if (!string.IsNullOrWhiteSpace(query))
+        var searchText = query.Replace('"', ' ').Trim();
+        if (searchText.Length != 0)
         {
-            var escaped = query.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            parameters.Add(new("$search", $"\"{escaped}\""));
+            var terms = new List<string> { $"({searchText})" };
+            if (dateFrom is not null)
+            {
+                terms.Add($"received>={GraphTimestamp(dateFrom.Value)}");
+            }
+            if (dateTo is not null)
+            {
+                terms.Add($"received<={GraphTimestamp(dateTo.Value)}");
+            }
+            parameters.Add(new("$search", $"\"{string.Join(" AND ", terms)}\""));
         }
-
-        var filters = new List<string>();
-        if (dateFrom is not null)
+        else
         {
-            filters.Add($"receivedDateTime ge {dateFrom.Value.UtcDateTime:O}");
-        }
-        if (dateTo is not null)
-        {
-            filters.Add($"receivedDateTime le {dateTo.Value.UtcDateTime:O}");
-        }
-        if (filters.Count != 0)
-        {
-            parameters.Add(new("$filter", string.Join(" and ", filters)));
+            parameters.Add(new("$orderby", "receivedDateTime desc"));
+            var filters = new List<string>();
+            if (dateFrom is not null)
+            {
+                filters.Add($"receivedDateTime ge {GraphTimestamp(dateFrom.Value)}");
+            }
+            if (dateTo is not null)
+            {
+                filters.Add($"receivedDateTime le {GraphTimestamp(dateTo.Value)}");
+            }
+            if (filters.Count != 0)
+            {
+                parameters.Add(new("$filter", string.Join(" and ", filters)));
+            }
         }
 
         return SearchCoreAsync(parameters, cancellationToken);
@@ -105,17 +121,24 @@ internal sealed class LocalGraphClient(
         JsonObject arguments,
         CancellationToken cancellationToken)
     {
+        var to = Recipients(arguments, "to_recipients", required: true);
+        var cc = Recipients(arguments, "cc_recipients", required: false);
+        var bcc = Recipients(arguments, "bcc_recipients", required: false);
+        if (to.Count + cc.Count + bcc.Count > 100)
+        {
+            throw new InvalidToolArgumentException("at most 100 recipients in total are allowed");
+        }
         var body = new JsonObject
         {
-            ["subject"] = RequiredString(arguments, "subject"),
+            ["subject"] = DraftText(arguments, "subject", 255, allowNewlines: false),
             ["body"] = new JsonObject
             {
                 ["contentType"] = "Text",
-                ["content"] = RequiredString(arguments, "body"),
+                ["content"] = DraftText(arguments, "body", 100_000, allowNewlines: true),
             },
-            ["toRecipients"] = Recipients(arguments, "to_recipients", required: true),
-            ["ccRecipients"] = Recipients(arguments, "cc_recipients", required: false),
-            ["bccRecipients"] = Recipients(arguments, "bcc_recipients", required: false),
+            ["toRecipients"] = to,
+            ["ccRecipients"] = cc,
+            ["bccRecipients"] = bcc,
         };
         var response = await RequestAsync(
             HttpMethod.Post,
@@ -490,7 +513,7 @@ internal sealed class LocalGraphClient(
         CancellationToken cancellationToken)
     {
         var messageId = RequiredString(arguments, "message_id");
-        var categories = StringArray(arguments, "categories", required: true);
+        var categories = StringArray(arguments, "categories", required: true, maxItems: 25);
         await RequestAsync(
             HttpMethod.Patch,
             $"/me/messages/{Segment(messageId)}",
@@ -593,8 +616,8 @@ internal sealed class LocalGraphClient(
 
             try
             {
-                return JsonNode.Parse(payload)
-                    ?? new JsonObject();
+                return JsonNode.Parse(payload) as JsonObject
+                    ?? throw new GraphOperationException("Microsoft Graph returned an invalid response.");
             }
             catch (JsonException)
             {
@@ -634,13 +657,20 @@ internal sealed class LocalGraphClient(
         string name,
         bool required)
     {
-        var values = StringArray(arguments, name, required);
+        var values = StringArray(arguments, name, required, maxItems: 50, maxLength: 320);
+        if (required && values.Count == 0)
+        {
+            throw new InvalidToolArgumentException($"{name} must not be empty");
+        }
         var recipients = new JsonArray();
         foreach (var value in values)
         {
             var address = value?.GetValue<string>()
                 ?? throw new InvalidToolArgumentException($"{name} contains an invalid value");
-            if (address.Length > 320 || !address.Contains('@'))
+            var separator = address.IndexOf('@');
+            if (separator <= 0 || separator == address.Length - 1
+                || separator != address.LastIndexOf('@')
+                || address.Any(character => char.IsWhiteSpace(character) || character is ',' or ';' or '<' or '>'))
             {
                 throw new InvalidToolArgumentException($"{name} contains an invalid address");
             }
@@ -655,21 +685,19 @@ internal sealed class LocalGraphClient(
     private static JsonArray StringArray(
         JsonObject arguments,
         string name,
-        bool required)
+        bool required,
+        int maxItems,
+        int maxLength = 256)
     {
         if (arguments[name] is not JsonArray source)
         {
-            if (!required)
+            if (!required && arguments[name] is null)
             {
                 return new JsonArray();
             }
             throw new InvalidToolArgumentException($"{name} must be an array");
         }
-        if (required && source.Count == 0)
-        {
-            throw new InvalidToolArgumentException($"{name} must not be empty");
-        }
-        if (source.Count > 100)
+        if (source.Count > maxItems)
         {
             throw new InvalidToolArgumentException($"{name} contains too many values");
         }
@@ -687,34 +715,61 @@ internal sealed class LocalGraphClient(
             {
                 throw new InvalidToolArgumentException($"{name} contains an empty value");
             }
+            if (value.Length > maxLength || value.Any(char.IsControl))
+            {
+                throw new InvalidToolArgumentException($"{name} contains an invalid or overlong value");
+            }
             result.Add((JsonNode?)value);
         }
         return result;
     }
 
-    private static string RequiredString(JsonObject arguments, string name)
+    private static string RequiredString(JsonObject arguments, string name, int maxLength = 4096)
     {
         var value = OptionalString(arguments, name);
         if (string.IsNullOrWhiteSpace(value))
         {
             throw new InvalidToolArgumentException($"{name} is required");
         }
-        if (value.Length > 1_000_000)
+        if (value.Length > maxLength)
         {
             throw new InvalidToolArgumentException($"{name} is too long");
         }
         return value;
     }
 
-    private static string? OptionalString(JsonObject arguments, string name) =>
-        arguments[name] is JsonValue value && value.TryGetValue<string>(out var result)
-            ? result
-            : null;
+    private static string DraftText(JsonObject arguments, string name, int maxLength, bool allowNewlines)
+    {
+        var text = RequiredString(arguments, name, maxLength);
+        if (text.Any(character => char.IsControl(character)
+            && !(allowNewlines && character is '\t' or '\r' or '\n')))
+        {
+            throw new InvalidToolArgumentException($"{name} contains unsupported control characters");
+        }
+        return text;
+    }
 
-    private static int? OptionalInt(JsonObject arguments, string name) =>
-        arguments[name] is JsonValue value && value.TryGetValue<int>(out var result)
+    private static string? OptionalString(JsonObject arguments, string name)
+    {
+        if (arguments[name] is null)
+        {
+            return null;
+        }
+        return arguments[name] is JsonValue value && value.TryGetValue<string>(out var result)
             ? result
-            : null;
+            : throw new InvalidToolArgumentException($"{name} must be a string");
+    }
+
+    private static int? OptionalInt(JsonObject arguments, string name)
+    {
+        if (arguments[name] is null)
+        {
+            return null;
+        }
+        return arguments[name] is JsonValue value && value.TryGetValue<int>(out var result)
+            ? result
+            : throw new InvalidToolArgumentException($"{name} must be an integer");
+    }
 
     private static DateTimeOffset? OptionalTimestamp(JsonObject arguments, string name)
     {
@@ -723,10 +778,11 @@ internal sealed class LocalGraphClient(
         {
             return null;
         }
-        if (!DateTimeOffset.TryParse(
+        if (!DateTimeOffset.TryParseExact(
             value,
+            ["yyyy-MM-dd'T'HH:mm:ss.FFFFFFFzzz", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'"],
             System.Globalization.CultureInfo.InvariantCulture,
-            System.Globalization.DateTimeStyles.RoundtripKind,
+            System.Globalization.DateTimeStyles.AssumeUniversal,
             out var result))
         {
             throw new InvalidToolArgumentException(
@@ -735,7 +791,13 @@ internal sealed class LocalGraphClient(
         return result;
     }
 
-    private static string Segment(string value) => Uri.EscapeDataString(value);
+    private static string GraphTimestamp(DateTimeOffset value) =>
+        value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string Segment(string value) =>
+        value is "." or ".." || value.Any(char.IsControl)
+            ? throw new InvalidToolArgumentException("resource id contains invalid characters")
+            : Uri.EscapeDataString(value);
 
     private static string EncodeQuery(IEnumerable<KeyValuePair<string, string>> values) =>
         string.Join(

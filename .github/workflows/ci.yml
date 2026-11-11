@@ -22,18 +22,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install uv==0.13.7
-          uv lock
           uv sync --frozen --extra dev
-      - name: Export refreshed dependency lock for review
-        uses: actions/upload-artifact@v7.0.2
-        with:
-          name: reviewed-uv-lock
-          path: uv.lock
-          if-no-files-found: error
       - name: Report resolved runtime dependencies
         run: uv run --frozen --extra dev python scripts/report-runtime-dependencies.py
       - name: Audit dependencies
         run: uv run --frozen --extra dev pip-audit --skip-editable
+      - name: Check imports and undefined names
+        run: uvx --from ruff==0.17.4 ruff check --select F401,F811,F821 src scripts tests
+      - name: Check unreachable code and unused variables
+        run: uvx --from vulture==2.16 vulture src scripts --min-confidence 100
       - name: Run tests
         run: uv run --frozen --extra dev pytest
 
@@ -44,6 +41,13 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: Build Docker image
         run: docker build --file docker/Dockerfile --tag m365-mcp-server:ci .
+      - name: Scan container dependencies
+        run: >
+          docker run --rm
+          -v /var/run/docker.sock:/var/run/docker.sock
+          ghcr.io/aquasecurity/trivy:0.76.2 image
+          --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed
+          --exit-code 1 m365-mcp-server:ci
       - name: Smoke test container health endpoint
         shell: bash
         run: bash scripts/smoke-container.sh m365-mcp-server:ci
