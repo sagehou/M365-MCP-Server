@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
 import logging
 from typing import Any
 from urllib.parse import parse_qsl
@@ -27,6 +28,7 @@ from .registry import OAuthClientRegistry, OAuthRegistrationUnavailableError
 
 
 logger = logging.getLogger(__name__)
+_MAX_REGISTRATION_BODY_BYTES = 128 * 1024
 
 
 def _oauth_error(description: str, *, status_code: int = 400) -> JSONResponse:
@@ -114,9 +116,24 @@ def create_oauth_router(
         content_type = request.headers.get("content-type", "")
         if content_type.split(";", 1)[0].strip().casefold() != "application/json":
             return _oauth_error("registration body must be application/json")
+        content_length = request.headers.get("content-length")
+        if content_length is not None:
+            try:
+                declared_length = int(content_length)
+            except ValueError:
+                return _oauth_error("content length is invalid")
+            if declared_length < 0:
+                return _oauth_error("content length is invalid")
+            if declared_length > _MAX_REGISTRATION_BODY_BYTES:
+                return _oauth_error("registration body is too large", status_code=413)
+        body = bytearray()
+        async for chunk in request.stream():
+            if len(body) + len(chunk) > _MAX_REGISTRATION_BODY_BYTES:
+                return _oauth_error("registration body is too large", status_code=413)
+            body.extend(chunk)
         try:
-            payload: Any = await request.json()
-        except ValueError:
+            payload: Any = json.loads(body)
+        except (ValueError, RecursionError):
             return _oauth_error("registration body is not valid JSON")
         if not isinstance(payload, dict):
             return _oauth_error("registration body must be a JSON object")

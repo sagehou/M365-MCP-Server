@@ -20,6 +20,10 @@ changes in [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60).
 
 ## Findings and corrections
 
+- Public OAuth registration bounds request bodies to 128 KiB before parsing,
+  including chunked requests and false length headers. Registered redirects
+  share authorization's 2048-character limit; malformed deeply nested JSON
+  returns a client error.
 - .NET keyword/date searches now put dates in KQL; date-only searches use OData
   filtering and received-time ordering. Timezone-free dates and incorrectly
   typed optional arguments are rejected.
