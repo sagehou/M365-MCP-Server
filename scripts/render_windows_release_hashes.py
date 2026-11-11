@@ -95,7 +95,6 @@ def bilingual_notes(english: str, chinese: str) -> str:
     if dates[0] != dates[1]:
         raise ValueError("English and Chinese update dates differ")
     return (
-        "[English](#english) | [简体中文](#简体中文)\n\n"
         "# English\n\n" + contents[0] + "\n\n"
         "# 简体中文\n\n" + contents[1] + "\n\n---\n\n"
         + footers[0] + "\n\n" + footers[1]

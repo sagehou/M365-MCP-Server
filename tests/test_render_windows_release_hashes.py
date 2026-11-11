@@ -188,7 +188,8 @@ def test_bilingual_release_contains_identical_hashes_and_one_footer(tmp_path: Pa
     result = run_renderer(binaries[0], checksum, english, output, *extra)
     assert result.returncode == 0, result.stderr
     body = output.read_text(encoding="utf-8")
-    assert body.startswith("[English](#english) | [简体中文](#简体中文)")
+    assert body.startswith("# English\n\n")
+    assert "[English](#english)" not in body and "[简体中文](#简体中文)" not in body
     assert "English notes." in body and "中文说明。" in body
     assert "english.md" not in body and "chinese.md" not in body
     assert body.count("| Algorithm | Hash |") == 3
