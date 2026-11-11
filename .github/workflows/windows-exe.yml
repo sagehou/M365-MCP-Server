@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-local-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows-local:
     runs-on: windows-2025
