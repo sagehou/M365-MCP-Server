@@ -26,31 +26,35 @@ def calculate_hashes(binary: Path) -> dict[str, str]:
 
 
 def verify_sha256_file(checksum_file: Path, binary: Path, actual: str) -> None:
-    fields = checksum_file.read_text(encoding="ascii").strip().split()
+    records = [line.split() for line in checksum_file.read_text(encoding="ascii").splitlines()]
+    matches = [fields for fields in records if len(fields) == 2 and fields[1] == binary.name]
     if (
-        len(fields) != 2
-        or not re.fullmatch(r"[0-9a-fA-F]{64}", fields[0])
-        or fields[1] != binary.name
-        or fields[0].lower() != actual
+        len(matches) != 1
+        or not re.fullmatch(r"[0-9a-fA-F]{64}", matches[0][0])
+        or matches[0][0].lower() != actual
     ):
         raise ValueError("SHA-256 checksum file does not match the exact release asset")
 
 
-def update_notes(notes: str, release_tag: str, binary: Path, hashes: dict[str, str]) -> str:
-    section = "\n".join(
-        [
-            START,
-            f"## Windows executable hashes ({release_tag})",
-            "",
-            f"Exact release asset: `{binary.name}`. For exact-file antivirus allowlisting:",
+def update_notes(
+    notes: str, release_tag: str, executables: list[tuple[Path, dict[str, str]]]
+) -> str:
+    tables = []
+    for binary, hashes in executables:
+        tables.extend([
+            f"### `{binary.name}`",
             "",
             "| Algorithm | Hash |",
             "| --- | --- |",
             *(f"| {name} | `{value}` |" for name, value in hashes.items()),
             "",
-            "MD5 and SHA-1 are provided for legacy allowlist forms only; they are not proof of authenticity. "
-            "Verify the SHA-256 checksum and GitHub Artifact Attestation for provenance. "
-            "A rebuilt or updated executable has different hashes and needs a new allowlist review.",
+        ])
+    section = "\n".join(
+        [
+            START,
+            f"## Windows executable hashes ({release_tag})",
+            "",
+            *tables,
             END,
         ]
     )
@@ -59,14 +63,17 @@ def update_notes(notes: str, release_tag: str, binary: Path, hashes: dict[str, s
     if START in notes:
         before, remainder = notes.split(START, 1)
         _, after = remainder.split(END, 1)
-        return before.rstrip() + "\n\n" + section + after
+        notes = before.rstrip() + after
+    if "\n---\n" in notes:
+        body, footer = notes.rsplit("\n---\n", 1)
+        return body.rstrip() + "\n\n" + section + "\n\n---\n" + footer
     return notes.rstrip() + "\n\n" + section + "\n"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", type=Path, required=True)
-    parser.add_argument("--sha256-file", type=Path, required=True)
+    parser.add_argument("--binary", type=Path, required=True, action="append")
+    parser.add_argument("--sha256-file", type=Path, required=True, action="append")
     parser.add_argument("--notes-in", type=Path, required=True)
     parser.add_argument("--notes-out", type=Path, required=True)
     parser.add_argument("--release-tag", required=True)
@@ -75,19 +82,30 @@ def main() -> None:
 
     if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", args.release_tag):
         parser.error("release tag must be vMAJOR.MINOR.PATCH")
-    if args.binary.name != "m365-mcp-windows-x64.exe":
-        parser.error("unexpected Windows release asset name")
+    if len(args.binary) != len(args.sha256_file):
+        parser.error("each binary needs its own --sha256-file argument")
+    names = [binary.name for binary in args.binary]
+    if len(names) != len(set(names)):
+        parser.error("duplicate Windows release asset")
+    if args.expected_sha256 and len(args.binary) != 1:
+        parser.error("--expected-sha256 requires exactly one binary")
 
-    hashes = calculate_hashes(args.binary)
-    verify_sha256_file(args.sha256_file, args.binary, hashes["SHA-256"])
-    if args.expected_sha256 and hashes["SHA-256"] != args.expected_sha256.lower():
-        raise ValueError("Release asset differs from the expected published SHA-256")
+    executables = []
+    for binary, checksum in zip(args.binary, args.sha256_file, strict=True):
+        if not re.fullmatch(r"m365-mcp-windows-(?:x64|local(?:-go)?-(?:amd64|arm64))\.exe", binary.name):
+            parser.error("unexpected Windows release asset name")
+        hashes = calculate_hashes(binary)
+        verify_sha256_file(checksum, binary, hashes["SHA-256"])
+        if args.expected_sha256 and hashes["SHA-256"] != args.expected_sha256.lower():
+            raise ValueError("Release asset differs from the expected published SHA-256")
+        executables.append((binary, hashes))
 
     notes = args.notes_in.read_text(encoding="utf-8")
-    updated = update_notes(notes, args.release_tag, args.binary, hashes)
+    updated = update_notes(notes, args.release_tag, executables)
     args.notes_out.write_text(updated, encoding="utf-8", newline="\n")
-    for name, value in hashes.items():
-        print(f"{args.binary.name} {name}: {value}")
+    for binary, hashes in executables:
+        for name, value in hashes.items():
+            print(f"{binary.name} {name}: {value}")
 
 
 if __name__ == "__main__":

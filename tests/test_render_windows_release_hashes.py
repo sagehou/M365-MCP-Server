@@ -91,3 +91,68 @@ def test_rejects_changed_asset_even_when_checksum_file_matches(tmp_path: Path) -
     assert result.returncode != 0
     assert "differs from the expected published SHA-256" in result.stderr
     assert not output.exists()
+
+
+def test_renders_all_editions_before_footer_and_replaces_old_hashes(tmp_path: Path) -> None:
+    names = [
+        "m365-mcp-windows-local-amd64.exe",
+        "m365-mcp-windows-local-go-amd64.exe",
+        "m365-mcp-windows-local-go-arm64.exe",
+    ]
+    binaries = [tmp_path / name for name in names]
+    for binary in binaries:
+        binary.write_bytes(binary.name.encode())
+    checksum = tmp_path / "SHA256SUMS.txt"
+    checksum.write_text("".join(
+        f"{hashlib.sha256(binary.read_bytes()).hexdigest()}  {binary.name}\n"
+        for binary in binaries
+    ), encoding="ascii")
+    notes = tmp_path / "notes.md"
+    notes.write_text(
+        "# Release\n\n---\nFooter notice.\n\n"
+        "<!-- windows-executable-hashes:start -->\nOld hashes.\n"
+        "<!-- windows-executable-hashes:end -->\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "updated.md"
+    extra = [
+        argument
+        for binary in binaries[1:]
+        for argument in ("--binary", str(binary), "--sha256-file", str(checksum))
+    ]
+    result = run_renderer(binaries[0], checksum, notes, output, *extra)
+    assert result.returncode == 0, result.stderr
+    body = output.read_text(encoding="utf-8")
+    assert "Old hashes." not in body
+    assert body.count("<!-- windows-executable-hashes:start -->") == 1
+    assert body.endswith("---\nFooter notice.\n")
+    for binary in binaries:
+        assert f"### `{binary.name}`" in body
+        assert hashlib.md5(binary.read_bytes(), usedforsecurity=False).hexdigest() in body
+        assert hashlib.sha1(binary.read_bytes(), usedforsecurity=False).hexdigest() in body
+        assert hashlib.sha256(binary.read_bytes()).hexdigest() in body
+
+    second = run_renderer(binaries[0], checksum, output, notes, *extra)
+    assert second.returncode == 0, second.stderr
+    assert notes.read_bytes() == output.read_bytes()
+
+
+def test_rejects_incorrect_go_hash_before_writing_any_notes(tmp_path: Path) -> None:
+    native = tmp_path / "m365-mcp-windows-local-amd64.exe"
+    go = tmp_path / "m365-mcp-windows-local-go-amd64.exe"
+    native.write_bytes(b"native release")
+    go.write_bytes(b"go release")
+    checksum = tmp_path / "SHA256SUMS.txt"
+    checksum.write_text(
+        f"{hashlib.sha256(native.read_bytes()).hexdigest()}  {native.name}\n"
+        f"{'0' * 64}  {go.name}\n", encoding="ascii",
+    )
+    notes = tmp_path / "notes.md"
+    notes.write_text("# Release\n", encoding="utf-8")
+    output = tmp_path / "output.md"
+    result = run_renderer(
+        native, checksum, notes, output, "--binary", str(go), "--sha256-file", str(checksum),
+    )
+    assert result.returncode != 0
+    assert "SHA-256 checksum file does not match" in result.stderr
+    assert not output.exists()

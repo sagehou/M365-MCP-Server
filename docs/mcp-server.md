@@ -69,7 +69,7 @@ token to a local file uploader, use the grant route:
    `mail_add_draft_attachment(draft_id, upload_handle)` through the same remote
    MCP connector. Check `mail_list_attachments` before sending.
 
-On Windows, the same `m365-mcp.exe` provides `inspect-attachment` and
+On Windows, the same `m365-mcp-windows-local-amd64.exe` provides `inspect-attachment` and
 `push-attachment` commands for steps 1 and 3. WorkBuddy can invoke them through
 its compose Skill and Bash tool. Configure a trusted `M365_ATTACHMENT_ROOT`
 and fixed HTTPS `M365_ATTACHMENT_PUSH_URL` as described in the

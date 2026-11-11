@@ -61,7 +61,7 @@ Token 时，可使用 Grant 路径：
    `mail_add_draft_attachment(draft_id, upload_handle)`，发送前检查
    `mail_list_attachments`。
 
-在 Windows 上，同一个 `m365-mcp.exe` 可用 `inspect-attachment` 和
+在 Windows 上，同一个 `m365-mcp-windows-local-amd64.exe` 可用 `inspect-attachment` 和
 `push-attachment` 命令完成第 1、3 步；WorkBuddy 可通过撰写 Skill 的 Bash
 工具调用。按照 [Windows EXE 辅助命令指南](windows-local.md#远端-connector-的本机-exe-辅助命令)
 配置可信的 `M365_ATTACHMENT_ROOT` 和固定 HTTPS
