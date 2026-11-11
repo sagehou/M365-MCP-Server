@@ -50,6 +50,10 @@ jobs:
         run: uv run --frozen --extra dev pytest
       - name: Audit dependencies
         run: uv run --frozen --extra dev pip-audit --skip-editable
+      - name: Check code hygiene
+        run: |
+          uvx --from ruff==0.17.4 ruff check --select F401,F811,F821 src scripts tests
+          uvx --from vulture==2.16 vulture src scripts --min-confidence 100
 
   windows:
     needs: test
@@ -62,6 +66,9 @@ jobs:
         uses: actions/setup-dotnet@v6.1.0
         with:
           dotnet-version: '10.0.x'
+      - name: Check all local tools with mocked Graph and Windows DPAPI
+        shell: pwsh
+        run: dotnet run --project windows/M365Mcp.Local.Checks --configuration Release
       - name: Publish native single executable
         shell: pwsh
         run: >
@@ -270,11 +277,14 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           load: true
+          pull: true
           platforms: linux/amd64
           tags: m365-mcp-server:release
           labels: ${{ steps.meta.outputs.labels }}
       - name: Smoke test exact release candidate
         run: bash scripts/smoke-container.sh m365-mcp-server:release
+      - name: Scan exact release candidate
+        run: bash scripts/scan-container.sh m365-mcp-server:release
       - name: Validate Compose configuration
         env:
           M365_MCP_IMAGE: m365-mcp-server:release
