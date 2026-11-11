@@ -1,247 +1,171 @@
 **English** | [简体中文](zh-CN/windows-local.md)
 
-# Windows local single-executable
+# Windows local edition (.NET and Go)
 
-## Current status
+| Capability | .NET NativeAOT | Go |
+| --- | --- | --- |
+| Windows architecture | AMD64 / x64 | AMD64 / x64 and ARM64 |
+| Runtime installation | None | None |
+| Microsoft sign-in | System browser, Authorization Code + S256 PKCE | System browser, Authorization Code + S256 PKCE |
+| MCP transport | stdio, command `stdio` | stdio, command `serve`; optional authenticated loopback HTTP |
+| Mail tools | 11 | 12, including attachment downloads |
+| Attachment text extraction | UTF-8 text, CSV, JSON, XML | PDF, DOCX, XLSX, PPTX, TXT, Markdown |
+| Add a local draft attachment | File picker or configured relative path | Configured relative path |
+| Remote-server upload helper | `inspect-attachment`, `push-attachment` | Not provided |
 
-The first Windows-local implementation is available in
-`windows/M365Mcp.Local` and is built only by GitHub Actions. It is a .NET 10
-NativeAOT application that publishes as exactly one `m365-mcp-windows-local-amd64.exe`; the target
-PC does not need Python, .NET, Docker, Git, or an installer.
+## Install
 
-The existing workflow is retained. The separately built
-[Go edition](windows-local-go.md) has its own workflow and artifact names.
-The published v0.1.3 NativeAOT executable uses .NET 10 LTS.
+Download the appropriate files from the
+[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3):
 
-The executable currently provides:
+| Edition | Release file | Executable used below |
+| --- | --- | --- |
+| .NET NativeAOT, Intel/AMD PC | `m365-mcp-windows-local-amd64.exe` | Same filename |
+| Go, Intel/AMD PC | `m365-mcp-windows-local-go-amd64.zip` | `m365-mcp-windows-local-go.exe` inside the ZIP |
+| Go, Windows on ARM | `m365-mcp-windows-local-go-arm64.zip` | `m365-mcp-windows-local-go.exe` inside the ZIP |
 
-- `doctor`, `login`, `logout`, `status`, and `stdio` commands
-- system-browser authorization code plus S256 PKCE for a dedicated Entra
-  desktop/public-client application
-- the project `M365-MCP-Localhost` public client built in by default, with an
-  enterprise client-ID override
-- current-user DPAPI protection for the optional persistent token state
-- MCP stdio with eleven bounded Outlook mail tools
-- an `--ephemeral` mode that neither reads nor writes persistent state
-- a Windows Actions gate that rejects anything except one executable, removes
-  language runtimes from `PATH` during smoke testing, and fails if the
-  ephemeral smoke run creates files
+Keep the executable in a stable folder such as `C:\Tools`. Neither edition
+requires Python, a .NET runtime, Docker, an installer, or a Windows service.
+Compare the downloaded EXE's SHA-256 with its `.sha256` file, or the ZIP's hash
+with `SHA256SUMS.txt`:
 
-The [v0.1.3 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3)
-contains the stable Windows asset, its SHA-256 checksum, MIT notice, and GitHub
-Artifact Attestation for the exact smoke-tested binary. Actions artifacts from
-ordinary branch builds remain integration builds. The released EXE is unsigned;
-Authenticode signing, SBOM, and rich local attachment extraction remain separate
-hardening work. Optional WAM depends on deployment requirements. The published
-v0.1.3 EXE has eleven mail tools, including draft attachments.
-
-## Runtime decision
-
-The remote/container server remains Python 3.12. The Windows-local host is a
-small separate .NET NativeAOT boundary that implements only local authentication,
-MCP stdio, and the bounded Graph/mail surface.
-
-This replaces the earlier PyOxidizer candidate. PyOxidizer's latest stable
-release embeds CPython 3.10 and is not a supportable basis for this Python 3.12
-application. PyInstaller and Nuitka one-file modes extract a runtime tree before
-execution, so they do not satisfy the no-extraction contract. NativeAOT produces
-a native Windows executable and needs no Python or .NET runtime on the user PC.
-
-## Distribution contract
-
-- The user receives and executes one `m365-mcp-windows-local-amd64.exe` file.
-- Normal execution does not extract a runtime tree.
-- `stdio` does not install a service, write registry/startup/scheduled-task
-  entries, or create log files.
-- MCP JSON-RPC is the only stdout content; diagnostics use stderr.
-- Persistent mode may create one documented current-user file:
-  `%LOCALAPPDATA%\M365-MCP-Server\state.bin`.
-- The state contains OAuth tokens protected with current-user Windows DPAPI.
-- `--ephemeral` does not read, create, or modify the state file.
-- The agent launches `stdio` as a child process. Windows service installation
-  is not part of this build because a service cannot own the agent's stdio
-  channel.
-
-## Antivirus false positives
-
-The unsigned NativeAOT executable may be quarantined by endpoint security
-software. No build option, ZIP wrapper, checksum, or GitHub attestation can
-guarantee an antivirus allow decision. The Windows build embeds the product
-name, file description, and version; these help identify a sample but are not
-a publisher signature.
-
-If a security product blocks the EXE:
-
-1. Obtain the exact EXE and `.sha256` file from the project's GitHub Release.
-   Compare `Get-FileHash .\m365-mcp-windows-local-amd64.exe -Algorithm SHA256` with the
-   published checksum and, if GitHub CLI is available, run
-   `gh attestation verify m365-mcp-windows-local-amd64.exe --repo sagehou/M365-MCP-Server`.
-   Stop if either verification fails.
-2. Record the security product and definition versions, detection name, SHA-256,
-   source Release URL, and the step that triggered detection. Do not include
-   tokens, mail content, or unredacted user/tenant IDs.
-3. Submit the *exact detected binary* as a suspected false positive to that
-   vendor. For Qianxin, use its official
-   [sample upload form](https://www.qianxin.com/other/sample-upload); the form
-   has a 100 MB file limit and asks for a contact email and CAPTCHA. Include
-   the repository and Release URL, build provenance, and a short explanation:
-   this is a single-file MCP stdio process, opens the system browser for Entra
-   PKCE, listens only on loopback during sign-in, calls Microsoft Graph, and
-   optionally stores DPAPI-protected state at the documented path.
-4. Wait for the vendor's determination and updated definitions, then retest
-   the same SHA-256 on the affected endpoint. If a managed business endpoint
-   needs an interim exception, let its security administrator assess a narrow,
-   time-limited rule for the verified exact file hash. Do not disable the
-   security product or exempt a whole directory or process family.
-
-Repeat the sample review for a changed binary hash; a prior verdict does not
-automatically cover new builds. GitHub attestation proves build provenance,
-not that the binary is malware-free or trusted by every antivirus engine.
-
-For Qianxin or another managed endpoint product that requests MD5 and SHA-1
-for exact-file allowlisting, use the values for `m365-mcp-windows-local-amd64.exe` in
-the same GitHub Release description. First confirm the EXE's SHA-256 against
-the published `.sha256` file; then give the MD5 and SHA-1 to the security
-administrator for a narrowly scoped rule. These older hashes are not proof of
-authenticity and must be recalculated for any changed executable.
-
-## Entra public-client setup
-
-The NativeAOT executable embeds the Client ID of this project-managed public
-client by default. It does not embed or use a Client Secret:
-
-```text
-Application name: M365-MCP-Localhost
-Application (client) ID: 6e35216e-2623-43cc-b867-83bec0865cf3
-Authority: organizations
+```powershell
+Get-FileHash .\m365-mcp-windows-local-amd64.exe -Algorithm SHA256
+Get-FileHash .\m365-mcp-windows-local-go-amd64.zip -Algorithm SHA256
 ```
 
-Using this built-in application does not require a new registration. For
-organization deployments, we recommend a dedicated desktop/public-client
-application managed in your own tenant:
+Run the command for the file you downloaded. If using a standalone Go EXE,
+rename it to `m365-mcp-windows-local-go.exe` or keep its architecture suffix in
+all commands and client paths. The ZIP contains this complete guide in both
+languages and license notices; only the EXE is needed at runtime.
+
+## Sign in with the built-in application
+
+```text
+Application: M365-MCP-Localhost
+Public Client ID: 6e35216e-2623-43cc-b867-83bec0865cf3
+Default tenant: organizations
+```
+
+Open PowerShell in the executable's directory and run the command for your
+edition:
+
+```powershell
+# .NET NativeAOT
+.\m365-mcp-windows-local-amd64.exe login
+
+# Go
+.\m365-mcp-windows-local-go.exe login
+```
+
+Complete Microsoft sign-in and consent in the system browser. Both editions
+use the same built-in public Client ID, have no embedded Client Secret, and
+allow your own application to override it. Tenant consent policy also applies
+to the built-in application.
+
+## Register your own application
 
 1. Open the [Microsoft Entra admin center](https://entra.microsoft.com/), switch
    to the tenant that will own the application, then select **Entra ID > App
-   registrations > New registration**. Enter a name such as
-   `M365-MCP-Local-Custom` and choose **Supported account types** from the table
-   below. Leave the initial redirect URI empty and select **Register**.
-2. On **Overview**, copy **Application (client) ID** and **Directory (tenant)
-   ID**. Use the application ID for `M365_LOCAL_CLIENT_ID`; do not use the
-   **Object ID**.
-3. Open **Authentication > Add a platform > Mobile and desktop applications**.
-   Add `http://localhost` as a custom redirect URI and save. Use the root path;
-   do not append `/callback`, specify a fixed port, or add the same URI under
-   **Web** or **Single-page application**. No client secret or certificate is
-   needed.
-4. Open **API permissions > Add a permission > Microsoft Graph > Delegated
-   permissions**, add the three permissions below, and save. If the tenant
-   allows user consent, continue with local sign-in. Use the organization's
-   admin-consent process only when policy requires approval.
+   registrations > New registration**. Use a name such as
+   `M365-MCP-Local-Custom`, choose the supported account types below, leave the
+   initial redirect URI empty, and select **Register**.
+2. Copy **Application (client) ID** and **Directory (tenant) ID** from
+   **Overview**. Use the application ID, not **Object ID**, as your Client ID.
+3. Under **Authentication > Add a platform > Mobile and desktop applications**,
+   add the custom redirect URI `http://localhost` and save. Use the root URI
+   without `/callback` or a fixed port. Do not duplicate it under **Web** or
+   **Single-page application**.
+4. Under **API permissions > Add a permission > Microsoft Graph > Delegated
+   permissions**, add the three permissions in the table below. Do not create
+   a Client Secret, mailbox Application permissions, or an `access_as_user` API
+   for this local application.
+5. Continue with your edition's configuration below. When tenant policy allows
+   user consent, grant the delegated permissions during sign-in. Use the
+   organization's admin-consent process only when approval is required.
 
-| Supported account types in the registration | `M365_LOCAL_TENANT_ID` |
-| --- | --- |
-| Accounts in this organizational directory only | The owning Directory (tenant) ID; recommended for one organization |
-| Accounts in any organizational directory | `organizations`, or a specific organizational tenant ID |
-| Accounts in any organizational directory and personal Microsoft accounts | `common` for both organizational and personal accounts |
-| Personal Microsoft accounts only | `consumers` in this NativeAOT edition |
-
-| Microsoft Graph delegated permission | Use in the current release | Admin consent required by the permission itself |
+| Registration's supported account types | Tenant setting | Editions |
 | --- | --- | --- |
-| `User.Read` | Included in the default sign-in request; mail operations do not use the profile API | No |
+| Accounts in this organizational directory only | Owning Directory (tenant) GUID; recommended for one organization | Both |
+| Accounts in any organizational directory | `organizations`, or a specific tenant GUID | Both |
+| Organizational and personal Microsoft accounts | `common` | Both |
+| Personal Microsoft accounts only | `consumers` | .NET NativeAOT only |
+
+| Graph delegated permission | Current use | Admin consent required by the permission itself |
+| --- | --- | --- |
+| `User.Read` | Requested by default; current mail operations do not call the profile API | No |
 | `Mail.ReadWrite` | Read and modify mail, drafts, and attachments | No |
-| `Mail.Send` | Send mail as the signed-in user | No |
+| `Mail.Send` | Send as the signed-in user | No |
 
 <details>
-<summary>ⓘ Public-client settings and account types</summary>
+<summary>ⓘ Public-client configuration and account types</summary>
 
-The registered **Mobile and desktop applications** redirect identifies the
-browser-based Authorization Code + S256 PKCE flow as a public client. Entra
-ignores the random port when matching `http://localhost`, but the path must
-match. **Allow public client flows** can remain at its default **No** for this
-flow; that switch enables other flows such as device code, username/password,
-and Integrated Windows Authentication. See Microsoft's
+For organization deployments, we recommend a dedicated desktop/public-client
+registration managed by your organization. A Client ID is a public identifier;
+this flow does not use a Client Secret or certificate. The Python server's
+confidential-client/OBO registration has a separate role and credential.
+
+Registering `http://localhost` under **Mobile and desktop applications**
+identifies browser Authorization Code + PKCE as a public-client flow. Entra
+ignores the random localhost port while matching, but the path must agree.
+**Allow public client flows** can remain at its default **No** for this flow;
+the switch enables other flows such as device code, username/password, and
+Integrated Windows Authentication. See Microsoft's
 [desktop registration](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration)
 and [public-client guidance](https://learn.microsoft.com/en-us/entra/identity-platform/msal-client-applications).
 
-The tenant setting accepts a GUID, `organizations`, `common`, or `consumers`.
-Changing it does not change the registration's supported account types. The
-selected account must have an accessible Outlook/Exchange mailbox. If **New
-registration** is unavailable, ask the tenant administrator for
-application-registration access; this is separate from consent to mailbox
-permissions.
-
-A Client ID is a public identifier. Create a dedicated desktop registration
-instead of distributing credentials from the Python server's confidential-client/
-OBO registration. Mailbox **Application permissions** and an exposed
-`access_as_user` API are not needed for local use.
+Go accepts tenant GUIDs, `organizations`, and `common`, but not `consumers`.
+For personal Outlook.com accounts in Go, register for organizational **and**
+personal accounts and use `common`. Changing the authority does not change the
+registration's supported account types. The account needs an accessible
+Outlook/Exchange mailbox. Application-registration access, if disabled in your
+tenant, must be granted separately from consent to mailbox permissions.
 
 </details>
 
 <details>
-<summary>ⓘ User.Read, custom scopes, and administrator approval</summary>
+<summary>ⓘ User.Read and administrator approval</summary>
 
-`User.Read` is not required by the mail endpoints or by PKCE sign-in itself.
-The current executable still requests it by default. Removing it from the
-registration's **API permissions** list does not remove it from that request.
-The NativeAOT edition supports an explicit scope override, for example:
+`User.Read` is not needed by the mail endpoints or PKCE itself. Both released
+editions still request it by default. Removing it from **API permissions** does
+not change the EXE's request. .NET supports the custom-scope override below;
+Go currently has neither a custom-scope flag nor support for
+`M365_LOCAL_GRAPH_SCOPES`.
 
-```powershell
-$env:M365_LOCAL_GRAPH_SCOPES = 'openid profile offline_access https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send'
-```
-
-This replaces the entire default scope list. Keep `offline_access` so the
-executable can obtain the refresh token it requires. Stop the MCP client/server,
-run `logout`, then `login` again; carry the same scope setting into the MCP
-client's `env` block. The Go edition does not support this variable.
-
-Microsoft lists **AdminConsentRequired: No** for all three
-[delegated permissions](https://learn.microsoft.com/en-us/graph/permissions-reference).
+All three delegated permissions have **AdminConsentRequired: No** in
+[Microsoft's permission reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
 The tenant's [user-consent policy](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/configure-user-consent)
-can still require approval: user consent may be disabled, the application may
-not meet publisher requirements, or the mail permissions may not be classified
-as low impact. Removing `User.Read` does not bypass those policies.
+can still disable user consent, require publisher verification, or allow only
+selected low-impact permissions. Removing `User.Read` does not bypass policy.
 
-If approval is required, give the administrator the application ID, target
-tenant, requested delegated permissions, and the sign-in error code. For an
-application registered in that tenant, an authorized administrator can review
-**App registrations > your app > API permissions > Grant admin consent for
-the tenant**. For another tenant, use that tenant's admin-consent workflow;
-consent in the application's home tenant does not grant consent elsewhere.
-Approval must cover the current permissions and be renewed if new permissions
-are added or the grant is revoked.
+For approval, give the administrator the application ID, target tenant,
+requested delegated permissions, and sign-in error code. For an app registered
+in that tenant, an authorized administrator can review **App registrations >
+your app > API permissions > Grant admin consent**. External tenants use their
+own admin-consent workflow; home-tenant consent does not approve other tenants.
+New permissions or revoked grants need new consent. A blank permission Status
+column alone does not mean an administrator must approve it.
 
 </details>
 
-## Run
+## Configure .NET NativeAOT
 
-In PowerShell:
+For a custom application, set these values **before** signing in:
 
 ```powershell
+$env:M365_LOCAL_CLIENT_ID = '<application-client-id>'
+$env:M365_LOCAL_TENANT_ID = '<directory-tenant-guid>'
 .\m365-mcp-windows-local-amd64.exe doctor
 .\m365-mcp-windows-local-amd64.exe login
 .\m365-mcp-windows-local-amd64.exe status
 ```
 
-The default build needs no environment variables. Override it only when using
-an enterprise-owned App Registration:
+`doctor` should show your `client_id`, `tenant`, and
+`client_id_source: "environment"`. `status` shows `authenticated: true` while
+the cached access token is usable. To use the built-in application, leave
+these overrides unset.
 
-```powershell
-$env:M365_LOCAL_CLIENT_ID = "<custom-desktop-public-client-id>"
-$env:M365_LOCAL_TENANT_ID = "<directory-tenant-id>"
-.\m365-mcp-windows-local-amd64.exe doctor
-.\m365-mcp-windows-local-amd64.exe login
-.\m365-mcp-windows-local-amd64.exe status
-```
-
-Set these values before running `login`. `doctor` should report your
-`client_id`, the selected `tenant`, and `client_id_source: "environment"`;
-`status` reports `authenticated: true` while the cached access token is usable.
-
-`login` opens the system browser, completes PKCE on loopback, then saves the
-DPAPI-protected state. Use `--ephemeral` with `login` or `stdio` when no
-authentication state may survive process exit.
-
-MCP client configuration for the custom application:
+Configure the MCP client with the same IDs:
 
 ```json
 {
@@ -250,158 +174,279 @@ MCP client configuration for the custom application:
       "command": "C:\\Tools\\m365-mcp-windows-local-amd64.exe",
       "args": ["stdio"],
       "env": {
-        "M365_LOCAL_CLIENT_ID": "<custom-desktop-public-client-id>",
-        "M365_LOCAL_TENANT_ID": "<directory-tenant-id>"
+        "M365_LOCAL_CLIENT_ID": "<application-client-id>",
+        "M365_LOCAL_TENANT_ID": "<directory-tenant-guid>"
       }
     }
   }
 }
 ```
 
-Replace the path and both IDs with your actual values. The NativeAOT edition
-reads these variables on every start; a PowerShell `$env:` assignment affects
-that session and its child processes, not an already-running MCP client.
-Keep the client ID and tenant identical in `login` and the MCP configuration.
-For the built-in application, omit the `env` block. Login, `stdio`, and logout
-must run as the same Windows user to use the DPAPI-protected state.
-
-The first tool call can also start interactive sign-in if no usable state exists.
-The agent must allow enough time for the user to finish the browser flow.
+Replace the executable path and IDs. Omit `env` for the built-in application.
+.NET reads these settings on every start; a PowerShell `$env:` assignment does
+not update an already-running MCP client. Login and the client must use the
+same Windows user, Client ID, and tenant to reuse the DPAPI-protected state.
+The first tool call can prompt for sign-in when no usable state exists.
 
 <details>
-<summary>ⓘ Switch applications or return to the built-in application</summary>
+<summary>ⓘ .NET custom scopes and ephemeral mode</summary>
 
-Stop the MCP client, run `logout`, set the new application and tenant, then
-repeat `doctor` and `login`. Update the MCP client's `env` block and restart
-it. A client-ID or tenant-ID change prevents reuse of the old DPAPI token state.
-
-To return to the built-in application from PowerShell:
+To omit `User.Read` from the .NET request, replace the whole scope list:
 
 ```powershell
-.\m365-mcp-windows-local-amd64.exe logout
-Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID, Env:M365_LOCAL_GRAPH_SCOPES -ErrorAction SilentlyContinue
-.\m365-mcp-windows-local-amd64.exe doctor
-.\m365-mcp-windows-local-amd64.exe login
+$env:M365_LOCAL_GRAPH_SCOPES = 'openid profile offline_access https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send'
 ```
 
-Also remove these overrides from the MCP client's `env` block. Local logout
-does not revoke tenant consent or browser sessions.
+Stop the MCP client, run `logout`, then `login` again. Carry this exact value
+into the MCP client's `env` too. Keep `offline_access` because the EXE requires
+a refresh token. This variable does not configure the Go edition.
+
+`--ephemeral` prevents reading or writing persistent authentication state.
+For a session without persistence, use `stdio --ephemeral` and complete sign-in
+when prompted. A separate `login --ephemeral` process cannot pass its in-memory
+tokens to a later process. Protocol output uses stdout and diagnostics stderr;
+normal execution installs no service, scheduled task, or startup entry.
 
 </details>
+
+## Configure Go
+
+Override the application for sign-in with flags:
+
+```powershell
+.\m365-mcp-windows-local-go.exe login --client-id YOUR-APPLICATION-ID --tenant YOUR-TENANT-ID
+.\m365-mcp-windows-local-go.exe connection
+```
+
+Or use environment variables:
+
+```powershell
+$env:M365_LOCAL_CLIENT_ID = 'YOUR-APPLICATION-ID'
+$env:M365_LOCAL_TENANT_ID = 'YOUR-TENANT-ID'
+.\m365-mcp-windows-local-go.exe login
+.\m365-mcp-windows-local-go.exe connection
+```
+
+At login the priority is flags, environment variables, then built-in defaults.
+Check the browser's application name before consent. Successful login prints
+`Signed in. Run connection to generate your MCP client configuration.`
+Go has no `doctor` or `status` command.
+
+### stdio
+
+Copy the JSON from `connection` into the MCP client, or configure:
+
+```json
+{
+  "mcpServers": {
+    "m365-local": {
+      "command": "C:\\Tools\\m365-mcp-windows-local-go.exe",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Go saves the selected application, tenant, and account at login. `serve` and
+`connection` use those saved settings; the client does not need the login
+environment variables. Changing variables or passing `--client-id` to `serve`
+does not switch the saved application. The MCP client starts the process;
+stdout carries only protocol data and stderr carries logs.
+
+### Streamable HTTP
+
+For a client supporting custom request headers:
+
+```powershell
+.\m365-mcp-windows-local-go.exe connection --http --port 8000
+.\m365-mcp-windows-local-go.exe serve --http --port 8000
+```
+
+Copy the first command's JSON, including its bearer header, into the client.
+The listener binds only to `127.0.0.1` and every MCP request needs the local
+token. Keep it private. Re-login rotates this token, so regenerate HTTP
+configuration afterward. Stdio uses the default `serve` command instead.
 
 <details>
-<summary>ⓘ Troubleshoot custom-application sign-in</summary>
+<summary>ⓘ Server OAuth connectors and local transports</summary>
 
-| Sign-in message or symptom | Check or action |
-| --- | --- |
-| Need admin approval / `AADSTS90094` / `AADSTS65001` | Check the target tenant's consent grant and user-consent policy; `65001` can also mean the user has not yet granted consent. |
-| `AADSTS50011` / redirect URI mismatch | Register the root `http://localhost` under **Mobile and desktop applications**, with no extra path. |
-| `AADSTS7000218` / client secret requested | Check the redirect's platform; correct a Web-platform registration rather than adding a secret. |
-| `AADSTS700016` / application not found | Check Application (client) ID, tenant selection, and supported account types. |
-| PowerShell login succeeds but the MCP client asks again | Check that both processes run as the same Windows user with the same `env` values; `--ephemeral` does not persist state between processes. |
-| `doctor` succeeds but sign-in or mail access fails | `doctor` validates local configuration only. Check Entra consent and the account's Exchange/Outlook mailbox availability separately. |
+Neither local edition provides the Python server's OAuth discovery/DCR
+endpoints. WorkBuddy's repository OAuth connector package is for the server
+edition. A client requiring OAuth discovery must use the server, or offer a
+separate stdio/custom-header configuration. The Go HTTP token is a local
+capability, not a Microsoft access token.
 
 </details>
 
-## Current local tool surface
+## Mail and attachments
 
-The executable exposes these tools:
+Both editions provide `mail_search`, `mail_get`, `mail_create_draft`,
+`mail_send_draft`, `mail_add_draft_attachment`, `mail_list_attachments`,
+`mail_read_attachment`, `mail_mark_read`, `mail_archive`, `mail_move`, and
+`mail_set_category`. Go also provides `mail_download_attachment`.
+Every Graph request uses the signed-in user's `/me` mailbox.
 
-- `mail_search`
-- `mail_get`
-- `mail_create_draft`
-- `mail_send_draft`
-- `mail_add_draft_attachment` (one file up to 20 MiB per call)
-- `mail_list_attachments`
-- `mail_read_attachment` for bounded UTF-8 text, CSV, JSON, and XML
-- `mail_mark_read`
-- `mail_archive`
-- `mail_move`
-- `mail_set_category`
+Drafts are plain text. Before sending, the MCP client must obtain per-message
+confirmation or enforce an explicit bounded automation authorization covering
+recipients, trusted content/attachment sources, volume, and expiry. Graph
+acceptance does not prove delivery. Ambiguous writes are not automatically
+retried; inspect the draft and attachments before deciding what to do next.
 
-`mail_download_attachment` is intentionally absent because the local stdio
-runtime has no HTTP download endpoint and must not write arbitrary files.
-PDF/DOCX/XLSX/PPTX extraction remains on the acceptance backlog. Sending still
-requires per-message confirmation or an explicit bounded automation
-authorization at the client/agent layer.
+### Add a local file
 
-### Unattended artifacts for a Windows-local connector
+Set an operator-controlled attachment folder before generating or starting the
+client configuration:
 
-For unattended automation using the Windows-local stdio connector, set
-`M365_ATTACHMENT_ROOT` in the connector process environment to a trusted,
-absolute output directory. Call
+```powershell
+$env:M365_ATTACHMENT_ROOT = 'C:\M365Artifacts'
+```
+
+For .NET, add this variable to the MCP server's `env` and call
 `mail_add_draft_attachment(draft_id, relative_path="reports\\weekly.docx")`.
-The tool reads only an opened file whose resolved path stays inside that root,
-with the same 20 MiB and DOCX/XLSX/PPTX/ZIP/PDF limits as the EXE upload
-commands. It attaches directly through the locally signed-in user's Graph
-session: no browser upload, second connector, Bash command, or remote push URL
-is needed. It never writes a temporary attachment file or returns file bytes
-through MCP. Omit `relative_path` for the existing interactive Windows file
-picker. Review the draft and attachment list before an authorized send.
+Omit `relative_path` to use its Windows file picker.
 
-### Local EXE helper for a remote connector
+For Go, run `connection` again after setting the folder; stdio JSON includes
+it in `env`. HTTP mode inherits the value when `serve` starts. Call
+`mail_add_draft_attachment(draft_id, relative_path="reports/weekly.docx")`.
+Go requires a relative path and has no file picker.
 
-The same released single EXE also provides
-`inspect-attachment <relative-path>` and `push-attachment <relative-path>`.
-These commands do not use Entra login or start an MCP connector. Set
-`M365_ATTACHMENT_ROOT` to a trusted, absolute directory containing completed
-automation outputs, and `M365_ATTACHMENT_PUSH_URL` to the server's fixed HTTPS
-`/uploads/push` URL. The caller may specify only a relative path beneath that
-root; the EXE checks the opened file's resolved path, permits DOCX, XLSX,
-PPTX, ZIP, and PDF, and rejects empty files or files over 20 MiB. It creates
-no temporary file.
+Both permit PDF, DOCX, XLSX, PPTX, and ZIP files up to 20 MiB, verify the
+opened file stays within the configured root for relative paths, and return
+byte length and SHA-256. Files below 3,000,000 bytes use a direct Graph upload;
+larger files use a restricted sequential upload session. Attaching never sends.
 
-`inspect-attachment` returns the local file's name, MIME type, byte length and
-SHA-256. `push-attachment` accepts the complete grant JSON through standard
-input for the same path. The EXE checks the configured URL and the file again
-before posting raw bytes; it receives no user OAuth token and does not follow
-HTTP redirects. The full server-side grant, upload, attachment and send
-sequence belongs to the [remote MCP server guide](mcp-server.md).
+<details>
+<summary>ⓘ Text extraction, downloads, and the remote upload helper</summary>
 
-For example, in PowerShell with an already received MCP grant JSON held only in
-`$grantJson`:
+.NET reads bounded UTF-8 text/CSV/JSON/XML attachments. It has no download
+endpoint or PDF/Office parser. Go extracts PDF, DOCX, XLSX, PPTX, TXT, and
+Markdown in separate workers: 512 MiB memory, 15 CPU seconds, 20 seconds wall
+time, and at most two active workers. Extraction is limited to 10 MiB files,
+64 MiB/2,048-entry Office expansion, and 100,000 output characters. XLSX uses
+cached formula results; image-only PDFs require external OCR.
+
+Go downloads use unguessable, five-minute, single-use HTTP URLs bound to
+`127.0.0.1`. Stdio starts this listener on a random port. At most 16 downloads
+and 64 MiB are retained in memory; restart invalidates the URLs. Open them on
+the same PC. Attachment list `size` is provider metadata; fetched
+`content_length` is the decoded byte count.
+
+For a remote-server connector, the .NET EXE also offers `inspect-attachment`
+and `push-attachment`, without local sign-in. The complete grant and upload
+sequence belongs to the
+[server guide](https://github.com/sagehou/M365-MCP-Server/blob/main/docs/mcp-server.md#add-a-file-to-a-remote-draft).
+These commands do not create a second local MCP connector. Go does not provide
+them.
+
+</details>
+
+## Switch applications or sign out
+
+Stop the MCP client/server before changing credentials:
 
 ```powershell
-$env:M365_ATTACHMENT_ROOT = 'C:\Automation\Output'
-$env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
-& 'C:\Tools\m365-mcp-windows-local-amd64.exe' inspect-attachment 'reports\weekly.docx'
-$grantJson | & 'C:\Tools\m365-mcp-windows-local-amd64.exe' push-attachment 'reports\weekly.docx'
+# Run the command for your edition
+.\m365-mcp-windows-local-amd64.exe logout
+.\m365-mcp-windows-local-go.exe logout
 ```
 
-Do not log the grant or place it in command arguments. If inspection and push
-differ, regenerate the grant; never guess the hash.
-The WorkBuddy compose Skill can invoke these commands through its Bash tool;
-the EXE must be installed at an operator-approved path. A bounded automation
-authorization must still name the permitted output source, recipients, sizes,
-message limits, and expiry. The EXE's file-root check limits only this command:
-WorkBuddy's general Bash permission may access other files, so use the client's
-own sandbox and tool-approval policy for that broader capability.
+For .NET, set the new application/tenant, run `doctor` and `login`, update the
+MCP client's `env`, and restart it. For Go, repeat `login` with the new flags
+or variables, then `connection`. Replace existing HTTP configuration because
+re-login rotates its token. Stdio keeps the executable path and `serve` argument.
 
-## Build and obtain the integration artifact
+<details>
+<summary>ⓘ Return to the built-in application and local state locations</summary>
 
-The `Windows local executable` workflow publishes the
-`m365-mcp-windows-local-amd64` Actions artifact. The workflow:
+After logging out, clear overrides in PowerShell:
 
-1. runs on a pinned Windows runner;
-2. publishes `windows/M365Mcp.Local/M365Mcp.Local.csproj` with NativeAOT;
-3. asserts that the output contains exactly `m365-mcp-windows-local-amd64.exe`;
-4. runs `doctor`, MCP `initialize`, and `tools/list` with no language runtime
-   on `PATH`;
-5. asserts that the ephemeral run leaves no files.
+```powershell
+Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID, Env:M365_LOCAL_GRAPH_SCOPES -ErrorAction SilentlyContinue
+```
 
-Do not describe an Actions artifact as a stable release. The tagged release
-workflow rebuilds and smoke-tests the Windows x64 executable, publishes its
-SHA-256 checksum and MIT notice, records GitHub Artifact Attestation for that
-binary, and attaches the exact tested files to the GitHub Release.
+Also remove overrides from the .NET MCP client's `env`. Run your edition's
+`login` again, and for Go regenerate `connection`. Environment changes affect
+that PowerShell session and its children; future logins from another process
+can inherit different settings.
 
-## Follow-up hardening and deployment checks
+| Edition | Current-user encrypted state |
+| --- | --- |
+| .NET NativeAOT | `%LOCALAPPDATA%\M365-MCP-Server\state.bin`; Client ID and tenant must match at load |
+| Go | `%LOCALAPPDATA%\M365MCP`; saved settings, MSAL cache, local HTTP token, and a user-only Windows ACL |
 
-- Validate browser PKCE first, then decide whether optional WAM integration is
-  justified by account-selection, SSO, or tenant-policy requirements.
-- Add safe rich attachment extraction without runtime extraction.
-- Exercise search, read, draft, confirmed send, bounded automation send,
-  attachment reading, and representative mutations against a real mailbox.
-- Verify refresh, logout, corrupted-state recovery, two-account isolation, and
-  tenant policy behavior.
-- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation accompany v0.1.3.
-- Validate the published executable on a clean Windows x64 VM.
+Both use current-user DPAPI. Go binds subsequent calls to the chosen account
+and never falls back to a different cached user on refresh failure. Only one
+Go login/server/logout process can use its state at a time. Local logout
+removes credentials, not browser sessions or tenant consent.
+
+</details>
+
+## Troubleshooting
+
+<details>
+<summary>ⓘ Sign-in and client configuration</summary>
+
+| Message or symptom | Check or action |
+| --- | --- |
+| Need admin approval / `AADSTS90094` / `AADSTS65001` | Check the target tenant's grants and consent policy; `65001` can also mean user consent is not yet complete. |
+| `AADSTS50011` | Register root `http://localhost` under **Mobile and desktop applications**, with no extra path. |
+| `AADSTS7000218` / client secret requested | Correct the redirect platform; a desktop public client does not need a secret. |
+| `AADSTS700016` / app not found | Check Application (client) ID, selected tenant, and supported account types. |
+| .NET PowerShell login works but MCP asks again | Match Windows user and `env` values; `--ephemeral` does not persist state across processes. |
+| Go keeps the old application/account | Stop `serve`, log out, and repeat `login` with explicit flags, then `connection`. |
+| `doctor` works but sign-in fails | .NET `doctor` validates local settings, not tenant registration or consent. |
+| Login works but Graph returns `403` | Check delegated mail grants and Exchange/Outlook mailbox availability. |
+| Go HTTP client gets `401` after login | Regenerate `connection --http` and replace the old bearer token. |
+
+</details>
+
+## Antivirus false positives
+
+<details>
+<summary>ⓘ Verify and report a detected file</summary>
+
+1. Download the exact EXE and checksum from the same GitHub Release and compare
+   SHA-256. For the .NET artifact, GitHub CLI can also verify provenance with
+   `gh attestation verify m365-mcp-windows-local-amd64.exe --repo sagehou/M365-MCP-Server`.
+   Resolve a verification mismatch before running it.
+2. Record the security product/database version, detection name, SHA-256,
+   release URL, and trigger steps without tokens or mailbox content.
+3. Submit that exact detected binary through the vendor's false-positive
+   process. Qianxin provides a
+   [sample submission page](https://www.qianxin.com/other/sample-upload)
+   accepting files up to 100 MB with a contact email and CAPTCHA.
+4. After vendor review, verify the same hash on the affected PC. If the
+   organization's administrator needs an interim exception, assess a narrow,
+   time-limited rule for that verified file. Use the Release's MD5/SHA-1 only
+   where a legacy allowlist form requires them; SHA-256 remains the integrity
+   check. Changed binaries need fresh verification and review.
+
+Keep endpoint protection enabled. Report the actual behavior: a single EXE,
+browser PKCE login with a loopback callback, delegated Graph access, and
+current-user encrypted state. A whole-directory or process-name exception is
+broader than the exact-file review.
+
+</details>
+
+## Build and distribution
+
+| Edition | GitHub Actions workflow | Integration artifacts |
+| --- | --- | --- |
+| .NET NativeAOT | `Windows local executable` (`windows-exe.yml`) | `m365-mcp-windows-local-amd64` |
+| Go | `windows-local-go` | `windows-local-go-amd64`, `windows-local-go-arm64`, `windows-local-go-packages` |
+
+All builds and tests run in GitHub Actions. Go ZIPs include this unified guide
+as `README.md` and `README.zh-CN.md`, dependency notices, and the license. Both
+workflows continue independently; tagged releases publish the tested EXEs and
+checksums together. Ordinary Actions artifacts are integration outputs.
+Go AMD64 receives a Windows runtime smoke test; ARM64 is cross-compiled and its
+version resources are checked.
+
+---
+
+The EXEs are unsigned. Go does not guarantee fewer antivirus detections;
+checksums, version details, and provenance do not replace Authenticode signing
+or vendor review. Worker resource limits are not a filesystem/network sandbox.
+Real tenant sign-in, client compatibility, and antivirus behavior require
+acceptance on the target PC. The editing environment must not build, test,
+install test dependencies, or create a test virtual environment. Updated: 2026-11-11.

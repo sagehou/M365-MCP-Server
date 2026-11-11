@@ -2,100 +2,72 @@
 
 # M365 MCP Server
 
-A self-hosted Microsoft 365 MCP gateway with a deliberately bounded tool surface,
-delegated Microsoft Entra identity, per-user isolation, and security-focused
-handling of Outlook mail and attachments.
+## Get started
 
-> **Released:** [`v0.1.3`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3)
-> is available under the MIT License. CI validated the container image and Windows
-> x64 NativeAOT executable. Deployment-specific Entra consent and client-side
-> send authorization remain the responsibility of each installation.
+| Run mode | Guide | Delivery |
+| --- | --- | --- |
+| Server | [Server edition](docs/mcp-server.md) | Python container, HTTPS Streamable HTTP, Entra/OBO, optional browser OAuth |
+| Windows local | [Local edition: .NET and Go](docs/windows-local.md) | Single-user EXE, browser PKCE, stdio; Go also offers authenticated loopback HTTP |
 
-## What works today
+## Mail capabilities
 
-### Remote MCP server
+- Search and read the signed-in user's Outlook mailbox through delegated `/me`
+  access.
+- Create plain-text drafts, attach files, and send after client-enforced
+  confirmation or bounded authorization.
+- Mark read/unread, archive, move, and set categories.
+- Read bounded attachment text; extraction formats and download support depend
+  on the edition and are listed in the local/server guide.
 
-Start with the [remote MCP server guide](docs/mcp-server.md) for the container,
-client connection and attachment-upload paths.
+The server provides 11 tools by default or 13 with server-managed OAuth.
+The .NET local edition provides 11, and Go provides 12.
 
-- FastMCP Streamable HTTP endpoint at `/mcp/`.
-- Microsoft Entra bearer-token validation with tenant and scope enforcement.
-- Microsoft Graph delegated access through On-Behalf-Of (OBO).
-- Per-request user identity isolation; Graph calls are confined to `/me`.
-- Optional OAuth discovery, dynamic public-client registration, interactive
-  sign-in, S256 PKCE, encrypted refresh sessions, rotation, and replay rejection.
-- A WorkBuddy connector package under `workbuddy/` with a mocked end-to-end
-  client flow in CI.
-- Structured, redacted audit events with correlation IDs returned in safe errors.
-- `mail_add_draft_attachment` adds up to 20 MiB to an existing draft without
-  sending. A remote client explicitly uploads raw bytes, then passes a
-  short-lived handle to MCP. For unattended client-side artifacts, OAuth mode
-  can issue a draft-bound push grant; a trusted local uploader supplies the
-  bytes. See [remote draft attachments](docs/mcp-server.md#add-a-file-to-a-remote-draft).
+## Releases
 
-### Windows local executable
+[Download v0.1.3](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3).
 
-See the [Windows local guide](docs/windows-local.md) for `stdio`, local login,
-relative-path draft attachments and the optional EXE helper for a remote
-connector.
+| Artifact | Name |
+| --- | --- |
+| Container image | `ghcr.io/sagehou/m365-mcp-server:v0.1.3` |
+| .NET NativeAOT, Windows x64 | `m365-mcp-windows-local-amd64.exe` |
+| Go, Windows x64 / ARM64 | `m365-mcp-windows-local-go-amd64.exe`, `m365-mcp-windows-local-go-arm64.exe` |
+| Go packages with both language guides | `m365-mcp-windows-local-go-amd64.zip`, `m365-mcp-windows-local-go-arm64.zip` |
 
-The Windows x64 NativeAOT local runtime is included in v0.1.3. The release
-provides:
+The release includes SHA-256 checksums and EXE hashes in its description.
+The .NET artifact also has GitHub Artifact Attestation. Both local editions
+include the same public Client ID and support your own application; their
+configuration steps are in the single local guide.
 
-- `m365-mcp-windows-local-amd64.exe`
-- SHA-256 checksum
-- MD5 and SHA-1 in the Release description for exact-file antivirus allowlisting
-- GitHub Artifact Attestation provenance
-- `LICENSE` legal notice (not a runtime dependency)
+## Development
 
-The executable does not require Python, .NET runtime, Docker, or an installer on
-the target PC. Authenticode signing remains a future hardening item. If security
-software quarantines the unsigned EXE, follow the
-[false-positive handling guide](docs/windows-local.md#antivirus-false-positives);
-the checksum and attestation establish provenance but do not override antivirus
-decisions. MD5 and SHA-1 are only identifiers for legacy allowlist forms, not
-authenticity checks; a changed EXE needs new hashes and a new allowlist review.
+All tests, dependency audits, container builds, and Windows builds run in
+GitHub Actions. The editing environment must not create test virtual
+environments, install test dependencies, or run local tests/builds.
 
-### Windows local Go executable
+<details>
+<summary>ⓘ Engineering references and release history</summary>
 
-The [Go edition](docs/windows-local-go.md) uses its own `windows-local-go`
-workflow to produce standalone AMD64 and ARM64 executables. It supports browser
-sign-in, stdio, authenticated loopback HTTP, and attachment text extraction.
-Run `login` to use the same built-in public Client ID as NativeAOT, or override
-it with `--client-id` or `M365_LOCAL_CLIENT_ID`.
-The existing NativeAOT workflow and release assets remain available.
+- [Architecture](docs/architecture.md)
+- [Tool contracts](docs/tool-spec.md)
+- [Security design](docs/security.md)
+- [Development plan](docs/development-plan.md)
+- [Release acceptance checklist](docs/release-checklist.md)
+- [v0.1.3 release notes](docs/releases/v0.1.3.md)
 
-For stdio, set the executable as `command` and `["serve"]` as `args` in the MCP
-client. See the [stdio configuration example](docs/windows-local-go.md#stdio).
+Search continuation, reply/forward, HTML composition, OCR, shared mailboxes,
+enterprise policy features, and Calendar/OneDrive/SharePoint/Teams are future
+work. Windows Authenticode signing and optional WAM integration also remain
+follow-up work.
 
-## Release and validation status
-
-| Area | Status |
-|---|---|
-| Python tests and bilingual documentation checks | Run in GitHub Actions |
-| Production Docker image build | CI-covered |
-| Container health smoke test | CI-covered |
-| Docker Compose validation | CI-covered |
-| Windows NativeAOT executable build | CI-covered |
-| Windows SHA-256 and provenance attestation | Published and verified for v0.1.3 |
-| Stable `v0.1.3` GitHub release | [Published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3) |
-
-GitHub Actions is the only build and test environment for this repository.
-Do not create local test environments, install test dependencies, or run local builds/tests.
-
-## Remaining work
-
-- Search continuation cursors and folder discovery.
-- Reply and forward workflows; HTML composition.
-- OCR, shared mailboxes, RBAC, read-only mode, dynamic tool exposure, and rate
-  limiting.
-- Calendar, OneDrive, SharePoint, and Teams.
-- Authenticode signing for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
-
-See the [v0.1.3 release notes](docs/releases/v0.1.3.md) and
-[deployment guide](docs/deployment.md) before deployment.
+</details>
 
 ## License
 
-The project source code and documentation are released under the [MIT License](LICENSE).
-Third-party dependencies retain their own licenses.
+Source code and documentation use the [MIT License](LICENSE). Third-party
+dependencies retain their own licenses.
+
+---
+
+Real tenant consent and client behavior require deployment acceptance. Windows
+EXEs are unsigned; hashes and provenance do not guarantee antivirus acceptance.
+Updated: 2026-11-11.

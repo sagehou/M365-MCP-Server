@@ -1,201 +1,148 @@
 [English](../windows-local.md) | **简体中文**
 
-# Windows 本地单文件版本
+# Windows 本地版（.NET 与 Go）
 
-## 当前状态
+| 能力 | .NET NativeAOT | Go |
+| --- | --- | --- |
+| Windows 架构 | AMD64 / x64 | AMD64 / x64、ARM64 |
+| 安装运行时 | 无需 | 无需 |
+| Microsoft 登录 | 系统浏览器、Authorization Code + S256 PKCE | 系统浏览器、Authorization Code + S256 PKCE |
+| MCP 传输 | stdio，命令为 `stdio` | stdio，命令为 `serve`；可选本机鉴权 HTTP |
+| 邮件工具 | 11 项 | 12 项，含附件下载 |
+| 附件文本提取 | UTF-8 文本、CSV、JSON、XML | PDF、DOCX、XLSX、PPTX、TXT、Markdown |
+| 添加本地草稿附件 | 文件选择框或配置目录下的相对路径 | 配置目录下的相对路径 |
+| 远端服务器上传辅助命令 | `inspect-attachment`、`push-attachment` | 不提供 |
 
-首个 Windows 本地实现位于 `windows/M365Mcp.Local`，只通过 GitHub Actions
-构建。它使用 .NET 10 NativeAOT，发布结果严格为一个 `m365-mcp-windows-local-amd64.exe`；用户电脑
-不需要 Python、.NET、Docker、Git 或安装器。
+## 安装
 
-原有流水线继续保留；新增的 [Go 版](windows-local-go.md)使用独立流水线和产物名。
-已发布的 v0.1.3 NativeAOT EXE 使用 .NET 10 LTS。
+从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3)
+下载对应文件：
 
-当前 EXE 已提供：
+| 版本 | 发布文件 | 下文使用的 EXE |
+| --- | --- | --- |
+| .NET NativeAOT，Intel/AMD 电脑 | `m365-mcp-windows-local-amd64.exe` | 保持原文件名 |
+| Go，Intel/AMD 电脑 | `m365-mcp-windows-local-go-amd64.zip` | ZIP 内的 `m365-mcp-windows-local-go.exe` |
+| Go，Windows ARM 电脑 | `m365-mcp-windows-local-go-arm64.zip` | ZIP 内的 `m365-mcp-windows-local-go.exe` |
 
-- `doctor`、`login`、`logout`、`status` 和 `stdio` 命令；
-- 面向独立 Entra Desktop/Public Client App 的系统浏览器 Authorization Code +
-  S256 PKCE 登录；
-- 默认内置项目公共客户端 `M365-MCP-Localhost`，并允许企业覆盖 Client ID；
-- 使用当前 Windows 用户 DPAPI 保护可选持久 Token State；
-- 通过 MCP stdio 提供 11 个有边界的 Outlook Mail 工具；
-- `--ephemeral` 模式，不读取也不写入持久状态；
-- Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
-  `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
+将程序放在 `C:\Tools` 等固定目录。两套版本均不需要 Python、.NET Runtime、Docker、
+安装器或 Windows Service。用 EXE 对应的 `.sha256`，或 ZIP 对应的 `SHA256SUMS.txt`
+核对下载文件的 SHA-256：
 
-[v0.1.3 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3)
-已提供稳定版 Windows EXE、SHA-256 校验文件、MIT 许可声明和该精确 Smoke Test
-二进制文件的 GitHub Artifact Attestation。普通分支的 Actions Artifact 仍只是
-集成产物。已发布 EXE 尚无 Authenticode 签名；SBOM 与 PDF/Office 本地附件解析
-属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.3 EXE 提供 11 个
-邮件工具，包括添加草稿附件。
-
-## Runtime 决策
-
-远端/容器 Server 继续使用 Python 3.12。Windows 本地 Host 是一个小型、独立的
-.NET NativeAOT 边界，只负责本地认证、MCP stdio 和受控 Graph/Mail 工具面。
-
-这取代了早期 PyOxidizer 候选方案。PyOxidizer 最新稳定版内置 CPython 3.10，
-不适合作为当前 Python 3.12 项目的可维护交付基础；PyInstaller 和 Nuitka 的
-One-file 模式会在启动时解压 Runtime Tree，也不满足“不产生解压目录”的约束。
-NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Runtime。
-
-## 分发约束
-
-- 用户只接收并运行一个 `m365-mcp-windows-local-amd64.exe`。
-- 正常运行不解压 Runtime Tree。
-- `stdio` 不安装 Service，不创建 Registry、Startup、Scheduled Task 或日志文件。
-- stdout 只输出 MCP JSON-RPC；诊断信息只写 stderr。
-- 持久模式最多创建一个已声明的当前用户文件：
-  `%LOCALAPPDATA%\M365-MCP-Server\state.bin`。
-- State 中的 OAuth Token 使用当前 Windows 用户 DPAPI 保护。
-- `--ephemeral` 不读取、新建或修改 State 文件。
-- Agent 将 `stdio` 作为子进程启动。当前版本不提供 Windows Service 安装，
-  因为 Service 无法拥有 Agent 的 stdio 通道。
-
-## 杀毒软件误报
-
-未签名的 NativeAOT EXE 可能被终端安全软件隔离。构建参数、ZIP 包、Checksum 或
-GitHub Attestation 都不能保证杀毒软件放行。Windows 构建已写入产品名称、文件描述
-和版本号，有助于识别样本，但不等于发布者签名。
-
-如果 EXE 被拦截：
-
-1. 从项目 GitHub Release 获取精确的 EXE 和 `.sha256` 文件。用
-   `Get-FileHash .\m365-mcp-windows-local-amd64.exe -Algorithm SHA256` 与发布的校验值
-   对比；如已安装 GitHub CLI，再运行
-   `gh attestation verify m365-mcp-windows-local-amd64.exe --repo sagehou/M365-MCP-Server`。
-   任一验证失败都不要继续运行。
-2. 记录安全产品及病毒库版本、检出名称、SHA-256、Release 来源链接和触发步骤。
-   不要包含 Token、邮件内容或未经脱敏的用户/租户标识。
-3. 将*被检出的那份二进制文件*作为疑似误报提交给对应厂商。奇安信使用其官方
-   [样本上报页面](https://www.qianxin.com/other/sample-upload)；页面限制文件不
-   超过 100 MB，并要求联系邮箱和验证码。附上仓库、Release 链接、构建来源证明
-   和简要行为说明：这是单文件 MCP stdio 进程；登录时打开系统浏览器完成 Entra
-   PKCE、仅监听本机 Loopback；访问 Microsoft Graph；可选地在已声明路径保存
-   DPAPI 保护的状态。
-4. 等待厂商判定和病毒库更新，再用同一 SHA-256 在受影响终端复测。企业受管终端
-   如需临时例外，应由安全管理员评估对已验证的*精确文件哈希*设置窄范围、限时
-   规则。不要关闭安全软件，也不要放行整个目录或同名进程家族。
-
-二进制哈希改变后需重新核验；旧版本的判定不自动覆盖新构建。GitHub Attestation
-证明构建来源，不证明文件绝对安全，也不代表所有杀毒引擎都会信任它。
-
-若奇安信或其他受管终端安全产品要求提供 MD5 和 SHA-1 以按精确文件哈希加白，
-请使用同一 GitHub Release 说明中 `m365-mcp-windows-local-amd64.exe` 对应的值。先用
-发布的 `.sha256` 文件核对 EXE 的 SHA-256，再由安全管理员评估窄范围白名单。
-MD5 和 SHA-1 不是可信性证明；任何 EXE 变更都必须重新计算并审核白名单。
-
-## Entra Public Client 配置
-
-NativeAOT EXE 默认内置以下项目公共客户端的 Client ID，没有内置或使用 Client Secret：
-
-```text
-应用名称：M365-MCP-Localhost
-Application (client) ID：6e35216e-2623-43cc-b867-83bec0865cf3
-Authority：organizations
+```powershell
+Get-FileHash .\m365-mcp-windows-local-amd64.exe -Algorithm SHA256
+Get-FileHash .\m365-mcp-windows-local-go-amd64.zip -Algorithm SHA256
 ```
 
-使用内置应用不需要自行注册。组织部署建议在自己的租户中注册、管理独立的
-Desktop/Public Client 应用：
+执行与你下载文件对应的命令。单独下载 Go EXE 时，可重命名为
+`m365-mcp-windows-local-go.exe`；保留架构后缀时，所有命令和客户端路径也要保留。
+ZIP 包包含本指南的中英文版本及许可声明，实际运行只需 EXE。
 
-1. 打开 [Microsoft Entra 管理中心](https://entra.microsoft.com/)，切换到管理此应用的租户，
-   进入 **Entra ID > 应用注册 > 新注册**。名称可填 `M365-MCP-Local-Custom`，
-   按下表选择**支持的账户类型**，暂不填写重定向 URI，然后选择**注册**。
-2. 在**概述**复制**应用程序（客户端）ID**和**目录（租户）ID**。
-   `M365_LOCAL_CLIENT_ID` 使用应用程序 ID，不能填写**对象 ID**。
+## 使用内置应用登录
+
+```text
+应用：M365-MCP-Localhost
+公开 Client ID：6e35216e-2623-43cc-b867-83bec0865cf3
+默认租户：organizations
+```
+
+在 EXE 目录打开 PowerShell，执行所用版本的命令：
+
+```powershell
+# .NET NativeAOT
+.\m365-mcp-windows-local-amd64.exe login
+
+# Go
+.\m365-mcp-windows-local-go.exe login
+```
+
+在系统浏览器完成 Microsoft 登录和权限同意。两套版本内置同一个公开 Client ID，均没有
+内置 Client Secret，也都允许使用自建应用覆盖。内置应用同样受目标租户的同意策略约束。
+
+## 注册自建应用
+
+1. 打开 [Microsoft Entra 管理中心](https://entra.microsoft.com/)，切换到管理此应用的
+   租户，进入 **Entra ID > 应用注册 > 新注册**。名称可填 `M365-MCP-Local-Custom`，
+   按下表选择支持的账户类型，暂不填写重定向 URI，然后选择**注册**。
+2. 在**概述**复制**应用程序（客户端）ID**和**目录（租户）ID**。Client ID 使用应用程序
+   ID，不能填写**对象 ID**。
 3. 进入**身份验证 > 添加平台 > 移动和桌面应用程序**，添加自定义重定向 URI
-   `http://localhost` 并保存。使用根路径，不加 `/callback` 或固定端口，也不要在
-   **Web** 或**单页应用程序**平台重复添加同一个 URI。无需创建 Client Secret 或证书。
-4. 进入 **API 权限 > 添加权限 > Microsoft Graph > 委托的权限**，添加下表三项权限并
-   保存。租户允许用户自行同意时，继续在本机登录；仅在策略要求时走组织的管理员同意流程。
+   `http://localhost` 并保存。使用根地址，不加 `/callback` 或固定端口，不要在 **Web**
+   或**单页应用程序**平台重复注册。
+4. 进入 **API 权限 > 添加权限 > Microsoft Graph > 委托的权限**，添加下表三项权限。
+   此本地应用无需创建 Client Secret、邮箱 Application 权限或 `access_as_user` API。
+5. 继续配置下文中所用版本。租户允许用户自行同意时，在登录过程中授权即可；只有需要批准
+   时才走组织的管理员同意流程。
 
-| 注册时支持的账户类型 | `M365_LOCAL_TENANT_ID` |
-| --- | --- |
-| 仅此组织目录中的账户 | 应用所属目录（租户）ID；单组织使用建议选此项 |
-| 任何组织目录中的账户 | `organizations`，或指定组织的租户 ID |
-| 任何组织目录中的账户和个人 Microsoft 账户 | `common`，同时允许组织和个人账户 |
-| 仅个人 Microsoft 账户 | 此 NativeAOT 版使用 `consumers` |
-
-| Microsoft Graph 委托权限 | 当前版本中的用途 | 权限本身是否强制管理员同意 |
+| 注册时支持的账户类型 | 租户配置 | 适用版本 |
 | --- | --- | --- |
-| `User.Read` | 默认登录仍会请求；邮件功能未调用用户资料 API | 否 |
+| 仅此组织目录中的账户 | 应用所属目录（租户）GUID；单组织建议选择此项 | 两者 |
+| 任何组织目录中的账户 | `organizations`，或指定租户 GUID | 两者 |
+| 组织账户和个人 Microsoft 账户 | `common` | 两者 |
+| 仅个人 Microsoft 账户 | `consumers` | 仅 .NET NativeAOT |
+
+| Graph 委托权限 | 当前用途 | 权限本身是否强制管理员同意 |
+| --- | --- | --- |
+| `User.Read` | 默认请求；当前邮件功能未调用用户资料 API | 否 |
 | `Mail.ReadWrite` | 读取、修改邮件、草稿和附件 | 否 |
 | `Mail.Send` | 以登录用户身份发送邮件 | 否 |
 
 <details>
-<summary>ⓘ 公共客户端设置与账户类型</summary>
+<summary>ⓘ 公共客户端配置与账户类型</summary>
 
-在**移动和桌面应用程序**注册回调后，浏览器 Authorization Code + S256 PKCE 流程会按
-公共客户端处理。Entra 匹配 `http://localhost` 时忽略随机端口，但路径必须一致。
-此流程的 **Allow public client flows（允许公共客户端流）**可保持默认 **No**；该开关
-用于设备代码、用户名/密码、Windows 集成身份验证等其他流程。参见微软的
+组织部署建议自行注册、管理独立的 Desktop/Public Client 应用。Client ID 是公开标识；
+此流程不使用 Client Secret 或证书。Python 服务器的机密客户端/OBO 注册具有独立用途
+和凭据。
+
+在**移动和桌面应用程序**注册 `http://localhost` 后，浏览器 Authorization Code +
+PKCE 会按公共客户端处理。Entra 匹配时忽略随机端口，但路径必须一致。
+**Allow public client flows（允许公共客户端流）**可保持默认 **No**；该开关用于设备代码、
+用户名/密码和 Windows 集成身份验证等其他流程。参见微软的
 [桌面应用注册](https://learn.microsoft.com/zh-cn/entra/identity-platform/scenario-desktop-app-configuration)
 和[公共客户端说明](https://learn.microsoft.com/zh-cn/entra/identity-platform/msal-client-applications)。
 
-租户配置接受 GUID、`organizations`、`common`、`consumers`；修改它不会改变应用注册支持的
-账户类型。登录账户需要有可访问的 Outlook/Exchange 邮箱。若没有**新注册**入口，需由
-租户管理员授予应用注册权限；它与邮箱权限的管理员同意是两件事。
-
-Client ID 是公开标识。应独立注册桌面应用，不要分发 Python 服务端机密客户端/OBO 应用的
-凭据。本机使用无需邮箱 **Application 权限**，也不需要暴露 `access_as_user` API。
+Go 接受租户 GUID、`organizations` 和 `common`，不接受 `consumers`。Go 使用个人
+Outlook.com 账户时，应注册为支持组织**及**个人账户，并使用 `common`。修改 Authority
+不会改变应用注册支持的账户类型。账户需有可访问的 Outlook/Exchange 邮箱。租户禁用
+应用注册时，需单独申请注册权限；它与邮箱权限同意是两件事。
 
 </details>
 
 <details>
-<summary>ⓘ User.Read、自定义 Scope 与管理员批准</summary>
+<summary>ⓘ User.Read 与管理员批准</summary>
 
-邮件接口和 PKCE 登录本身不依赖 `User.Read`，但当前 EXE 仍默认请求它。仅从注册的
-**API 权限**列表删除此项，不会改变登录请求。NativeAOT 版支持显式覆盖 Scope，例如：
+邮件接口和 PKCE 本身不依赖 `User.Read`，但当前发布的两套版本仍默认请求它。仅从
+**API 权限**删除此项，不会改变 EXE 请求。.NET 支持下文的 Scope 覆盖；Go 目前既没有
+自定义 Scope 参数，也不支持 `M365_LOCAL_GRAPH_SCOPES`。
 
-```powershell
-$env:M365_LOCAL_GRAPH_SCOPES = 'openid profile offline_access https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send'
-```
+这三项委托权限在[微软权限表](https://learn.microsoft.com/zh-cn/graph/permissions-reference)
+中均为 **AdminConsentRequired: No**。[租户用户同意策略](https://learn.microsoft.com/zh-cn/entra/identity/enterprise-apps/configure-user-consent)
+仍可禁止用户自行同意、要求发布者验证，或仅允许选定的低影响权限。移除 `User.Read`
+不能绕过策略。
 
-此变量会替换完整的默认 Scope 列表。保留 `offline_access`，否则 EXE 无法获取所需的
-Refresh Token。先停止 MCP 客户端/服务，执行 `logout`，再重新 `login`；MCP 客户端
-的 `env` 也要携带同一 Scope 配置。Go 版不支持此变量。
-
-微软[委托权限表](https://learn.microsoft.com/zh-cn/graph/permissions-reference)中，这三项的
-**AdminConsentRequired** 均为 **No**。[租户用户同意策略](https://learn.microsoft.com/zh-cn/entra/identity/enterprise-apps/configure-user-consent)
-仍可能要求批准：例如禁用用户自行同意、应用不满足发布者验证要求，或未将邮件权限列为
-低影响权限。移除 `User.Read` 不能绕过这些策略。
-
-需要批准时，向管理员提供应用 ID、目标租户、请求的委托权限和登录错误码。应用注册在该
-租户时，有权限的管理员可在**应用注册 > 此应用 > API 权限 > 代表租户授予管理员同意**
-中审核。跨租户使用需走目标租户自己的管理员同意流程；在应用所属租户同意，不代表其他
-租户也已同意。批准需覆盖当前权限集合；新增权限或撤销授权后需要重新同意。
+需要批准时，提供应用 ID、目标租户、请求的委托权限和登录错误码。应用注册在该租户时，
+有权限的管理员可在**应用注册 > 此应用 > API 权限 > 授予管理员同意**审核。外部租户
+需使用自己的同意流程；应用所属租户的同意不会覆盖其他租户。新增权限或撤销授权后需
+重新同意。权限状态为空本身不代表必须管理员批准。
 
 </details>
 
-## 运行
+## 配置 .NET NativeAOT
 
-在 PowerShell 中：
+使用自建应用时，**先设置变量，再登录**：
 
 ```powershell
+$env:M365_LOCAL_CLIENT_ID = '<application-client-id>'
+$env:M365_LOCAL_TENANT_ID = '<directory-tenant-guid>'
 .\m365-mcp-windows-local-amd64.exe doctor
 .\m365-mcp-windows-local-amd64.exe login
 .\m365-mcp-windows-local-amd64.exe status
 ```
 
-默认运行不需要设置环境变量。使用企业自己的 App Registration 时再覆盖：
+`doctor` 应显示你的 `client_id`、`tenant` 和 `client_id_source: "environment"`。
+缓存 Access Token 可用时，`status` 显示 `authenticated: true`。使用内置应用时不设置
+这些覆盖值。
 
-```powershell
-$env:M365_LOCAL_CLIENT_ID = "<custom-desktop-public-client-id>"
-$env:M365_LOCAL_TENANT_ID = "<directory-tenant-id>"
-.\m365-mcp-windows-local-amd64.exe doctor
-.\m365-mcp-windows-local-amd64.exe login
-.\m365-mcp-windows-local-amd64.exe status
-```
-
-先设置以上变量，再执行 `login`。`doctor` 应显示自建应用的 `client_id`、选择的 `tenant`
-以及 `client_id_source: "environment"`；缓存 Access Token 可用时，`status` 显示
-`authenticated: true`。
-
-`login` 会打开系统浏览器，通过 Loopback 完成 PKCE，然后保存 DPAPI 保护的 State。
-不允许认证状态跨进程保留时，对 `login` 或 `stdio` 增加 `--ephemeral`。
-
-自建应用的 MCP 客户端配置：
+在 MCP 客户端填写相同 ID：
 
 ```json
 {
@@ -204,140 +151,245 @@ $env:M365_LOCAL_TENANT_ID = "<directory-tenant-id>"
       "command": "C:\\Tools\\m365-mcp-windows-local-amd64.exe",
       "args": ["stdio"],
       "env": {
-        "M365_LOCAL_CLIENT_ID": "<custom-desktop-public-client-id>",
-        "M365_LOCAL_TENANT_ID": "<directory-tenant-id>"
+        "M365_LOCAL_CLIENT_ID": "<application-client-id>",
+        "M365_LOCAL_TENANT_ID": "<directory-tenant-guid>"
       }
     }
   }
 }
 ```
 
-将路径和两个 ID 替换为实际值。NativeAOT 版每次启动都会读取这些环境变量；PowerShell
-中的 `$env:` 赋值只影响当前会话及其子进程，不会修改已经运行的 MCP 客户端。
-`login` 与 MCP 配置中的 Client ID、Tenant 必须一致；使用内置应用时省略 `env`。
-登录、`stdio` 和退出登录需使用同一个 Windows 用户，才能读取对应的 DPAPI State。
-
-如果没有可用状态，首次 Tool Call 也可以触发交互登录；Agent 必须给用户留出足够
-时间完成浏览器流程。
+替换实际 EXE 路径和 ID。使用内置应用时省略 `env`。.NET 每次启动都会读取这些配置；
+PowerShell 的 `$env:` 赋值不会修改已运行的 MCP 客户端。登录和客户端需使用同一 Windows
+用户、Client ID 和租户，才能复用 DPAPI State。没有可用状态时，首次工具调用也可触发登录。
 
 <details>
-<summary>ⓘ 切换应用或恢复内置应用</summary>
+<summary>ⓘ .NET 自定义 Scope 与临时模式</summary>
 
-先停止 MCP 客户端，执行 `logout`，设置新的应用和租户，再执行 `doctor` 和 `login`。
-同步修改 MCP 客户端的 `env` 并重启。Client ID 或 Tenant ID 变更后，不会复用旧的
-DPAPI Token State。
-
-在 PowerShell 中恢复内置应用：
+需要从 .NET 请求中去掉 `User.Read` 时，替换整个 Scope 列表：
 
 ```powershell
-.\m365-mcp-windows-local-amd64.exe logout
-Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID, Env:M365_LOCAL_GRAPH_SCOPES -ErrorAction SilentlyContinue
-.\m365-mcp-windows-local-amd64.exe doctor
-.\m365-mcp-windows-local-amd64.exe login
+$env:M365_LOCAL_GRAPH_SCOPES = 'openid profile offline_access https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send'
 ```
 
-同时移除 MCP 客户端 `env` 中的这些覆盖值。本机退出登录不会撤销租户同意或浏览器会话。
+停止 MCP 客户端，执行 `logout` 后重新 `login`，并在客户端 `env` 填写同一个完整值。
+保留 `offline_access`，因为 EXE 需要 Refresh Token。此变量不配置 Go 版。
+
+`--ephemeral` 不读取或写入持久认证状态。需要不落盘的会话时，使用 `stdio --ephemeral`，
+在提示时完成登录。单独执行 `login --ephemeral`，不能将其进程内 Token 交给后续进程。
+协议数据写入 stdout，诊断信息写入 stderr；正常运行不安装服务、计划任务或启动项。
 
 </details>
+
+## 配置 Go
+
+通过参数覆盖本次登录的应用：
+
+```powershell
+.\m365-mcp-windows-local-go.exe login --client-id YOUR-APPLICATION-ID --tenant YOUR-TENANT-ID
+.\m365-mcp-windows-local-go.exe connection
+```
+
+也可使用环境变量：
+
+```powershell
+$env:M365_LOCAL_CLIENT_ID = 'YOUR-APPLICATION-ID'
+$env:M365_LOCAL_TENANT_ID = 'YOUR-TENANT-ID'
+.\m365-mcp-windows-local-go.exe login
+.\m365-mcp-windows-local-go.exe connection
+```
+
+登录优先级为：参数 → 环境变量 → 内置默认值。授权前核对浏览器中的应用名称。
+成功时输出 `Signed in. Run connection to generate your MCP client configuration.`。
+Go 没有 `doctor` 或 `status` 命令。
+
+### stdio
+
+将 `connection` 输出的 JSON 填入 MCP 客户端，或手工配置：
+
+```json
+{
+  "mcpServers": {
+    "m365-local": {
+      "command": "C:\\Tools\\m365-mcp-windows-local-go.exe",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Go 登录后保存所选应用、租户和账户，`serve`、`connection` 使用已保存的配置，客户端
+无需再携带登录环境变量。仅改变量或给 `serve` 传 `--client-id` 不会切换应用。
+MCP 客户端负责启动进程，stdout 只输出协议数据，日志写入 stderr。
+
+### Streamable HTTP
+
+支持自定义请求头的客户端执行：
+
+```powershell
+.\m365-mcp-windows-local-go.exe connection --http --port 8000
+.\m365-mcp-windows-local-go.exe serve --http --port 8000
+```
+
+将第一条命令输出的 JSON（包含 Bearer 请求头）填入客户端。监听仅绑定 `127.0.0.1`，
+所有 MCP 请求都需携带本机 Token，请妥善保管。重新登录会轮换此 Token，需重新生成 HTTP
+配置。stdio 模式使用默认 `serve` 命令。
 
 <details>
-<summary>ⓘ 自建应用登录排查</summary>
+<summary>ⓘ 服务器 OAuth 连接器与本机传输</summary>
 
-| 登录提示或现象 | 检查与处理 |
-| --- | --- |
-| 需要管理员批准 / `AADSTS90094` / `AADSTS65001` | 检查目标租户的授权记录及用户同意策略；`65001` 也可能只是用户尚未完成同意。 |
-| `AADSTS50011` / 重定向 URI 不匹配 | 在**移动和桌面应用程序**注册根地址 `http://localhost`，不加额外路径。 |
-| `AADSTS7000218` / 要求 Client Secret | 检查回调所属平台；应修正误配的 Web 平台，不应添加 Secret。 |
-| `AADSTS700016` / 找不到应用 | 检查应用程序（客户端）ID、租户选择及支持的账户类型。 |
-| PowerShell 登录成功，但 MCP 客户端再次要求登录 | 检查两个进程是否使用同一 Windows 用户及相同 `env`；`--ephemeral` 不会跨进程保存状态。 |
-| `doctor` 成功，但登录或邮件访问失败 | `doctor` 只检查本机配置；仍需单独检查 Entra 同意及账户的 Exchange/Outlook 邮箱可用性。 |
+两套本地版均不提供 Python 服务器的 OAuth Discovery/DCR 端点。仓库的 WorkBuddy OAuth
+连接器包用于服务器版。要求 OAuth Discovery 的客户端需连接服务器，或提供独立的
+stdio/自定义请求头配置。Go HTTP Token 是本机访问凭据，不是 Microsoft Access Token。
 
 </details>
 
-## 当前本地工具面
+## 邮件与附件
 
-EXE 当前提供：
+两套版本均提供 `mail_search`、`mail_get`、`mail_create_draft`、`mail_send_draft`、
+`mail_add_draft_attachment`、`mail_list_attachments`、`mail_read_attachment`、
+`mail_mark_read`、`mail_archive`、`mail_move`、`mail_set_category`。
+Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户的 `/me` 邮箱。
 
-- `mail_search`
-- `mail_get`
-- `mail_create_draft`
-- `mail_send_draft`
-- `mail_add_draft_attachment`：每次最多添加 20 MiB 的单个文件
-- `mail_list_attachments`
-- `mail_read_attachment`：支持有边界的 UTF-8 Text、CSV、JSON 和 XML
-- `mail_mark_read`
-- `mail_archive`
-- `mail_move`
-- `mail_set_category`
+草稿使用纯文本。发送前，MCP 客户端需取得逐封确认，或执行明确的受限自动化授权，约束
+收件人、可信内容/附件来源、数量和有效期。Graph 接受请求不代表最终送达。结果不明的写入
+不会自动重试；先检查草稿和附件，再决定后续操作。
 
-本地 stdio Runtime 没有 HTTP Download Endpoint，并且不得任意写文件，因此暂不
-提供 `mail_download_attachment`。PDF/DOCX/XLSX/PPTX 解析仍在验收待办中。邮件
-发送仍必须在 Client/Agent 层逐封确认，或具有明确的受限自动化授权。
+### 添加本地文件
 
-### Windows 本地 Connector 的无人值守产物附件
+生成或启动客户端配置前，设置由操作者控制的附件目录：
 
-使用 Windows 本地 stdio Connector 做无人值守自动化时，在 Connector 进程环境中
-把 `M365_ATTACHMENT_ROOT` 配为可信的产物绝对目录，然后调用
+```powershell
+$env:M365_ATTACHMENT_ROOT = 'C:\M365Artifacts'
+```
+
+.NET 将此变量加入 MCP Server 的 `env`，调用
 `mail_add_draft_attachment(draft_id, relative_path="reports\\weekly.docx")`。
-工具只读取最终路径仍在该目录内的已打开文件，限制为 20 MiB 以内的
-DOCX/XLSX/PPTX/ZIP/PDF，并通过本地登录用户的 Graph 会话直接添加附件；
-不需要浏览器上传、第二个 Connector、Bash 命令或远端 Push URL。不写临时附件
-文件，也不通过 MCP 返回文件字节。不传 `relative_path` 时，才使用原有的
-Windows 文件选择框。授权发送前须核对草稿和附件列表。
+不传 `relative_path` 时使用 Windows 文件选择框。
 
-### 远端 Connector 的本机 EXE 辅助命令
+Go 设置目录后重新执行 `connection`，stdio JSON 会包含对应 `env`；HTTP 模式在启动
+`serve` 时继承变量。调用
+`mail_add_draft_attachment(draft_id, relative_path="reports/weekly.docx")`。
+Go 必须提供相对路径，不支持文件选择框。
 
-已发布的同一个单文件 EXE 还提供
-`inspect-attachment <relative-path>` 和 `push-attachment <relative-path>`。
-这些命令不使用 Entra 登录，也不启动另一个 MCP Connector。把
-`M365_ATTACHMENT_ROOT` 配为存放已完成自动化产物的可信绝对目录，把
-`M365_ATTACHMENT_PUSH_URL` 配为 Server 固定的 HTTPS `/uploads/push` URL。
-调用者只能给出该目录下的相对路径；EXE 校验打开文件的最终路径，仅允许
-DOCX、XLSX、PPTX、ZIP 和 PDF，拒绝空文件及超过 20 MiB 的文件，不创建临时文件。
+两套版本均允许 20 MiB 以内的 PDF、DOCX、XLSX、PPTX、ZIP。使用相对路径时，核验已打开
+文件仍在配置目录内，并返回实际字节数与 SHA-256。小于 3,000,000 字节的文件直接上传，
+更大的使用受限顺序 Upload Session。添加附件不会发送邮件。
 
-`inspect-attachment` 返回本机文件名、MIME 类型、字节数及 SHA-256。
-`push-attachment` 从标准输入读取同一路径的完整 Grant JSON；EXE 会再次检查
-配置的 URL 和文件，再推送原始字节，不接收用户 OAuth Token，也不跟随 HTTP
-Redirect。Server 端的 Grant、上传、添加附件和发送完整步骤见
-[远端 MCP Server 指南](mcp-server.md)。
+<details>
+<summary>ⓘ 文本提取、下载与远端上传辅助命令</summary>
 
-例如 PowerShell 中已经把 MCP 工具返回的 Grant JSON 暂存在 `$grantJson` 时：
+.NET 支持有界的 UTF-8 文本/CSV/JSON/XML 附件读取，没有下载端点或 PDF/Office 解析器。
+Go 在独立 Worker 提取 PDF、DOCX、XLSX、PPTX、TXT、Markdown，限制为 512 MiB 内存、
+15 秒 CPU、20 秒总时间，最多两个同时运行。提取文件最大 10 MiB，Office 解压最大
+64 MiB/2,048 项，输出最多 100,000 字符。XLSX 使用缓存公式结果；扫描版 PDF 需要外部 OCR。
+
+Go 下载使用不可猜测、五分钟、一次性的 HTTP URL，仅绑定 `127.0.0.1`。stdio 在随机
+端口启动该监听器，内存最多保留 16 项、64 MiB，重启后 URL 失效；需在同一电脑打开。
+附件列表的 `size` 是服务方元数据，获取后的 `content_length` 是实际解码字节数。
+
+.NET EXE 还提供供远端服务器连接器使用的 `inspect-attachment` 和 `push-attachment`，
+无需本机登录；完整 Grant 和上传流程统一写在
+[服务器版指南](https://github.com/sagehou/M365-MCP-Server/blob/main/docs/zh-CN/mcp-server.md#为远端草稿添加文件)。
+这些命令不会创建第二个本地 MCP 连接器。Go 不提供它们。
+
+</details>
+
+## 切换应用与退出登录
+
+修改凭据前，先停止 MCP 客户端/服务：
 
 ```powershell
-$env:M365_ATTACHMENT_ROOT = 'C:\Automation\Output'
-$env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
-& 'C:\Tools\m365-mcp-windows-local-amd64.exe' inspect-attachment 'reports\weekly.docx'
-$grantJson | & 'C:\Tools\m365-mcp-windows-local-amd64.exe' push-attachment 'reports\weekly.docx'
+# 执行所用版本的命令
+.\m365-mcp-windows-local-amd64.exe logout
+.\m365-mcp-windows-local-go.exe logout
 ```
 
-不要记录 Grant 或放在命令行参数中。如检查与推送之间文件已变化，重新签发
-Grant，不要猜测哈希。WorkBuddy 撰写 Skill 可通过 Bash 工具调用这些命令；EXE 必须放在
-管理员认可的位置。受限自动化授权仍须明确约束产物来源、收件人、大小、邮件
-数量与有效期。EXE 的目录限制只约束该命令；WorkBuddy 的通用 Bash 权限仍可能
-访问其他文件，还需要依赖客户端自身的沙箱与工具审批策略。
+.NET 设置新的应用/租户后执行 `doctor` 和 `login`，同步修改 MCP 客户端 `env` 再重启。
+Go 用新参数或变量执行 `login`，然后执行 `connection`。重新登录会轮换 HTTP Token，
+已有 HTTP 配置需替换；stdio 保持 EXE 路径和 `serve` 参数。
 
-## 构建与取得集成产物
+<details>
+<summary>ⓘ 恢复内置应用与本机状态位置</summary>
 
-`Windows local executable` Workflow 会上传
-`m365-mcp-windows-local-amd64` Actions Artifact。该 Workflow：
+退出登录后，在 PowerShell 清除覆盖值：
 
-1. 使用固定 Windows Runner；
-2. 通过 NativeAOT 发布 `windows/M365Mcp.Local/M365Mcp.Local.csproj`；
-3. 断言输出目录中只有 `m365-mcp-windows-local-amd64.exe`；
-4. 在 `PATH` 中没有语言 Runtime 的条件下执行 `doctor`、MCP
-   `initialize` 和 `tools/list`；
-5. 断言 Ephemeral 运行不会留下文件。
+```powershell
+Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID, Env:M365_LOCAL_GRAPH_SCOPES -ErrorAction SilentlyContinue
+```
 
-Actions Artifact 不能宣称为 Stable Release。Tag Release Workflow 会重新构建并
-Smoke Test Windows x64 EXE，发布 SHA-256 校验文件和 MIT 许可声明，为该文件
-记录 GitHub Artifact Attestation，并把精确通过测试的文件附加到 GitHub Release。
+同时移除 .NET MCP 客户端 `env` 中的覆盖值。重新执行所用版本的 `login`；Go 再生成
+`connection`。变量修改只影响当前 PowerShell 及子进程；以后从其他进程登录时可能继承
+不同配置。
 
-## 后续加固与部署检查
+| 版本 | 当前用户加密状态 |
+| --- | --- |
+| .NET NativeAOT | `%LOCALAPPDATA%\M365-MCP-Server\state.bin`；读取时 Client ID 和租户需一致 |
+| Go | `%LOCALAPPDATA%\M365MCP`；保存配置、MSAL Cache、本机 HTTP Token，目录采用仅当前用户可访问的 Windows ACL |
 
-- 先验证 Browser PKCE，再根据账户选择、SSO 或 Tenant Policy 的实际需要决定
-  是否增加可选 WAM 集成。
-- 在不解压 Runtime 的前提下增加安全的富文档附件解析。
-- 使用真实邮箱验证搜索、读取、草稿、确认发送、受限自动化发送、附件读取和代表性修改。
-- 验证 Refresh、Logout、损坏 State 恢复、双账户隔离和 Tenant Policy。
-- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.3 附有 SHA-256 Checksum 与 GitHub Artifact Attestation。
-- 在干净 Windows x64 VM 上验证已发布的精确 EXE。
+两者均使用当前用户 DPAPI。Go 将后续调用绑定到所选账户，刷新失败不会切换到其他缓存
+用户；一次只允许一个 Go 登录/服务/退出进程使用该状态。本机退出会移除凭据，不会注销
+浏览器会话或撤销租户同意。
+
+</details>
+
+## 故障排查
+
+<details>
+<summary>ⓘ 登录与客户端配置</summary>
+
+| 提示或现象 | 检查与处理 |
+| --- | --- |
+| 管理员批准 / `AADSTS90094` / `AADSTS65001` | 检查目标租户授权和同意策略；`65001` 也可能只是用户尚未完成同意。 |
+| `AADSTS50011` | 在**移动和桌面应用程序**注册根地址 `http://localhost`，不加额外路径。 |
+| `AADSTS7000218` / 要求 Secret | 修正重定向平台；桌面公共客户端无需 Secret。 |
+| `AADSTS700016` / 找不到应用 | 检查应用程序（客户端）ID、所选租户和支持的账户类型。 |
+| .NET 在 PowerShell 登录成功，但 MCP 仍要求登录 | 核对 Windows 用户及 `env`；`--ephemeral` 不会跨进程保存状态。 |
+| Go 仍使用旧应用/账户 | 停止 `serve`，退出登录，再用显式参数 `login`，之后执行 `connection`。 |
+| `doctor` 成功，但无法登录 | .NET `doctor` 只校验本机配置，不检查租户注册或同意。 |
+| 登录成功，但 Graph `403` | 检查委托邮件授权和 Exchange/Outlook 邮箱可用性。 |
+| Go 重新登录后 HTTP `401` | 重新生成 `connection --http`，替换旧 Bearer Token。 |
+
+</details>
+
+## 杀毒软件误报
+
+<details>
+<summary>ⓘ 核验并上报被检出的文件</summary>
+
+1. 从同一 GitHub Release 下载精确 EXE 和校验文件，核对 SHA-256。.NET 产物还可使用
+   GitHub CLI 核验来源：
+   `gh attestation verify m365-mcp-windows-local-amd64.exe --repo sagehou/M365-MCP-Server`。
+   核验不一致时先解决问题再运行。
+2. 记录安全产品/病毒库版本、检出名称、SHA-256、Release URL 和触发步骤，不包含 Token
+   或邮箱内容。
+3. 通过厂商误报流程提交被检出的那份文件。奇安信的
+   [样本上报页面](https://www.qianxin.com/other/sample-upload)支持 100 MB 以内文件，
+   需要联系邮箱和验证码。
+4. 厂商处理后，在受影响电脑用同一哈希核验。组织管理员需要临时例外时，评估针对精确文件
+   的窄范围、限时规则。只有旧式白名单表单要求时才使用 Release 中的 MD5/SHA-1，完整性
+   校验仍使用 SHA-256；程序变化后需重新核验和审核。
+
+保持终端防护启用。上报实际行为：单个 EXE、浏览器 PKCE 和 Loopback 回调、用户委托
+Graph 访问、当前用户加密状态。整个目录或进程名例外超出精确文件审核范围。
+
+</details>
+
+## 构建与分发
+
+| 版本 | GitHub Actions 流水线 | 集成产物 |
+| --- | --- | --- |
+| .NET NativeAOT | `Windows local executable`（`windows-exe.yml`） | `m365-mcp-windows-local-amd64` |
+| Go | `windows-local-go` | `windows-local-go-amd64`、`windows-local-go-arm64`、`windows-local-go-packages` |
+
+构建与测试全部在 GitHub Actions 执行。Go ZIP 将本统一指南收录为 `README.md` 和
+`README.zh-CN.md`，同时包含依赖声明和许可证。两条流水线继续独立运行；版本发布统一
+提供经过测试的 EXE 和校验文件。普通 Actions Artifact 属于集成产物。
+Go AMD64 在 Windows 执行运行检查，ARM64 进行交叉编译和版本资源检查。
+
+---
+
+EXE 尚未签名。Go 不保证降低杀毒软件检出；校验和、版本信息和来源证明不能替代
+Authenticode 签名或厂商审核。Worker 资源限制不等于文件系统/网络沙箱。真实租户登录、
+客户端兼容性和杀毒行为需在目标电脑验收。编辑环境不得构建、测试、安装测试依赖或创建
+测试虚拟环境。更新日期：2026-11-11。

@@ -69,7 +69,7 @@ and [after](https://github.com/sagehou/M365-MCP-Server/actions/runs/35195810661)
 ## Scope boundary
 
 The Python server retains bearer validation, Entra OBO, and the existing
-feature-flagged OAuth service. The [Windows single-user edition](windows-local-go.md)
+feature-flagged OAuth service. The [Windows local Go edition](windows-local.md#configure-go)
 has its own Go module and public-client browser login; it does not embed a
 server credential or replace the multi-user server. Go versions and checksums
 are recorded in `native/go.mod` and `native/go.sum`.
