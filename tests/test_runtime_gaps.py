@@ -20,7 +20,7 @@ from m365_mcp.graph import GraphApiError, GraphClient, GraphPathError, MailServi
 from m365_mcp.graph.errors import GraphTransportError
 from m365_mcp.graph.client import GraphResponse
 from m365_mcp.mail import MailToolService
-from m365_mcp.security.audit import AuditLogger, AuditJsonFormatter
+from m365_mcp.security.audit import AuditLogger
 from test_auth import make_settings, make_token, make_validator
 from test_graph import StubObo, make_context
 
