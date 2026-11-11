@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from abc import abstractmethod
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
@@ -34,7 +33,6 @@ class EntraAuthorizationClient(Protocol):
 
 
 class MsalAuthorizationApplication(Protocol):
-    @abstractmethod
     def initiate_auth_code_flow(
         self,
         scopes: Sequence[str],
@@ -43,23 +41,20 @@ class MsalAuthorizationApplication(Protocol):
         **kwargs: Any,
     ) -> dict[str, Any]: ...
 
-    @abstractmethod
     def acquire_token_by_auth_code_flow(
         self,
-        auth_code_flow: Mapping[str, Any],
-        auth_response: Mapping[str, str],
+        auth_code_flow: Mapping[str, Any],  # noqa: V107 - MSAL keyword contract
+        auth_response: Mapping[str, str],  # noqa: V107 - MSAL keyword contract
         scopes: Sequence[str] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]: ...
 
-    @abstractmethod
     def get_accounts(self, **kwargs: Any) -> list[dict[str, Any]]: ...
 
-    @abstractmethod
     def acquire_token_silent_with_error(
         self,
         scopes: Sequence[str],
-        account: Mapping[str, Any] | None = None,
+        account: Mapping[str, Any] | None = None,  # noqa: V107 - MSAL keyword contract
         **kwargs: Any,
     ) -> dict[str, Any] | None: ...
 

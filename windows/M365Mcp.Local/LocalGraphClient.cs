@@ -215,7 +215,9 @@ internal sealed class LocalGraphClient(
             throw new InvalidToolArgumentException("content_type must match the artifact file type");
         }
         if (contentType.Length is 0 or > 127 || contentType.Any(character =>
-            character < 33 || character > 126))
+            character < 33 || character > 126)
+            || !MediaTypeHeaderValue.TryParse(contentType, out var mediaType)
+            || mediaType.Parameters.Count != 0)
         {
             throw new InvalidToolArgumentException("content_type must be an ASCII MIME type");
         }
@@ -351,7 +353,8 @@ internal sealed class LocalGraphClient(
     {
         var response = await RequestAsync(
             HttpMethod.Get,
-            $"/me/messages/{Segment(messageId)}/attachments",
+            $"/me/messages/{Segment(messageId)}/attachments"
+                + "?%24select=id,name,contentType,size,isInline,lastModifiedDateTime",
             null,
             cancellationToken) as JsonObject
             ?? throw new GraphOperationException("Attachment list response was invalid.");
