@@ -18,7 +18,13 @@ internal sealed class DpapiStateStore(LocalConfiguration configuration)
 
         try
         {
-            var envelope = File.ReadAllBytes(configuration.StateFile);
+            using var file = File.OpenRead(configuration.StateFile);
+            if (file.Length > 2 * 1024 * 1024)
+            {
+                throw new LocalAuthException("Stored authentication state exceeds the size limit; run logout and login again.");
+            }
+            var envelope = new byte[checked((int)file.Length)];
+            file.ReadExactly(envelope);
             if (envelope.Length <= Magic.Length
                 || !envelope.AsSpan(0, Magic.Length).SequenceEqual(Magic))
             {
@@ -54,6 +60,7 @@ internal sealed class DpapiStateStore(LocalConfiguration configuration)
             exception is IOException
             or UnauthorizedAccessException
             or System.Text.Json.JsonException
+            or InvalidOperationException
             or Win32Exception)
         {
             throw new LocalAuthException(
