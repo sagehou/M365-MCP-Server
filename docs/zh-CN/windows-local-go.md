@@ -34,14 +34,34 @@ Client Secret。安装前用 `SHA256SUMS.txt` 核对压缩包。
 
 ## 连接 MCP 客户端
 
-支持 stdio 的客户端执行：
+### stdio
+
+`serve` 默认使用 stdio。先完成上方 `login`，再在 MCP 客户端选择 stdio，填写程序绝对路径
+和参数 `serve`：
+
+```json
+{
+  "mcpServers": {
+    "m365": {
+      "command": "C:\\Tools\\m365-mcp-windows-local-go.exe",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+将 `command` 改为实际程序路径；若保留下载文件名中的 `-amd64.exe` 或 `-arm64.exe`，
+路径也应保留该后缀。MCP 客户端负责启动和管理进程，stdout 只输出协议数据，日志写入 stderr。
+
+也可自动生成含实际程序路径的配置：
 
 ```powershell
 .\m365-mcp-windows-local-go.exe connection
 ```
 
-将生成的 `mcpServers` 配置填入客户端。客户端以 `serve` 参数启动程序；stdout 只输出协议数据，
-日志写入 stderr。
+将生成的 `mcpServers` JSON 填入客户端。
+
+### Streamable HTTP
 
 支持 Streamable HTTP 和自定义请求头的客户端执行：
 
@@ -119,4 +139,4 @@ Windows DPAPI、进程互斥和隔离 Worker。禁止在此编辑环境构建或
 
 程序尚未代码签名。Go 不保证更少的杀软检测，SmartScreen 信誉、代码签名和误报申诉仍需按
 发布环境处理。Job Object 限制资源，不隔离文件系统或网络。真实 Entra 登录、客户端兼容性、
-代表性文档和杀软行为仍需在目标 Windows 电脑验收。更新日期：2026-11-10。
+代表性文档和杀软行为仍需在目标 Windows 电脑验收。更新日期：2026-11-11。

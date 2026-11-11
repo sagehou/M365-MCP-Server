@@ -63,6 +63,9 @@ workflow to produce standalone AMD64 and ARM64 executables. It supports browser
 sign-in, stdio, authenticated loopback HTTP, and attachment text extraction.
 The existing NativeAOT workflow and release assets remain available.
 
+For stdio, set the executable as `command` and `["serve"]` as `args` in the MCP
+client. See the [stdio configuration example](docs/windows-local-go.md#stdio).
+
 ## Release and validation status
 
 | Area | Status |
