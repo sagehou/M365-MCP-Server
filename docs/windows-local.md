@@ -107,7 +107,8 @@ authenticity and must be recalculated for any changed executable.
 
 ## Entra public-client setup
 
-The Windows-local executable uses this project-managed public client by default:
+The NativeAOT executable embeds the Client ID of this project-managed public
+client by default. It does not embed or use a Client Secret:
 
 ```text
 Application name: M365-MCP-Localhost
@@ -132,8 +133,10 @@ target tenant policy can still require an administrator to consent once for this
 application and its current permission set. New permissions or revoked consent
 require another approval.
 
-An enterprise can instead create its own desktop/public-client application and
-override the built-in client ID with `M365_LOCAL_CLIENT_ID`. The custom app must
+For organization deployments, we recommend registering and managing a dedicated
+desktop/public-client application in your own tenant. Override the built-in
+Client ID with `M365_LOCAL_CLIENT_ID`; a self-managed public client still does
+not need a Client Secret or application mailbox permissions. The custom app must
 use the same platform, redirect URI, public-client-flow, and delegated-permission
 configuration above. Set `M365_LOCAL_TENANT_ID` as well when the app must be
 restricted to one tenant. Existing DPAPI state is never reused across a client-ID

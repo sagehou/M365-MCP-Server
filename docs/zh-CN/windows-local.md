@@ -88,7 +88,7 @@ MD5 和 SHA-1 不是可信性证明；任何 EXE 变更都必须重新计算并�
 
 ## Entra Public Client 配置
 
-Windows 本地 EXE 默认使用项目维护的独立公共客户端：
+NativeAOT EXE 默认内置以下项目公共客户端的 Client ID，没有内置或使用 Client Secret：
 
 ```text
 应用名称：M365-MCP-Localhost
@@ -110,8 +110,9 @@ Authority：organizations
 用户不需要为了运行默认版本自行创建 App Registration。目标租户的策略仍可能要求
 管理员针对此应用和当前权限集合完成一次同意；新增权限或撤销同意后需要重新批准。
 
-企业也可以创建自己的 Desktop/Public Client App，并通过
-`M365_LOCAL_CLIENT_ID` 覆盖内置 Client ID。自定义应用必须遵循上面相同的平台、
+组织部署建议在自己的租户中注册、管理独立的 Desktop/Public Client App，通过
+`M365_LOCAL_CLIENT_ID` 覆盖内置 Client ID。自建公共客户端同样不需要 Client Secret 或
+邮箱 Application 权限。自定义应用必须遵循上面相同的平台、
 Redirect URI、Public Client Flow 和委托权限配置；需要限制到单一租户时，再同时设置
 `M365_LOCAL_TENANT_ID`。Client ID 或 Tenant ID 变更后，已有 DPAPI State 不会跨应用
 复用，需要重新执行 `login`。

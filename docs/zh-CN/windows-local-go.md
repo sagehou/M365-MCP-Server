@@ -13,13 +13,27 @@ Client Secret。安装前用 `SHA256SUMS.txt` 核对压缩包。
 
 ## 配置 Microsoft 登录
 
+Go 版没有内置 Client ID，`login --client-id` 必须填写所选应用的 ID。组织部署建议在
+自己的租户中注册、管理独立的 Desktop/Public Client 应用。
+
 1. 在 Microsoft Entra 注册应用，选择需要支持的账户类型。
 2. 在「身份验证」添加「移动和桌面应用程序」平台，回调地址填写 `http://localhost`。
 3. 添加 Microsoft Graph **委托权限**：`User.Read`、`Mail.ReadWrite`、`Mail.Send`。
 4. 记录应用程序（客户端）ID。单组织使用 Tenant ID；跨组织工作/学校账户使用
    `organizations`。只有应用同时支持个人 Microsoft 账户时才使用 `common`。
 
-租户策略可能要求管理员同意。本机版不需要创建 Client Secret，也不需要邮箱 Application 权限。
+本机版以登录用户身份申请委托权限，没有内置或使用 Client Secret；自建公共客户端应用也
+不需要 Secret。此流程不应授予邮箱 Application 权限。租户策略仍可能要求管理员批准
+这些委托权限。
+
+<details>
+<summary>ⓘ Client ID 与 Client Secret</summary>
+
+Client ID 是公开的应用标识，Client Secret 是需要保密的应用凭据。NativeAOT 版仅内置
+项目维护的 Client ID；Go 版需要显式指定 ID。两套本机版均使用无需 Client Secret 的
+公共客户端认证。Python 服务端的机密客户端配置是独立的另一套流程。
+
+</details>
 
 ## 登录
 
