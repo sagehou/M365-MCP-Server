@@ -21,23 +21,10 @@ UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024
 
 
 class MailService:
-    """Provide identity-scoped mailbox operations for future MCP tools."""
+    """Provide identity-scoped mailbox operations for the MCP tools."""
 
     def __init__(self, graph_client: GraphClient) -> None:
         self.graph_client = graph_client
-
-    async def list_messages(
-        self,
-        context: AuthContext,
-        *,
-        params: Mapping[str, str | int | float | bool] | None = None,
-    ) -> GraphResponse:
-        return await self.graph_client.request(
-            context,
-            "GET",
-            "/me/messages",
-            params=params,
-        )
 
     async def search_messages(
         self,

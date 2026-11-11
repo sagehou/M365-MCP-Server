@@ -50,7 +50,7 @@ class GraphClient:
     async def __aenter__(self) -> "GraphClient":
         return self
 
-    async def __aexit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+    async def __aexit__(self, _exc_type: Any, _exc: Any, _traceback: Any) -> None:
         await self.aclose()
 
     async def aclose(self) -> None:
