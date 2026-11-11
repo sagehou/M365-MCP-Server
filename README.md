@@ -6,7 +6,7 @@ A self-hosted Microsoft 365 MCP gateway with a deliberately bounded tool surface
 delegated Microsoft Entra identity, per-user isolation, and security-focused
 handling of Outlook mail and attachments.
 
-> **Released:** [`v0.1.1`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
+> **Released:** [`v0.1.2`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2)
 > is available under the MIT License. CI validated the container image and Windows
 > x64 NativeAOT executable. Deployment-specific Entra consent and client-side
 > send authorization remain the responsibility of each installation.
@@ -39,10 +39,10 @@ See the [Windows local guide](docs/windows-local.md) for `stdio`, local login,
 relative-path draft attachments and the optional EXE helper for a remote
 connector.
 
-The Windows x64 NativeAOT local runtime is included in v0.1.1. The release
+The Windows x64 NativeAOT local runtime is included in v0.1.2. The release
 provides:
 
-- `m365-mcp-windows-x64.exe`
+- `m365-mcp-windows-local-amd64.exe`
 - SHA-256 checksum
 - MD5 and SHA-1 in the Release description for exact-file antivirus allowlisting
 - GitHub Artifact Attestation provenance
@@ -72,8 +72,8 @@ The existing NativeAOT workflow and release assets remain available.
 | Container health smoke test | CI-covered |
 | Docker Compose validation | CI-covered |
 | Windows NativeAOT executable build | CI-covered |
-| Windows SHA-256 and provenance attestation | Published and verified for v0.1.1 |
-| Stable `v0.1.1` GitHub release | [Published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1) |
+| Windows SHA-256 and provenance attestation | Published and verified for v0.1.2 |
+| Stable `v0.1.2` GitHub release | [Published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2) |
 
 GitHub Actions is the only build and test environment for this repository.
 Do not create local test environments, install test dependencies, or run local builds/tests.
@@ -87,7 +87,7 @@ Do not create local test environments, install test dependencies, or run local b
 - Calendar, OneDrive, SharePoint, and Teams.
 - Authenticode signing for the Windows EXE; optional WAM evaluation and rich local attachment parsing.
 
-See the [v0.1.1 release notes](docs/releases/v0.1.1.md) and
+See the [v0.1.2 release notes](docs/releases/v0.1.2.md) and
 [deployment guide](docs/deployment.md) before deployment.
 
 ## License

@@ -1,13 +1,22 @@
-name: Backfill v0.1.0 Windows hashes
+name: Backfill Windows release hashes
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release to update
+        type: choice
+        options:
+          - v0.1.2
+          - v0.1.0
+        default: v0.1.2
 
 permissions:
   contents: read
 
 jobs:
   backfill:
+    if: inputs.release_tag == 'v0.1.0'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -44,3 +53,107 @@ jobs:
           else
             gh release edit v0.1.0 --notes-file updated-release-notes.md
           fi
+
+  repair-local-assets:
+    if: inputs.release_tag == 'v0.1.2'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: v0.1.2
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Download exact published assets
+        run: |
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > current-release.json
+          gh release download "$RELEASE_TAG" --dir release-assets
+      - name: Verify published bytes and prepare consistent names and hashes
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, 'scripts')
+          from render_windows_release_hashes import calculate_hashes, update_notes, verify_sha256_file
+
+          release = json.loads(Path('current-release.json').read_text())
+          assert release['tag_name'] == 'v0.1.2' and not release['draft']
+          assets = {asset['name']: asset for asset in release['assets']}
+          root = Path('release-assets')
+          legacy = 'm365-mcp-windows-x64.exe'
+          native = 'm365-mcp-windows-local-amd64.exe'
+          source_native = legacy if legacy in assets else native
+          names = [source_native, 'm365-mcp-windows-local-go-amd64.exe', 'm365-mcp-windows-local-go-arm64.exe']
+          archives = ['m365-mcp-windows-local-go-amd64.zip', 'm365-mcp-windows-local-go-arm64.zip']
+          assert {name for name in assets if name.endswith('.exe')} == set(names)
+          hashes = {}
+          for name in names + archives:
+              binary = root / name
+              hashes[name] = calculate_hashes(binary)
+              assert assets[name]['digest'] == 'sha256:' + hashes[name]['SHA-256'], name
+              checksum = binary.with_suffix('.exe.sha256') if name.endswith('.exe') else root / 'SHA256SUMS.txt'
+              if not checksum.exists():
+                  checksum = root / 'SHA256SUMS.txt'
+              verify_sha256_file(checksum, binary, hashes[name]['SHA-256'])
+
+          renames = []
+          if source_native != native:
+              (root / source_native).rename(root / native)
+              hashes[native] = hashes.pop(source_native)
+              renames.append({'id': assets[source_native]['id'], 'name': native})
+          names[0] = native
+          for name in names:
+              (root / (name + '.sha256')).write_text(f"{hashes[name]['SHA-256']}  {name}\n", encoding='ascii')
+          (root / 'SHA256SUMS.txt').write_text(''.join(
+              f"{hashes[name]['SHA-256']}  {name}\n" for name in names + archives
+          ), encoding='ascii')
+          notes = Path('docs/releases/v0.1.2.md').read_text(encoding='utf-8')
+          Path('updated-release-notes.md').write_text(
+              update_notes(notes, 'v0.1.2', [(root / name, hashes[name]) for name in names]), encoding='utf-8'
+          )
+          Path('asset-renames.json').write_text(json.dumps(renames))
+          Path('expected-digests.json').write_text(json.dumps({name: hashes[name]['SHA-256'] for name in names + archives}))
+          PY
+      - name: Update checksums, NativeAOT filename, and release notes
+        run: |
+          gh release upload "$RELEASE_TAG" release-assets/m365-mcp-windows-local*.exe.sha256 release-assets/SHA256SUMS.txt --clobber
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          for asset in json.loads(Path('asset-renames.json').read_text()):
+              subprocess.run([
+                  'gh', 'api', '--method', 'PATCH',
+                  f"repos/{os.environ['GH_REPO']}/releases/assets/{asset['id']}",
+                  '-f', 'name=' + asset['name'],
+              ], check=True, capture_output=True)
+          PY
+          gh release edit "$RELEASE_TAG" --notes-file updated-release-notes.md
+          if [ "$(gh release view "$RELEASE_TAG" --json assets --jq 'any(.assets[]; .name == "m365-mcp-windows-x64.exe.sha256")')" = true ]; then
+            gh release delete-asset "$RELEASE_TAG" m365-mcp-windows-x64.exe.sha256 --yes
+          fi
+      - name: Verify final published names, bytes, and notes
+        run: |
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > updated-release.json
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          release = json.loads(Path('updated-release.json').read_text())
+          assets = {asset['name']: asset for asset in release['assets']}
+          expected = json.loads(Path('expected-digests.json').read_text())
+          assert 'm365-mcp-windows-x64.exe' not in assets
+          assert 'm365-mcp-windows-x64.exe.sha256' not in assets
+          for name, digest in expected.items():
+              assert assets[name]['digest'] == 'sha256:' + digest, name
+          for path in [*Path('release-assets').glob('m365-mcp-windows-local*.exe.sha256'), Path('release-assets/SHA256SUMS.txt')]:
+              assert assets[path.name]['digest'] == 'sha256:' + hashlib.sha256(path.read_bytes()).hexdigest(), path.name
+          assert release['body'] == Path('updated-release-notes.md').read_text(encoding='utf-8')
+          PY

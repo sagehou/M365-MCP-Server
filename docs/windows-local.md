@@ -6,13 +6,12 @@
 
 The first Windows-local implementation is available in
 `windows/M365Mcp.Local` and is built only by GitHub Actions. It is a .NET 10
-NativeAOT application that publishes as exactly one `m365-mcp.exe`; the target
+NativeAOT application that publishes as exactly one `m365-mcp-windows-local-amd64.exe`; the target
 PC does not need Python, .NET, Docker, Git, or an installer.
 
 The existing workflow is retained. The separately built
 [Go edition](windows-local-go.md) has its own workflow and artifact names.
-The published v0.1.1 executable continues to use .NET 8; this branch upgrades
-the build target to .NET 10 LTS.
+The published v0.1.2 NativeAOT executable uses .NET 10 LTS.
 
 The executable currently provides:
 
@@ -28,13 +27,13 @@ The executable currently provides:
   language runtimes from `PATH` during smoke testing, and fails if the
   ephemeral smoke run creates files
 
-The [v0.1.1 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
+The [v0.1.2 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2)
 contains the stable Windows asset, its SHA-256 checksum, MIT notice, and GitHub
 Artifact Attestation for the exact smoke-tested binary. Actions artifacts from
 ordinary branch builds remain integration builds. The released EXE is unsigned;
 Authenticode signing, SBOM, and rich local attachment extraction remain separate
 hardening work. Optional WAM depends on deployment requirements. The published
-v0.1.1 EXE has eleven mail tools, including draft attachments.
+v0.1.2 EXE has eleven mail tools, including draft attachments.
 
 ## Runtime decision
 
@@ -50,7 +49,7 @@ a native Windows executable and needs no Python or .NET runtime on the user PC.
 
 ## Distribution contract
 
-- The user receives and executes one `m365-mcp.exe` file.
+- The user receives and executes one `m365-mcp-windows-local-amd64.exe` file.
 - Normal execution does not extract a runtime tree.
 - `stdio` does not install a service, write registry/startup/scheduled-task
   entries, or create log files.
@@ -74,9 +73,9 @@ a publisher signature.
 If a security product blocks the EXE:
 
 1. Obtain the exact EXE and `.sha256` file from the project's GitHub Release.
-   Compare `Get-FileHash .\m365-mcp-windows-x64.exe -Algorithm SHA256` with the
+   Compare `Get-FileHash .\m365-mcp-windows-local-amd64.exe -Algorithm SHA256` with the
    published checksum and, if GitHub CLI is available, run
-   `gh attestation verify m365-mcp-windows-x64.exe --repo sagehou/M365-MCP-Server`.
+   `gh attestation verify m365-mcp-windows-local-amd64.exe --repo sagehou/M365-MCP-Server`.
    Stop if either verification fails.
 2. Record the security product and definition versions, detection name, SHA-256,
    source Release URL, and the step that triggered detection. Do not include
@@ -100,7 +99,7 @@ automatically cover new builds. GitHub attestation proves build provenance,
 not that the binary is malware-free or trusted by every antivirus engine.
 
 For Qianxin or another managed endpoint product that requests MD5 and SHA-1
-for exact-file allowlisting, use the values for `m365-mcp-windows-x64.exe` in
+for exact-file allowlisting, use the values for `m365-mcp-windows-local-amd64.exe` in
 the same GitHub Release description. First confirm the EXE's SHA-256 against
 the published `.sha256` file; then give the MD5 and SHA-1 to the security
 administrator for a narrowly scoped rule. These older hashes are not proof of
@@ -148,9 +147,9 @@ must not be reused as a public desktop credential.
 In PowerShell:
 
 ```powershell
-.\m365-mcp.exe doctor
-.\m365-mcp.exe login
-.\m365-mcp.exe status
+.\m365-mcp-windows-local-amd64.exe doctor
+.\m365-mcp-windows-local-amd64.exe login
+.\m365-mcp-windows-local-amd64.exe status
 ```
 
 The default build needs no environment variables. Override it only when using
@@ -171,7 +170,7 @@ Example MCP client configuration:
 {
   "mcpServers": {
     "m365-local": {
-      "command": "C:\\Tools\\m365-mcp.exe",
+      "command": "C:\\Tools\\m365-mcp-windows-local-amd64.exe",
       "args": ["stdio"]
     }
   }
@@ -245,8 +244,8 @@ For example, in PowerShell with an already received MCP grant JSON held only in
 ```powershell
 $env:M365_ATTACHMENT_ROOT = 'C:\Automation\Output'
 $env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
-& 'C:\Tools\m365-mcp.exe' inspect-attachment 'reports\weekly.docx'
-$grantJson | & 'C:\Tools\m365-mcp.exe' push-attachment 'reports\weekly.docx'
+& 'C:\Tools\m365-mcp-windows-local-amd64.exe' inspect-attachment 'reports\weekly.docx'
+$grantJson | & 'C:\Tools\m365-mcp-windows-local-amd64.exe' push-attachment 'reports\weekly.docx'
 ```
 
 Do not log the grant or place it in command arguments. If inspection and push
@@ -261,11 +260,11 @@ own sandbox and tool-approval policy for that broader capability.
 ## Build and obtain the integration artifact
 
 The `Windows local executable` workflow publishes the
-`m365-mcp-windows-x64` Actions artifact. The workflow:
+`m365-mcp-windows-local-amd64` Actions artifact. The workflow:
 
 1. runs on a pinned Windows runner;
 2. publishes `windows/M365Mcp.Local/M365Mcp.Local.csproj` with NativeAOT;
-3. asserts that the output contains exactly `m365-mcp.exe`;
+3. asserts that the output contains exactly `m365-mcp-windows-local-amd64.exe`;
 4. runs `doctor`, MCP `initialize`, and `tools/list` with no language runtime
    on `PATH`;
 5. asserts that the ephemeral run leaves no files.
@@ -284,5 +283,5 @@ binary, and attaches the exact tested files to the GitHub Release.
   attachment reading, and representative mutations against a real mailbox.
 - Verify refresh, logout, corrupted-state recovery, two-account isolation, and
   tenant policy behavior.
-- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation accompany v0.1.1.
+- Add Authenticode signing, timestamping, and an SBOM as follow-up hardening; SHA-256 checksums and GitHub Artifact Attestation accompany v0.1.2.
 - Validate the published executable on a clean Windows x64 VM.

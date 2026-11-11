@@ -113,6 +113,7 @@ jobs:
           name: windows-local-go-packages
           path: |
             artifacts/windows-local-go/m365-mcp-windows-local-go-*.zip
+            artifacts/windows-local-go/m365-mcp-windows-local-go-*.exe.sha256
             artifacts/windows-local-go/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14

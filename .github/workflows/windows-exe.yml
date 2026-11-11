@@ -26,27 +26,27 @@ jobs:
           --configuration Release
           --runtime win-x64
           --self-contained true
-          --output artifacts/windows-x64
+          --output artifacts/windows-local-amd64
           -p:TreatWarningsAsErrors=true
       - name: Verify single-file output
         id: artifact
         shell: pwsh
         run: |
-          $publish = (Resolve-Path 'artifacts/windows-x64').Path
+          $publish = (Resolve-Path 'artifacts/windows-local-amd64').Path
           $files = @(Get-ChildItem -LiteralPath $publish -File)
-          if ($files.Count -ne 1 -or $files[0].Name -ne 'm365-mcp.exe') {
-            throw "Expected exactly one m365-mcp.exe output; found: $($files.Name -join ', ')"
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'm365-mcp-windows-local-amd64.exe') {
+            throw "Expected exactly one m365-mcp-windows-local-amd64.exe output; found: $($files.Name -join ', ')"
           }
           [xml]$project = Get-Content 'windows/M365Mcp.Local/M365Mcp.Local.csproj'
           $projectVersion = $project.Project.PropertyGroup.Version
           & ./scripts/verify-windows-version-info.ps1 -Path $files[0].FullName -Edition NativeAOT -Version $projectVersion
           $hash = (Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "sha256=$hash" >> $env:GITHUB_OUTPUT
-          "Built m365-mcp.exe SHA-256 $hash"
+          "Built m365-mcp-windows-local-amd64.exe SHA-256 $hash"
       - name: Smoke test without runtime or extraction directory
         shell: pwsh
         run: |
-          $exe = (Resolve-Path 'artifacts/windows-x64/m365-mcp.exe').Path
+          $exe = (Resolve-Path 'artifacts/windows-local-amd64/m365-mcp-windows-local-amd64.exe').Path
           [xml]$project = Get-Content 'windows/M365Mcp.Local/M365Mcp.Local.csproj'
           $expectedVersion = $project.Project.PropertyGroup.Version
           $smokeRoot = Join-Path $env:RUNNER_TEMP "m365-local-smoke"
@@ -181,7 +181,7 @@ jobs:
       - name: Upload Windows executable
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: m365-mcp-windows-x64
-          path: artifacts/windows-x64/m365-mcp.exe
+          name: m365-mcp-windows-local-amd64
+          path: artifacts/windows-local-amd64/m365-mcp-windows-local-amd64.exe
           if-no-files-found: error
           retention-days: 14

@@ -5,11 +5,11 @@
 ## 当前状态
 
 首个 Windows 本地实现位于 `windows/M365Mcp.Local`，只通过 GitHub Actions
-构建。它使用 .NET 10 NativeAOT，发布结果严格为一个 `m365-mcp.exe`；用户电脑
+构建。它使用 .NET 10 NativeAOT，发布结果严格为一个 `m365-mcp-windows-local-amd64.exe`；用户电脑
 不需要 Python、.NET、Docker、Git 或安装器。
 
 原有流水线继续保留；新增的 [Go 版](windows-local-go.md)使用独立流水线和产物名。
-已发布的 v0.1.1 EXE 仍使用 .NET 8，本分支将构建目标升级为 .NET 10 LTS。
+已发布的 v0.1.2 NativeAOT EXE 使用 .NET 10 LTS。
 
 当前 EXE 已提供：
 
@@ -23,11 +23,11 @@
 - Windows Actions 门禁：构建结果不是单个 EXE 就失败；Smoke Test 时从
   `PATH` 移除语言 Runtime，并在 Ephemeral 运行产生文件时失败。
 
-[v0.1.1 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
+[v0.1.2 GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2)
 已提供稳定版 Windows EXE、SHA-256 校验文件、MIT 许可声明和该精确 Smoke Test
 二进制文件的 GitHub Artifact Attestation。普通分支的 Actions Artifact 仍只是
 集成产物。已发布 EXE 尚无 Authenticode 签名；SBOM 与 PDF/Office 本地附件解析
-属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.1 EXE 提供 11 个
+属于独立加固事项。是否引入 WAM 取决于部署需求。已发布 v0.1.2 EXE 提供 11 个
 邮件工具，包括添加草稿附件。
 
 ## Runtime 决策
@@ -42,7 +42,7 @@ NativeAOT 生成原生 Windows EXE，用户电脑无需安装 Python 或 .NET Ru
 
 ## 分发约束
 
-- 用户只接收并运行一个 `m365-mcp.exe`。
+- 用户只接收并运行一个 `m365-mcp-windows-local-amd64.exe`。
 - 正常运行不解压 Runtime Tree。
 - `stdio` 不安装 Service，不创建 Registry、Startup、Scheduled Task 或日志文件。
 - stdout 只输出 MCP JSON-RPC；诊断信息只写 stderr。
@@ -62,9 +62,9 @@ GitHub Attestation 都不能保证杀毒软件放行。Windows 构建已写入�
 如果 EXE 被拦截：
 
 1. 从项目 GitHub Release 获取精确的 EXE 和 `.sha256` 文件。用
-   `Get-FileHash .\m365-mcp-windows-x64.exe -Algorithm SHA256` 与发布的校验值
+   `Get-FileHash .\m365-mcp-windows-local-amd64.exe -Algorithm SHA256` 与发布的校验值
    对比；如已安装 GitHub CLI，再运行
-   `gh attestation verify m365-mcp-windows-x64.exe --repo sagehou/M365-MCP-Server`。
+   `gh attestation verify m365-mcp-windows-local-amd64.exe --repo sagehou/M365-MCP-Server`。
    任一验证失败都不要继续运行。
 2. 记录安全产品及病毒库版本、检出名称、SHA-256、Release 来源链接和触发步骤。
    不要包含 Token、邮件内容或未经脱敏的用户/租户标识。
@@ -82,7 +82,7 @@ GitHub Attestation 都不能保证杀毒软件放行。Windows 构建已写入�
 证明构建来源，不证明文件绝对安全，也不代表所有杀毒引擎都会信任它。
 
 若奇安信或其他受管终端安全产品要求提供 MD5 和 SHA-1 以按精确文件哈希加白，
-请使用同一 GitHub Release 说明中 `m365-mcp-windows-x64.exe` 对应的值。先用
+请使用同一 GitHub Release 说明中 `m365-mcp-windows-local-amd64.exe` 对应的值。先用
 发布的 `.sha256` 文件核对 EXE 的 SHA-256，再由安全管理员评估窄范围白名单。
 MD5 和 SHA-1 不是可信性证明；任何 EXE 变更都必须重新计算并审核白名单。
 
@@ -124,9 +124,9 @@ Redirect URI、Public Client Flow 和委托权限配置；需要限制到单一�
 在 PowerShell 中：
 
 ```powershell
-.\m365-mcp.exe doctor
-.\m365-mcp.exe login
-.\m365-mcp.exe status
+.\m365-mcp-windows-local-amd64.exe doctor
+.\m365-mcp-windows-local-amd64.exe login
+.\m365-mcp-windows-local-amd64.exe status
 ```
 
 默认运行不需要设置环境变量。使用企业自己的 App Registration 时再覆盖：
@@ -145,7 +145,7 @@ MCP Client 配置示例：
 {
   "mcpServers": {
     "m365-local": {
-      "command": "C:\\Tools\\m365-mcp.exe",
+      "command": "C:\\Tools\\m365-mcp-windows-local-amd64.exe",
       "args": ["stdio"]
     }
   }
@@ -210,8 +210,8 @@ Redirect。Server 端的 Grant、上传、添加附件和发送完整步骤见
 ```powershell
 $env:M365_ATTACHMENT_ROOT = 'C:\Automation\Output'
 $env:M365_ATTACHMENT_PUSH_URL = 'https://mcp.example.com/uploads/push'
-& 'C:\Tools\m365-mcp.exe' inspect-attachment 'reports\weekly.docx'
-$grantJson | & 'C:\Tools\m365-mcp.exe' push-attachment 'reports\weekly.docx'
+& 'C:\Tools\m365-mcp-windows-local-amd64.exe' inspect-attachment 'reports\weekly.docx'
+$grantJson | & 'C:\Tools\m365-mcp-windows-local-amd64.exe' push-attachment 'reports\weekly.docx'
 ```
 
 不要记录 Grant 或放在命令行参数中。如检查与推送之间文件已变化，重新签发
@@ -223,11 +223,11 @@ Grant，不要猜测哈希。WorkBuddy 撰写 Skill 可通过 Bash 工具调用�
 ## 构建与取得集成产物
 
 `Windows local executable` Workflow 会上传
-`m365-mcp-windows-x64` Actions Artifact。该 Workflow：
+`m365-mcp-windows-local-amd64` Actions Artifact。该 Workflow：
 
 1. 使用固定 Windows Runner；
 2. 通过 NativeAOT 发布 `windows/M365Mcp.Local/M365Mcp.Local.csproj`；
-3. 断言输出目录中只有 `m365-mcp.exe`；
+3. 断言输出目录中只有 `m365-mcp-windows-local-amd64.exe`；
 4. 在 `PATH` 中没有语言 Runtime 的条件下执行 `doctor`、MCP
    `initialize` 和 `tools/list`；
 5. 断言 Ephemeral 运行不会留下文件。
@@ -243,5 +243,5 @@ Smoke Test Windows x64 EXE，发布 SHA-256 校验文件和 MIT 许可声明，�
 - 在不解压 Runtime 的前提下增加安全的富文档附件解析。
 - 使用真实邮箱验证搜索、读取、草稿、确认发送、受限自动化发送、附件读取和代表性修改。
 - 验证 Refresh、Logout、损坏 State 恢复、双账户隔离和 Tenant Policy。
-- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.1 附有 SHA-256 Checksum 与 GitHub Artifact Attestation。
+- Authenticode 签名、时间戳和 SBOM 作为后续加固；v0.1.2 附有 SHA-256 Checksum 与 GitHub Artifact Attestation。
 - 在干净 Windows x64 VM 上验证已发布的精确 EXE。

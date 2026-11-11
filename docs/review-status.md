@@ -50,7 +50,7 @@ Connector-package tests also enforce the official directory shape, OAuth mode
 without embedded credentials and the four scoped Skills.
 
 The Windows workflow publishes a NativeAOT integration artifact only after the
-publish directory contains exactly one `m365-mcp.exe`. Its isolated smoke test
+publish directory contains exactly one `m365-mcp-windows-local-amd64.exe`. Its isolated smoke test
 runs with only Windows system directories on `PATH`, exercises
 `doctor --ephemeral`, MCP `initialize`, and `tools/list`, verifies the eleven
 expected tools, and checks that the isolated data root remains empty.

@@ -36,7 +36,7 @@ Refresh-token Rotation 以及刷新后的再次认证调用。Connector Package 
 Docker Smoke Test 使用安装后的 Non-root Production Image。构建和测试全部在
 GitHub Actions 执行。
 
-Windows Workflow 只在 Publish Directory 恰好包含一个 `m365-mcp.exe` 时发布
+Windows Workflow 只在 Publish Directory 恰好包含一个 `m365-mcp-windows-local-amd64.exe` 时发布
 NativeAOT 集成产物。隔离烟测只在 `PATH` 中保留 Windows 系统目录，执行
 `doctor --ephemeral`、MCP `initialize` 和 `tools/list`，核对预期的十一个
 Tools，并检查隔离 Data Root 没有产生文件。

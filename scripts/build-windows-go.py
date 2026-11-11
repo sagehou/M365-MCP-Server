@@ -117,6 +117,8 @@ def main() -> None:
         for path in (executable, archive):
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             checksums.append(f"{digest}  {path.name}")
+            if path == executable:
+                path.with_suffix(".exe.sha256").write_text(checksums[-1] + "\n", encoding="ascii")
         print(archive.relative_to(ROOT))
     (output / "SHA256SUMS.txt").write_text("\n".join(checksums) + "\n", encoding="ascii")
 

@@ -165,15 +165,15 @@ internal static class Program
             M365 MCP Server - Windows local runtime
 
             Usage:
-              m365-mcp.exe doctor [--ephemeral]
-              m365-mcp.exe login [--ephemeral]
-              m365-mcp.exe status [--ephemeral]
-              m365-mcp.exe logout [--ephemeral]
-              m365-mcp.exe stdio [--ephemeral]
-              m365-mcp.exe inspect-attachment <relative-path>
-              m365-mcp.exe push-attachment <relative-path> < grant.json
-              m365-mcp.exe version
-              m365-mcp.exe --version
+              m365-mcp-windows-local-amd64.exe doctor [--ephemeral]
+              m365-mcp-windows-local-amd64.exe login [--ephemeral]
+              m365-mcp-windows-local-amd64.exe status [--ephemeral]
+              m365-mcp-windows-local-amd64.exe logout [--ephemeral]
+              m365-mcp-windows-local-amd64.exe stdio [--ephemeral]
+              m365-mcp-windows-local-amd64.exe inspect-attachment <relative-path>
+              m365-mcp-windows-local-amd64.exe push-attachment <relative-path> < grant.json
+              m365-mcp-windows-local-amd64.exe version
+              m365-mcp-windows-local-amd64.exe --version
 
             Built-in Entra public client:
               6e35216e-2623-43cc-b867-83bec0865cf3
