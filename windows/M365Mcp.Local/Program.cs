@@ -35,7 +35,7 @@ internal static class Program
             }
             if (command is "version" or "--version")
             {
-                Console.WriteLine("m365-mcp 0.1.2");
+                Console.WriteLine("m365-mcp 0.1.3");
                 return 0;
             }
             if (command == "doctor")

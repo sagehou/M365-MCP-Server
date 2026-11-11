@@ -5,7 +5,7 @@
 一个自托管的 Microsoft 365 MCP Gateway，采用受控工具面、Microsoft Entra
 委托身份和按用户隔离，并重点保护 Outlook 邮件与附件处理边界。
 
-> **已发布：**[`v0.1.2`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2)
+> **已发布：**[`v0.1.3`](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3)
 > 已按 MIT 许可证发布。CI 验证了 Container Image 与 Windows x64 NativeAOT
 > EXE。每个部署仍须自行配置 Entra 同意，并在客户端执行发送授权策略。
 
@@ -35,7 +35,7 @@
 `stdio`、本地登录、相对路径草稿附件，以及配合远端 Connector 的可选 EXE
 辅助命令，见 [Windows 本地指南](docs/zh-CN/windows-local.md)。
 
-Windows x64 NativeAOT 本地 Runtime 已包含在 v0.1.2 中。Release 提供：
+Windows x64 NativeAOT 本地 Runtime 已包含在 v0.1.3 中。Release 提供：
 
 - `m365-mcp-windows-local-amd64.exe`
 - SHA-256 校验文件
@@ -70,8 +70,8 @@ stdio 接入时，将 EXE 路径填入 `command`，将 `["serve"]` 填入 `args`
 | Container Health Smoke Test | CI 覆盖 |
 | Docker Compose 校验 | CI 覆盖 |
 | Windows NativeAOT EXE 构建 | CI 覆盖 |
-| Windows SHA-256 与 Provenance Attestation | 已随 v0.1.2 发布并核验 |
-| 稳定版 `v0.1.2` GitHub Release | [已发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.2) |
+| Windows SHA-256 与 Provenance Attestation | 已随 v0.1.3 发布并核验 |
+| 稳定版 `v0.1.3` GitHub Release | [已发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3) |
 
 GitHub Actions 是本仓库唯一的构建与测试环境。此编辑环境禁止创建测试环境、安装测试依赖或执行本地构建和测试。
 
@@ -84,7 +84,7 @@ GitHub Actions 是本仓库唯一的构建与测试环境。此编辑环境禁�
 - Calendar、OneDrive、SharePoint 和 Teams。
 - Windows EXE 的 Authenticode 签名；可选 WAM 评估与本地富文档附件解析。
 
-部署前请阅读 [v0.1.2 发布说明](docs/zh-CN/releases/v0.1.2.md)和
+部署前请阅读 [v0.1.3 发布说明](docs/zh-CN/releases/v0.1.3.md)和
 [部署指南](docs/zh-CN/deployment.md)。
 
 ## 许可证

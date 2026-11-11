@@ -114,7 +114,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
         ["serverInfo"] = new JsonObject
         {
             ["name"] = "M365 MCP Server (Windows Local)",
-            ["version"] = "0.1.2",
+            ["version"] = "0.1.3",
         },
     };
 
