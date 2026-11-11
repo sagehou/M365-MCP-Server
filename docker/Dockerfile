@@ -1,11 +1,14 @@
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 MCP_HOST=0.0.0.0 MCP_PORT=8000 \
-    PATH="/app/.venv/bin:$PATH" UV_LINK_MODE=copy
+    PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
-RUN addgroup --system app \
+RUN apt-get update \
+    && apt-get upgrade --yes --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system app \
     && adduser --system --ingroup app app \
     && mkdir --parents /data \
     && chown app:app /data
@@ -14,7 +17,8 @@ COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
 
 RUN pip install --no-cache-dir uv==0.13.7 \
-    && uv sync --frozen --no-dev --no-editable --no-cache
+    && UV_LINK_MODE=copy uv sync --frozen --no-dev --no-editable --no-cache \
+    && pip uninstall --yes uv pip
 
 USER app
 
