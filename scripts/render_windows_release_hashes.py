@@ -37,14 +37,19 @@ def verify_sha256_file(checksum_file: Path, binary: Path, actual: str) -> None:
 
 
 def update_notes(
-    notes: str, release_tag: str, executables: list[tuple[Path, dict[str, str]]]
+    notes: str,
+    release_tag: str,
+    executables: list[tuple[Path, dict[str, str]]],
+    language: str = "en",
 ) -> str:
+    title = "Windows 程序哈希" if language == "zh-CN" else "Windows executable hashes"
+    columns = "| 算法 | 哈希 |" if language == "zh-CN" else "| Algorithm | Hash |"
     tables = []
     for binary, hashes in executables:
         tables.extend([
             f"### `{binary.name}`",
             "",
-            "| Algorithm | Hash |",
+            columns,
             "| --- | --- |",
             *(f"| {name} | `{value}` |" for name, value in hashes.items()),
             "",
@@ -52,7 +57,7 @@ def update_notes(
     section = "\n".join(
         [
             START,
-            f"## Windows executable hashes ({release_tag})",
+            f"## {title} ({release_tag})",
             "",
             *tables,
             END,
@@ -70,11 +75,40 @@ def update_notes(
     return notes.rstrip() + "\n\n" + section + "\n"
 
 
+def bilingual_notes(english: str, chinese: str) -> str:
+    contents = []
+    footers = []
+    dates = []
+    pattern = r"(?:Updated:|更新日期：)\s*(\d{4}-\d{2}-\d{2})[.。]?"
+    for notes in (english, chinese):
+        body, footer = notes.rsplit("\n---\n", 1)
+        # Source notes start with language links and the release title.
+        body = body.split("\n", 1)[1].lstrip()
+        if body.startswith("# "):
+            body = body.split("\n", 1)[1].lstrip()
+        found = re.findall(pattern, footer)
+        if len(found) != 1:
+            raise ValueError("Expected one footer update date per language")
+        dates.append(found[0])
+        contents.append(body.rstrip())
+        footers.append(re.sub(pattern, "", footer).strip())
+    if dates[0] != dates[1]:
+        raise ValueError("English and Chinese update dates differ")
+    return (
+        "[English](#english) | [简体中文](#简体中文)\n\n"
+        "# English\n\n" + contents[0] + "\n\n"
+        "# 简体中文\n\n" + contents[1] + "\n\n---\n\n"
+        + footers[0] + "\n\n" + footers[1]
+        + "\n\nUpdated / 更新日期：" + dates[0] + "\n"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True, action="append")
     parser.add_argument("--sha256-file", type=Path, required=True, action="append")
     parser.add_argument("--notes-in", type=Path, required=True)
+    parser.add_argument("--notes-zh-in", type=Path)
     parser.add_argument("--notes-out", type=Path, required=True)
     parser.add_argument("--release-tag", required=True)
     parser.add_argument("--expected-sha256")
@@ -102,6 +136,11 @@ def main() -> None:
 
     notes = args.notes_in.read_text(encoding="utf-8")
     updated = update_notes(notes, args.release_tag, executables)
+    if args.notes_zh_in:
+        chinese = update_notes(
+            args.notes_zh_in.read_text(encoding="utf-8"), args.release_tag, executables, "zh-CN"
+        )
+        updated = bilingual_notes(updated, chinese)
     args.notes_out.write_text(updated, encoding="utf-8", newline="\n")
     for binary, hashes in executables:
         for name, value in hashes.items():
