@@ -14,6 +14,10 @@ If downloading a single-EXE artifact, rename its executable to
 
 ## Register Microsoft sign-in
 
+The Go edition has no built-in Client ID. Pass your chosen application's ID to
+`login --client-id`. For organization deployments, we recommend registering and
+managing a dedicated desktop/public-client application in your own tenant.
+
 1. Create a Microsoft Entra app registration for the intended account type.
 2. Under **Authentication**, add a **Mobile and desktop applications** platform
    with the redirect URI `http://localhost`.
@@ -23,8 +27,21 @@ If downloading a single-EXE artifact, rename its executable to
    `organizations` for work/school accounts across organizations. Use `common`
    only when the registration also supports personal Microsoft accounts.
 
-Tenant policy may require administrator consent. Do not create a client secret
-or grant application mailbox permissions for the local edition.
+This edition signs in as a user and requests delegated permissions. It does not
+embed or use a Client Secret, and a self-managed public-client registration does
+not need one. Do not grant application mailbox permissions for this flow.
+Tenant policy may still require administrator consent for the delegated permissions.
+
+<details>
+<summary>ⓘ Client ID and Client Secret</summary>
+
+A Client ID is a public application identifier. A Client Secret is a confidential
+credential. The NativeAOT edition embeds a project-managed Client ID only; this
+Go edition requires an explicit ID. Both local editions use public-client
+authentication without a Client Secret. The Python server's confidential-client
+configuration is separate.
+
+</details>
 
 ## Sign in
 
