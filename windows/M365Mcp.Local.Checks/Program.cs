@@ -56,7 +56,9 @@ try
     transport.Expect("GET", "/v1.0/me/messages/draft", "{\"id\":\"draft\",\"isDraft\":true}");
     transport.Expect("POST", "/v1.0/me/messages/draft/attachments", "{\"id\":\"attached\"}", (_, body) =>
         Check(body?["contentBytes"]?.GetValue<string>() == "AQIDBA==", "draft attachment bytes changed"));
-    transport.Expect("GET", "/v1.0/me/messages/message/attachments", "{\"value\":[{\"id\":\"attachment\",\"contentBytes\":\"c2VjcmV0\"}]}");
+    transport.Expect("GET", "/v1.0/me/messages/message/attachments", "{\"value\":[{\"id\":\"attachment\",\"contentBytes\":\"c2VjcmV0\"}]}",
+        (request, _) => Check(Query(request)["$select"] == "id,name,contentType,size,isInline,lastModifiedDateTime",
+            "attachment listings must not fetch file bytes"));
     transport.Expect("GET", "/v1.0/me/messages/message/attachments/attachment",
         "{\"id\":\"attachment\",\"name\":\"a.txt\",\"contentType\":\"text/plain\",\"contentBytes\":\"aGVsbG8=\"}");
     transport.Expect("PATCH", "/v1.0/me/messages/message", "{}", (_, body) =>
@@ -92,6 +94,19 @@ try
     Check(Payload(results[9])["content"]?.GetValue<string>() == "hello", "attachment decoding mismatch");
     Check(Payload(results[11])["message_id"]?.GetValue<string>() == "archived"
         && Payload(results[12])["message_id"]?.GetValue<string>() == "moved", "move/archive must return the new Graph ID");
+    transport.CheckEmpty();
+
+    await File.WriteAllBytesAsync(Path.Combine(root, "large.pdf"), new byte[3_000_000]);
+    transport.Expect("GET", "/v1.0/me/messages/draft", "{\"isDraft\":true}");
+    transport.Expect("POST", "/v1.0/me/messages/draft/attachments/createUploadSession",
+        "{\"uploadUrl\":\"https://outlook.office.com/api/v2.0/AttachmentSessions('ci')?token=ci\"}");
+    transport.Expect("PUT", "/api/v2.0/AttachmentSessions('ci')", "{}", (request, _) =>
+        Check(request.Content?.Headers.ContentRange?.ToString() == "bytes 0-2097151/3000000", "first upload range mismatch"));
+    transport.Expect("PUT", "/api/v2.0/AttachmentSessions('ci')", "{}", (request, _) =>
+        Check(request.Content?.Headers.ContentRange?.ToString() == "bytes 2097152-2999999/3000000", "last upload range mismatch"),
+        status: HttpStatusCode.Created);
+    var large = await Exchange(graph, Call("mail_add_draft_attachment", "{\"draft_id\":\"draft\",\"relative_path\":\"large.pdf\"}"));
+    Check(large[0]["result"]?["isError"]?.GetValue<bool>() is false, "large attachment upload failed");
     transport.CheckEmpty();
 
     foreach (var arguments in new[] {
@@ -131,6 +146,21 @@ try
         && failures[1]["result"]?["isError"]?.GetValue<bool>() is true
         && !failures[1].ToJsonString().Contains("provider-secret") && failures[2]["result"] is JsonObject,
         "ambiguous writes must not be replayed or expose provider details");
+    transport.CheckEmpty();
+
+    foreach (var tokenResponse in new[] { "[]", "{\"access_token\":\"ci\",\"expires_in\":\"3600\"}",
+        "{\"access_token\":\"ci\",\"expires_in\":-1}" })
+    {
+        store.Save(state with { ExpiresAtUnixSeconds = 0 });
+        transport.Expect("POST", "/organizations/oauth2/v2.0/token", tokenResponse);
+        try
+        {
+            await new PublicClientAuth(configuration, store, client).GetAccessTokenAsync(false, CancellationToken.None);
+            throw new Exception("malformed token response was accepted");
+        }
+        catch (LocalAuthException) { }
+        Check(store.Load()?.ExpiresAtUnixSeconds == 0, "invalid refresh response replaced the stored state");
+    }
     transport.CheckEmpty();
 
     transport.Expect("GET", "/v1.0/me/messages/message", "{}", status: HttpStatusCode.Unauthorized);
