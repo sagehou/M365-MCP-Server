@@ -40,14 +40,35 @@ subsequent calls; a refresh failure never selects another cached account.
 
 ## Connect an MCP client
 
-For clients supporting stdio:
+### stdio
+
+`serve` uses stdio by default. Complete `login` above, then configure the MCP
+client with the executable's absolute path and `serve` as its argument:
+
+```json
+{
+  "mcpServers": {
+    "m365": {
+      "command": "C:\\Tools\\m365-mcp-windows-local-go.exe",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Set `command` to the actual executable path. If you kept the downloaded
+`-amd64.exe` or `-arm64.exe` filename, include that suffix. The MCP client starts
+and manages the process. Protocol traffic uses stdout; logs use stderr.
+
+To generate this configuration with the actual executable path:
 
 ```powershell
 .\m365-mcp-windows-local-go.exe connection
 ```
 
-Copy the resulting `mcpServers` configuration into the client. The client starts
-the executable with `serve`. All protocol traffic uses stdout; logs use stderr.
+Copy the resulting `mcpServers` JSON into the client.
+
+### Streamable HTTP
 
 For clients supporting Streamable HTTP and custom request headers:
 
@@ -142,4 +163,4 @@ The executable is unsigned. Go does not guarantee fewer antivirus detections;
 SmartScreen reputation, code signing, and vendor false-positive review still
 apply. Job Objects limit resources, not filesystem/network access. Real Entra
 sign-in, client compatibility, representative documents, and antivirus behavior
-require acceptance on the target Windows PC. Updated: 2026-11-10.
+require acceptance on the target Windows PC. Updated: 2026-11-11.
