@@ -243,6 +243,7 @@ jobs:
             --binary release-assets/m365-mcp-windows-local-go-arm64.exe \
             --sha256-file release-assets/m365-mcp-windows-local-go-arm64.exe.sha256 \
             --notes-in "docs/releases/$RELEASE_TAG.md" \
+            --notes-zh-in "docs/zh-CN/releases/$RELEASE_TAG.md" \
             --notes-out release-assets/release-notes.md \
             --release-tag "$RELEASE_TAG"
       - name: Log in to GitHub Container Registry

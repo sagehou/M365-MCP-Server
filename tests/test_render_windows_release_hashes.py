@@ -156,3 +156,76 @@ def test_rejects_incorrect_go_hash_before_writing_any_notes(tmp_path: Path) -> N
     assert result.returncode != 0
     assert "SHA-256 checksum file does not match" in result.stderr
     assert not output.exists()
+
+
+def test_bilingual_release_contains_identical_hashes_and_one_footer(tmp_path: Path) -> None:
+    binaries = [tmp_path / name for name in (
+        "m365-mcp-windows-local-amd64.exe",
+        "m365-mcp-windows-local-go-amd64.exe",
+        "m365-mcp-windows-local-go-arm64.exe",
+    )]
+    for binary in binaries:
+        binary.write_bytes(binary.name.encode())
+    checksum = tmp_path / "SHA256SUMS.txt"
+    checksum.write_text("".join(
+        f"{hashlib.sha256(binary.read_bytes()).hexdigest()}  {binary.name}\n"
+        for binary in binaries
+    ), encoding="ascii")
+    english = tmp_path / "english.md"
+    english.write_text(
+        "**English** | [简体中文](chinese.md)\n\n# Release\n\nEnglish notes.\n\n"
+        "---\n\nEnglish notice. Updated: 2026-11-11.\n", encoding="utf-8",
+    )
+    chinese = tmp_path / "chinese.md"
+    chinese.write_text(
+        "[English](english.md) | **简体中文**\n\n# Release\n\n中文说明。\n\n"
+        "---\n\n中文声明。更新日期：2026-11-11。\n", encoding="utf-8",
+    )
+    output = tmp_path / "bilingual.md"
+    extra = ["--notes-zh-in", str(chinese)]
+    for binary in binaries[1:]:
+        extra.extend(("--binary", str(binary), "--sha256-file", str(checksum)))
+    result = run_renderer(binaries[0], checksum, english, output, *extra)
+    assert result.returncode == 0, result.stderr
+    body = output.read_text(encoding="utf-8")
+    assert body.startswith("[English](#english) | [简体中文](#简体中文)")
+    assert "English notes." in body and "中文说明。" in body
+    assert "english.md" not in body and "chinese.md" not in body
+    assert body.count("| Algorithm | Hash |") == 3
+    assert body.count("| 算法 | 哈希 |") == 3
+    english_body, chinese_body = body.split("# 简体中文\n", 1)
+    for binary in binaries:
+        for section in (english_body, chinese_body):
+            assert f"### `{binary.name}`" in section
+            assert hashlib.md5(binary.read_bytes(), usedforsecurity=False).hexdigest() in section
+            assert hashlib.sha1(binary.read_bytes(), usedforsecurity=False).hexdigest() in section
+            assert hashlib.sha256(binary.read_bytes()).hexdigest() in section
+    assert body.count("\n---\n") == 1
+    assert body.count("2026-11-11") == 1
+    assert body.endswith(
+        "---\n\nEnglish notice.\n\n中文声明。\n\nUpdated / 更新日期：2026-11-11\n"
+    )
+
+
+def test_rejects_bilingual_notes_with_different_update_dates(tmp_path: Path) -> None:
+    binary = tmp_path / "m365-mcp-windows-local-go-amd64.exe"
+    binary.write_bytes(b"published release")
+    checksum = tmp_path / "SHA256SUMS.txt"
+    checksum.write_text(
+        f"{hashlib.sha256(binary.read_bytes()).hexdigest()}  {binary.name}\n", encoding="ascii",
+    )
+    english = tmp_path / "english.md"
+    english.write_text(
+        "English | Chinese\n\n# Release\n\n---\nUpdated: 2026-11-11.\n", encoding="utf-8",
+    )
+    chinese = tmp_path / "chinese.md"
+    chinese.write_text(
+        "English | Chinese\n\n# Release\n\n---\n更新日期：2026-11-12。\n", encoding="utf-8",
+    )
+    output = tmp_path / "bilingual.md"
+    result = run_renderer(
+        binary, checksum, english, output, "--notes-zh-in", str(chinese),
+    )
+    assert result.returncode != 0
+    assert "English and Chinese update dates differ" in result.stderr
+    assert not output.exists()
