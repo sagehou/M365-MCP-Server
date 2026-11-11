@@ -12,11 +12,33 @@ are not required. Check the archive against `SHA256SUMS.txt` before installing.
 If downloading a single-EXE artifact, rename its executable to
 `m365-mcp-windows-local-go.exe` before following the commands below.
 
-## Register Microsoft sign-in
+## Sign in
 
-The Go edition has no built-in Client ID. Pass your chosen application's ID to
-`login --client-id`. For organization deployments, we recommend registering and
-managing a dedicated desktop/public-client application in your own tenant.
+Both local editions use the project's public-client application by default:
+
+```text
+Application: M365-MCP-Localhost
+Client ID: 6e35216e-2623-43cc-b867-83bec0865cf3
+Tenant: organizations
+```
+
+In PowerShell, from the extracted folder:
+
+```powershell
+.\m365-mcp-windows-local-go.exe login
+```
+
+Complete Microsoft sign-in in the system browser. The application uses S256
+PKCE and an ephemeral localhost callback. The selected account is bound to
+subsequent calls; a refresh failure never selects another cached account.
+Tenant policy may require administrator consent for the delegated permissions,
+including when using the built-in application.
+
+## Use your own application
+
+For organization deployments, we recommend registering and managing a dedicated
+desktop/public-client application in your own tenant. Using the built-in
+application does not require creating your own registration.
 
 1. Create a Microsoft Entra app registration for the intended account type.
 2. Under **Authentication**, add a **Mobile and desktop applications** platform
@@ -27,33 +49,36 @@ managing a dedicated desktop/public-client application in your own tenant.
    `organizations` for work/school accounts across organizations. Use `common`
    only when the registration also supports personal Microsoft accounts.
 
-This edition signs in as a user and requests delegated permissions. It does not
-embed or use a Client Secret, and a self-managed public-client registration does
-not need one. Do not grant application mailbox permissions for this flow.
-Tenant policy may still require administrator consent for the delegated permissions.
+Override the defaults for a login:
+
+```powershell
+.\m365-mcp-windows-local-go.exe login --client-id YOUR-APPLICATION-ID --tenant YOUR-TENANT-ID
+```
+
+Or use the same environment variables as the NativeAOT edition:
+
+```powershell
+$env:M365_LOCAL_CLIENT_ID = 'YOUR-APPLICATION-ID'
+$env:M365_LOCAL_TENANT_ID = 'YOUR-TENANT-ID'
+.\m365-mcp-windows-local-go.exe login
+```
+
+At login, command-line flags take precedence over environment variables, then
+the built-in defaults. The selected application and tenant are saved after
+successful sign-in; `serve` uses those saved settings. Stop the server and run
+`login` again after changing either value. Regenerate HTTP client configuration
+after signing in again.
 
 <details>
 <summary>ⓘ Client ID and Client Secret</summary>
 
 A Client ID is a public application identifier. A Client Secret is a confidential
-credential. The NativeAOT edition embeds a project-managed Client ID only; this
-Go edition requires an explicit ID. Both local editions use public-client
-authentication without a Client Secret. The Python server's confidential-client
-configuration is separate.
+credential. Both local editions embed the same public Client ID and allow it to
+be overridden; neither embeds or uses a Client Secret. A self-managed public
+client also needs no Secret or application mailbox permissions for this flow.
+The Python server's confidential-client configuration is separate.
 
 </details>
-
-## Sign in
-
-In PowerShell, from the extracted folder:
-
-```powershell
-.\m365-mcp-windows-local-go.exe login --client-id YOUR-APPLICATION-ID --tenant organizations
-```
-
-Complete Microsoft sign-in in the system browser. The application uses S256
-PKCE and an ephemeral localhost callback. The selected account is bound to
-subsequent calls; a refresh failure never selects another cached account.
 
 ## Connect an MCP client
 
