@@ -64,7 +64,7 @@ FastMCP 4 历史迁移证据：[迁移前](https://github.com/sagehou/M365-MCP-S
 ## 范围边界
 
 Python 服务保留 Bearer Validation、Entra OBO 和原有 Feature Flag 后的 OAuth 服务。
-[Windows 本机单用户版](windows-local-go.md) 使用独立 Go Module 和公共客户端浏览器登录，
+[Windows 本地 Go 版](windows-local.md#配置-go)使用独立 Go Module 和公共客户端浏览器登录，
 不内置服务器凭据，也不替代多用户服务。Go 版本和依赖校验值记录在 `native/go.mod`、
 `native/go.sum` 中。
 

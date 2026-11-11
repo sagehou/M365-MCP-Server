@@ -108,10 +108,10 @@ def main() -> None:
         archive = output / f"{name}.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as package:
             package.write(executable, "m365-mcp-windows-local-go.exe")
-            package.writestr("README.md", (ROOT / "docs/windows-local-go.md").read_text(encoding="utf-8")
-                             .replace("zh-CN/windows-local-go.md", "README.zh-CN.md"))
-            package.writestr("README.zh-CN.md", (ROOT / "docs/zh-CN/windows-local-go.md").read_text(encoding="utf-8")
-                             .replace("../windows-local-go.md", "README.md"))
+            package.writestr("README.md", (ROOT / "docs/windows-local.md").read_text(encoding="utf-8")
+                             .replace("zh-CN/windows-local.md", "README.zh-CN.md"))
+            package.writestr("README.zh-CN.md", (ROOT / "docs/zh-CN/windows-local.md").read_text(encoding="utf-8")
+                             .replace("../windows-local.md", "README.md"))
             package.writestr("THIRD_PARTY_NOTICES.txt", notices)
             package.write(ROOT / "LICENSE", "LICENSE")
         for path in (executable, archive):
