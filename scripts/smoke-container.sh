@@ -27,7 +27,8 @@ if [ "$ready" != true ]; then
 fi
 curl --fail --silent http://127.0.0.1:18000/healthz
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18000/mcp/)" = 401
-test "$(docker exec "$container" id -u)" != 0
+test "$(docker exec "$container" id -u)" = 100
+test "$(docker exec "$container" id -g)" = 101
 startup_logs="$(docker logs "$container" 2>&1)"
 for forbidden in \
   'AuthlibDeprecationWarning' \
@@ -45,6 +46,12 @@ done
 docker exec "$container" python -c '
 import asyncio
 from importlib.metadata import distribution
+from io import BytesIO
+from docx import Document
+from openpyxl import Workbook
+from pptx import Presentation
+from pptx.util import Inches
+from pypdf import PdfWriter
 from m365_mcp.extractors import AttachmentExtractorRegistry, AttachmentInput
 installed = distribution("m365-mcp-server")
 assert installed.metadata["License-Expression"] == "MIT"
@@ -53,6 +60,27 @@ assert license_files and all(installed.locate_file(path).is_file() for path in l
 result = asyncio.run(AttachmentExtractorRegistry().extract_async(
     AttachmentInput(name="smoke.txt", content=b"container worker works")))
 assert result.content == "container worker works"
+fixtures = []
+document = Document()
+document.add_paragraph("container DOCX worker works")
+book = Workbook()
+book.active.append(["container XLSX worker works"])
+slides = Presentation()
+slide = slides.slides.add_slide(slides.slide_layouts[6])
+slide.shapes.add_textbox(0, 0, Inches(5), Inches(1)).text = "container PPTX worker works"
+for name, source in (("docx", document), ("xlsx", book), ("pptx", slides)):
+    output = BytesIO()
+    source.save(output)
+    fixtures.append((name, output.getvalue(), "container " + name.upper() + " worker works"))
+pdf = PdfWriter()
+pdf.add_blank_page(width=72, height=72)
+output = BytesIO()
+pdf.write(output)
+fixtures.append(("pdf", output.getvalue(), ""))
+for name, content, expected in fixtures:
+    result = asyncio.run(AttachmentExtractorRegistry().extract_async(
+        AttachmentInput(name="smoke." + name, content=content)))
+    assert result.format == name and expected in result.content and not result.truncated, name
 '
 
 docker run --detach --name "$oauth_container" --publish "127.0.0.1:18001:$port" \

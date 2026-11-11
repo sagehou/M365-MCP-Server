@@ -5,6 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 MCP_HOST=0.0.0.0 MCP_PORT=8000 
 
 WORKDIR /app
 
+# Preserve the UID/GID used by the published Debian image for existing /data volumes.
 RUN apk upgrade --no-cache \
     && apk add --no-cache libstdc++ \
     && addgroup -S -g 101 app \

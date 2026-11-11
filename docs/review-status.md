@@ -1,92 +1,64 @@
 **English** | [简体中文](zh-CN/review-status.md)
 
-# Implementation review follow-up
+# Implementation review
 
-## Corrected gaps
+## Runtime scope
 
-- Configuration: empty alternative credentials from the environment template;
-  positive/bounded runtime limits and non-empty required scopes.
-- Authentication: signing-key rollover refresh with a one-minute miss cooldown;
-  negative signature/audience/issuer/expiry/application-token tests.
-- Runtime: stateless MCP HTTP identity per request; off-thread OBO; initialize,
-  tools/list and concurrent two-user tools/call integration tests.
-- Graph/mail: separate KQL search and OData filtering, preserve new IDs after
-  move/archive, do not replay ambiguous writes, do not shorten Retry-After,
-  reject path traversal and bound response bytes.
-- Audit: actual JSON events with timestamp and identity under default logging;
-  sanitize errors before framework handling.
-- Attachments: metadata-only listings, pre-decode/expanded archive limits and
-  supervised parser processes with resource, timeout and cancellation limits.
-- Delivery: exclude credentials from Docker contexts, test configurable-port
-  health checks/non-root worker startup, bind Compose privately and smoke-test
-  the exact image before publishing it.
-- Release hardening: pin hosted runners and action majors, verify that a safe MCP
-  error reference exactly matches its audit event ID, and describe accepted date
-  inputs as ISO 8601 timestamps with timezones.
-- Release delivery: require tag/project-version equality and bilingual notes,
-  smoke-test the exact Linux x64 image, validate Compose, publish explicit
-  semantic image tags, and create the GitHub Release only after image publication.
-- Local-runtime foundation: isolate Graph token acquisition behind a provider
-  interface and allow tool identity context to be injected without an HTTP
-  request. Existing HTTP/OBO behavior remains the hosted runtime.
-- OAuth completion UX: WorkBuddy callbacks use a no-store, CSP-protected
-  completion page that launches the private callback URI, attempts to close the
-  tab, removes callback parameters from visible browser history, and retains a
-  manual fallback. Loopback and HTTPS clients retain the normal redirect.
-- Windows local integration build: add a .NET 10 NativeAOT MCP stdio host with
-  public-client PKCE login, current-user DPAPI state, ephemeral mode, ten
-  bounded mail tools, and a CI-produced single Windows x64 executable.
+| Edition | Transport | Tools | Attachment reading |
+| --- | --- | --- | --- |
+| Python server | Authenticated Streamable HTTP | 11 core tools; OAuth also enables download and upload-grant tools | PDF, DOCX, XLSX, PPTX, TXT, Markdown in isolated Linux workers |
+| Windows .NET | stdio | 11 mail tools | Bounded UTF-8 text, JSON, CSV, XML |
+| Windows Go | stdio; authenticated loopback Streamable HTTP | 12 mail tools, including local downloads | PDF, DOCX, XLSX, PPTX, TXT, Markdown in Windows Job Object workers |
 
-## What CI proves
+All editions create plain-text drafts and attach files up to 20 MiB. Sending
+returns Graph acceptance without claiming delivery. Per-message confirmation or
+bounded automation authorization remains a client/agent responsibility. Search
+returns one bounded page; continuation cursors, replies, forwarding, shared
+mailboxes, OCR, Calendar, Drive, SharePoint and Teams are outside the implemented
+scope. The latest published release is `v0.1.3`; this review describes the source
+changes in [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60).
 
-Unit and integration tests exercise the real ASGI/FastMCP stack with mocked
-Entra metadata, OBO and Graph transport. Docker smoke tests use the installed
-non-root production image. All Python, Docker, and native Windows builds/tests
-run in GitHub Actions; local tests are prohibited in the editing environment.
-The mocked WorkBuddy client flow follows the 401 discovery challenge through
-DCR, S256 authorization, an Entra callback, local token exchange, authenticated
-MCP initialization, refresh-token rotation and another authenticated MCP call.
-Connector-package tests also enforce the official directory shape, OAuth mode
-without embedded credentials and the four scoped Skills.
+## Findings and corrections
 
-The Windows workflow publishes a NativeAOT integration artifact only after the
-publish directory contains exactly one `m365-mcp-windows-local-amd64.exe`. Its isolated smoke test
-runs with only Windows system directories on `PATH`, exercises
-`doctor --ephemeral`, MCP `initialize`, and `tools/list`, verifies the eleven
-expected tools, and checks that the isolated data root remains empty.
+- .NET keyword/date searches now put dates in KQL; date-only searches use OData
+  filtering and received-time ordering. Timezone-free dates and incorrectly
+  typed optional arguments are rejected.
+- .NET accepts an empty category array to clear categories. Draft text,
+  recipients, resource IDs and MIME types have explicit validation and limits.
+- .NET attachment listings request metadata without downloading file bytes.
+  Invalid Graph responses and malformed JSON-RPC envelopes return errors while
+  keeping stdio usable.
+- .NET rejects malformed token responses and invalid lifetimes, bounds encrypted
+  state reads, and persists login state before reporting browser success.
+- Removed the unused Python `MailService.list_messages` wrapper and `tenant_id`
+  setting, unused imports, and never-populated .NET profile fields. The unusable
+  version-1 state parsing branch was removed; unreadable old state requires
+  logout and a new sign-in. Valid version-2 state remains compatible.
+- Updated Python direct and transitive dependencies. Container builds use
+  Alpine with system security updates, omit unused Debian tools with unresolved
+  advisories, and remove `pip` and `uv` after installation. Details are in the
+  [dependency audit](runtime-dependency-audit.md).
 
-These tests do not read or change production mailbox data. CI proves the
-artifact shape and mocked/protocol behavior; it does not prove live tenant
-consent, real Graph behavior, code-signing trust, or target-agent compatibility.
+OAuth services, attachment workers, token-provider interfaces and non-Windows
+Go stubs have active callers or platform/test roles and are retained. Both HTTP
+client families are required: application Graph/OIDC uses `httpx`; FastMCP/MCP
+uses `httpx2`. Historical release-repair workflows remain explicit manual tools.
 
-## Current release and remaining deployment work
+## GitHub Actions evidence
 
-- `v0.1.1` is [published](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
-  under MIT; all four GHCR tags allow anonymous manifest access. Each deployment
-  still needs its own Entra configuration and consent checks.
-- OAuth discovery, dynamic public-client registration, MSAL-backed interactive
-  authorization, S256 PKCE, one-time local authorization-code exchange and
-  persistent encrypted refresh sessions with rotation/replay prevention are
-  implemented behind a default-off feature flag. The WorkBuddy connector and CI
-  client-flow coverage are present. Bounded automation sending is a client/agent
-  authorization contract; the server cannot infer that authorization from a
-  `draft_id` alone.
-- Search returns one bounded page and a next_link hint, not an exhaustive mailbox
-  export. The tool does not yet accept continuation cursors. Keyword search obeys
-  Graph's search ordering/result limits; date-only queries use received time.
-- Plain-text draft creation and draft sending are implemented. v0.1.1 adds
-  draft-file attachments up to 20 MiB through a binary upload and one-use
-  handle remotely, or a bounded artifact path or native file picker on Windows.
-  Sending requires per-message
-  confirmation or explicit bounded automation authorization at the client/agent
-  layer. Direct send, HTML composition, and automatic retry remain excluded.
-- OCR, replies, forwarding, shared mailboxes, enterprise RBAC/rate
-  limiting/observability, Calendar, Drive, SharePoint and Teams remain roadmap
-  items.
-- The stable Windows executable is published unsigned with SHA-256 and GitHub
-  provenance. Antivirus false-positive handling, optional signing, and SBOM are
-  separate hardening concerns; they do not change the v0.1.1 artifact.
-- Windows local mode intentionally omits `mail_download_attachment` and rich
-  binary-document extraction. It does not install a Windows Service: the stdio
-  process is launched and owned by the agent. Service mode would require a
-  separate IPC and security design.
+The PR checks cover these paths; CI, test-image publication and stable releases
+share the dependency/security gates relevant to their artifacts.
+
+| Check | Coverage |
+| --- | --- |
+| Python tests and `pip-audit` | Application factory, both MCP protocol generations, every core mail tool, identity isolation, JWT/OBO, OAuth discovery/PKCE/refresh rotation/replay, upload/download handles and worker limits |
+| Ruff and Vulture | Unused imports, undefined names, duplicate definitions, unreachable code and unused variables at 100% confidence; three SDK protocol keyword parameters have line-specific exclusions |
+| Docker smoke and Trivy | Exact installed non-root image, health, authentication, OAuth storage, extraction worker, Compose; block known container findings at every severity, including those without fixes |
+| Windows .NET checks | All 11 tools through stdio with mock Graph, date/search/category/draft validation, small and chunked attachments, sanitized failures, no ambiguous write replay, DPAPI binding/ephemeral state, refresh and malformed token responses |
+| Windows .NET artifact | NativeAOT single executable, Windows file details, client-ID defaults/overrides and startup without a runtime on PATH |
+| Windows Go checks | Windows/Linux race tests, module verification, vet, unreachable application functions and Windows AMD64/ARM64 vulnerability analysis |
+| Windows Go artifacts | Single-file AMD64/ARM64 builds, version details, ZIPs/checksums and AMD64 startup without an external runtime |
+
+---
+
+Known-advisory scans and static analysis describe the checked snapshot, not a proof of zero defects or vulnerabilities. Live tenant consent, real Graph delivery, target-agent integration, Windows ARM64 execution, interactive file-picker behavior and antivirus/code-signing trust have not been validated by these checks. No local tests, builds, dependency installs or virtual environments were used. Updated: 2026-11-11.
