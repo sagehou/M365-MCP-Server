@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import json
 import logging
 from pathlib import Path
 import sqlite3
@@ -233,10 +234,12 @@ def test_dcr_accepts_loopback_redirect_with_arbitrary_path(
         (registration(redirect_uris=["https://client.example/callback?code=chosen"]), None),
         (registration(redirect_uris=["*"]), None),
         (registration(redirect_uris=[]), None),
+        (registration(redirect_uris=["https://client.example/" + "x" * 2048]), None),
         ({"client_name": "Missing redirect"}, None),
         (registration(application_type="desktop"), None),
         (registration(token_endpoint_auth_method="client_secret_post"), None),
         (None, "not-json"),
+        (None, "[" * 2000 + "]" * 2000),
     ],
 )
 def test_dcr_rejects_invalid_or_malformed_client_metadata(
@@ -256,6 +259,60 @@ def test_dcr_rejects_invalid_or_malformed_client_metadata(
 
     assert response.status_code == 400
     assert response.json()["error"] == "invalid_client_metadata"
+
+
+@pytest.mark.parametrize("content_length", [None, "1", "131073"])
+def test_dcr_bounds_bodies_with_missing_false_or_oversize_lengths(
+    tmp_path: Path, content_length: str | None,
+) -> None:
+    database_path = tmp_path / "oauth.db"
+    headers = {"Content-Type": "application/json"}
+    if content_length is not None:
+        headers["Content-Length"] = content_length
+    with TestClient(make_app(make_settings(database_path))) as client:
+        response = client.post(
+            "/oauth/register",
+            content=iter([json.dumps(registration()).encode(), b" " * 65536, b" " * 65536]),
+            headers=headers,
+        )
+
+    assert response.status_code == 413
+    assert response.json()["error"] == "invalid_client_metadata"
+    with sqlite3.connect(database_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM oauth_clients").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("content_length", ["-1", "invalid"])
+def test_dcr_rejects_invalid_content_length(tmp_path: Path, content_length: str) -> None:
+    with TestClient(make_app(make_settings(tmp_path / "oauth.db"))) as client:
+        response = client.post(
+            "/oauth/register",
+            content=json.dumps(registration()),
+            headers={"Content-Type": "application/json", "Content-Length": content_length},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error_description"] == "content length is invalid"
+
+
+@pytest.mark.parametrize("chunked", [False, True])
+def test_dcr_accepts_maximum_metadata_at_body_limit(tmp_path: Path, chunked: bool) -> None:
+    redirects = []
+    for index in range(10):
+        prefix = f"https://client.example/{index}/"
+        redirects.append(prefix + "测" * (2048 - len(prefix)))
+    payload = registration(redirect_uris=redirects, client_name="客" * 200, scope="权" * 500)
+    body = json.dumps(payload).encode().ljust(128 * 1024, b" ")
+    assert len(body) == 128 * 1024
+    with TestClient(make_app(make_settings(tmp_path / "oauth.db"))) as client:
+        response = client.post(
+            "/oauth/register",
+            content=iter([body]) if chunked else body,
+            headers={"Content-Type": "application/json"},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["redirect_uris"] == redirects
 
 
 def test_dcr_rejection_logs_safe_structured_reason(

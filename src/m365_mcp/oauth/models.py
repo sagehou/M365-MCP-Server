@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -17,7 +17,9 @@ class OAuthClientRegistration(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    redirect_uris: list[str] = Field(min_length=1, max_length=10)
+    redirect_uris: list[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(
+        min_length=1, max_length=10
+    )
     client_name: str = Field(default="MCP OAuth Client", min_length=1, max_length=200)
     application_type: str = "native"
     grant_types: list[str] = Field(
