@@ -87,9 +87,16 @@ internal sealed class AttachmentPushClient
             var saved = false;
             try
             {
-                using (var file = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                // OPEN_REPARSE_POINT keeps CREATE_NEW from following a dangling file link.
+                using (var handle = CreateFileW(destination, 0x40000000, FileShare.None, IntPtr.Zero,
+                    FileMode.CreateNew, 0x00200000, IntPtr.Zero))
                 {
+                    if (handle.IsInvalid)
+                    {
+                        throw new IOException("Cannot create attachment destination");
+                    }
                     created = true;
+                    using var file = new FileStream(handle, FileAccess.Write);
                     file.Write(content);
                     file.Flush(flushToDisk: true);
                 }
