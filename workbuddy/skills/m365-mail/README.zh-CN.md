@@ -7,6 +7,10 @@
 - [Python 服务器版配置](https://github.com/sagehou/M365-MCP-Server/blob/main/docs/zh-CN/mcp-server.md)
 - [Windows 本地版配置：.NET 与 Go](https://github.com/sagehou/M365-MCP-Server/blob/main/docs/zh-CN/windows-local.md)
 
+[Windows 一键安装脚本](https://github.com/sagehou/M365-MCP-Server/blob/main/README.zh-CN.md#windows-一键安装go)
+默认安装 Go，并询问可选的自定义 Client ID 和租户 ID。完整 `m365-mail/` 文件夹会
+放在 EXE 旁；按下表复制到客户端对应目录，再合并生成的 stdio 配置。
+
 使用 Skill 前，先在 AI 客户端中配置并登录一个 M365 MCP 连接。两种 Windows 版本均用
 `args: ["stdio"]`，Go 还支持本机 HTTP。安装 Skill 不会注册 Entra 应用、配置 MCP
 服务或完成登录。同一个 Skill 根据实际暴露的工具及 Schema 适配三种版本。

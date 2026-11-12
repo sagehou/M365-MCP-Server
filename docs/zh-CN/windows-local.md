@@ -16,6 +16,36 @@
 
 ## 安装
 
+### Go 一键安装
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/sagehou/M365-MCP-Server/main/scripts/install-windows-local.ps1')))
+```
+
+自动选择最新稳定版 Go AMD64/ARM64，核对压缩包、EXE 和 Skill 的 SHA-256，安装到
+`%LOCALAPPDATA%\Programs\M365-MCP`，包含双语指南和许可声明。安装时询问 Client ID
+及租户 ID；留空使用内置公开 Client ID 和 `organizations`，随后启动浏览器登录并生成
+stdio `mcp.json`。将其中的 `m365-local` 条目合并到客户端配置，通过当前客户端的 Skill
+机制安装完整 `m365-mail/` 文件夹。
+
+<details>
+<summary>ⓘ Agent 参数与延后登录</summary>
+
+Agent 应先在对话中询问自定义 ID，再用
+`-NonInteractive -ClientId '<GUID>' -TenantId '<GUID>'` 运行安装脚本。自建单租户
+应用填写所属的目录（租户）GUID；`organizations`、`common`、`consumers` 仍可用于
+匹配的账户类型。只有用户选择默认值时才使用默认 ID，无需 Client Secret。
+
+添加 `-SkipLogin` 可先准备文件，不启动浏览器；使用 MCP 连接前，执行安装目录
+`login-command.txt` 中的准确命令。Go 仅在成功登录后将选定 ID 随账户持久保存。
+`-InstallDirectory` 接受自定义绝对路径，也可对下载到本地的安装脚本使用这些参数。
+脚本生成配置供 Agent 合并，不改写已有客户端设置、不安装服务、不修改 PATH。
+重复安装前先关闭 MCP 进程。支持 Windows PowerShell 5.1 和 PowerShell 7。
+
+</details>
+
+### 手动安装（.NET 或 Go）
+
 从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7)
 下载对应文件：
 

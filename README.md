@@ -12,6 +12,58 @@
 Optional AI workflow: [install the shared m365-mail Skill](workbuddy/skills/m365-mail/README.md)
 for the server, .NET, or Go connection.
 
+## Windows one-command install (Go)
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/sagehou/M365-MCP-Server/main/scripts/install-windows-local.ps1')))
+```
+
+The installer selects the latest stable Go AMD64/ARM64 release, verifies
+SHA-256, installs the EXE and complete Skill to
+`%LOCALAPPDATA%\Programs\M365-MCP`, and generates `mcp.json`. It asks for your
+Client ID and tenant ID; leave them blank for the built-in public application
+and `organizations`. Complete sign-in in the system browser.
+
+<details>
+<summary>ⓘ Agent instructions and non-interactive installation</summary>
+
+Give an Agent this instruction:
+
+```text
+Install M365 MCP on this Windows PC, using the Go edition by default.
+First ask whether I want the built-in public application or my own Client ID,
+and ask which tenant to use. A single-tenant application needs its owning
+Directory (tenant) GUID. Do not ask for a Client Secret or tokens.
+Read scripts/install-windows-local.ps1 in sagehou/M365-MCP-Server, then run it
+with -NonInteractive and my chosen -ClientId/-TenantId. Omit these two arguments
+only if I chose the built-in Client ID and organizations. Use -SkipLogin when
+browser sign-in must be completed separately, and give me login-command.txt.
+Merge the generated m365-local entry into my agent's existing MCP settings,
+preserving other entries. Install the complete m365-mail folder using my
+client's Skill mechanism, then refresh the connection and confirm tools/list.
+```
+
+For an Agent that has already collected your custom IDs:
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/sagehou/M365-MCP-Server/main/scripts/install-windows-local.ps1'))) -NonInteractive -ClientId '<application-client-guid>' -TenantId '<directory-tenant-guid>' -SkipLogin
+```
+
+`-NonInteractive` skips terminal questions. `-SkipLogin` also defers browser
+sign-in; the exact login command is saved as `login-command.txt` in the install
+directory. `-InstallDirectory 'D:\Tools\M365-MCP'` changes that directory.
+The generated `mcp.json` contains a stdio entry and no tokens. Copy/merge that
+entry into your client; the installer does not edit client-specific settings.
+The `m365-mail/` folder is ready to copy to the client's
+[Skill directory](workbuddy/skills/m365-mail/README.md).
+
+Windows PowerShell 5.1 and PowerShell 7 are supported; administrator access
+and a Go runtime are unnecessary. Close the local MCP process before reinstalling.
+For manual .NET installation or your own Entra application, use the
+[local guide](docs/windows-local.md).
+
+</details>
+
 ## Mail capabilities
 
 - Search and read the signed-in user's Outlook mailbox through delegated `/me`
