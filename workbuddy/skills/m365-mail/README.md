@@ -7,6 +7,11 @@
 - [Python server setup](https://github.com/sagehou/M365-MCP-Server/blob/main/docs/mcp-server.md)
 - [Windows local setup: .NET and Go](https://github.com/sagehou/M365-MCP-Server/blob/main/docs/windows-local.md)
 
+The [Windows one-command installer](https://github.com/sagehou/M365-MCP-Server#windows-one-command-install-go)
+defaults to Go and asks for optional custom Client ID and tenant ID. It places
+the complete `m365-mail/` folder beside the EXE; copy that folder using the
+client-specific paths below, then merge the generated stdio config.
+
 Configure and sign in to one M365 MCP connection in the AI client before using
 the Skill. Both Windows editions use `args: ["stdio"]`; Go also offers local
 HTTP. Installing a Skill does not register an Entra application, configure an

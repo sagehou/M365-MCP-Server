@@ -12,6 +12,50 @@
 可选 AI 工作流：[安装通用 m365-mail Skill](workbuddy/skills/m365-mail/README.zh-CN.md)，
 服务器版、.NET 和 Go 连接共用。
 
+## Windows 一键安装（Go）
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/sagehou/M365-MCP-Server/main/scripts/install-windows-local.ps1')))
+```
+
+安装脚本自动选择最新稳定版 Go AMD64/ARM64，校验 SHA-256，将 EXE 和完整 Skill 安装到
+`%LOCALAPPDATA%\Programs\M365-MCP`，生成 `mcp.json`。安装时询问 Client ID 和租户 ID；
+留空使用内置公开应用和 `organizations`，随后在系统浏览器完成登录。
+
+<details>
+<summary>ⓘ 给 Agent 的指令与非交互安装</summary>
+
+可将以下指令交给 Agent：
+
+```text
+在这台 Windows 电脑安装 M365 MCP，默认使用 Go 版。
+先询问我使用内置公开应用还是自己的 Client ID，以及目标租户。自建单租户应用填写其
+所属的目录（租户）GUID。不要索取 Client Secret 或令牌。
+读取 sagehou/M365-MCP-Server 的 scripts/install-windows-local.ps1，使用
+-NonInteractive 和我选择的 -ClientId/-TenantId 安装。只有我明确选择内置 Client ID
+及 organizations 时，才省略这两个参数。需要分开完成浏览器登录时加 -SkipLogin，
+并将 login-command.txt 中的命令交给我。
+将生成的 m365-local 条目合并到当前 Agent 的 MCP 配置，保留其他条目；按当前客户端的
+Skill 机制安装完整 m365-mail 文件夹，再刷新连接并确认 tools/list。
+```
+
+Agent 已询问并取得自定义 ID 后，执行：
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/sagehou/M365-MCP-Server/main/scripts/install-windows-local.ps1'))) -NonInteractive -ClientId '<应用程序客户端GUID>' -TenantId '<目录租户GUID>' -SkipLogin
+```
+
+`-NonInteractive` 跳过终端提问；`-SkipLogin` 同时推迟浏览器登录，准确的登录命令保存
+在安装目录的 `login-command.txt`。通过 `-InstallDirectory 'D:\Tools\M365-MCP'`
+修改安装目录。生成的 `mcp.json` 包含 stdio 条目，不含令牌；将该条目复制或合并到客户端，
+脚本不会改写各客户端的专用配置。`m365-mail/` 可整体复制到客户端的
+[Skill 目录](workbuddy/skills/m365-mail/README.zh-CN.md)。
+
+支持 Windows PowerShell 5.1 和 PowerShell 7，无需管理员权限或 Go 运行时。重复安装前
+先关闭本地 MCP 进程。.NET 手动安装和自建 Entra 应用配置见[本地指南](docs/zh-CN/windows-local.md)。
+
+</details>
+
 ## 邮件能力
 
 - 通过委托 `/me` 权限搜索、读取登录用户的 Outlook 邮箱。
