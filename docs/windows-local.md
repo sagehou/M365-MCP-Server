@@ -7,7 +7,7 @@
 | Windows architecture | AMD64 / x64 | AMD64 / x64 and ARM64 |
 | Runtime installation | None | None |
 | Microsoft sign-in | System browser, Authorization Code + S256 PKCE | System browser, Authorization Code + S256 PKCE |
-| MCP transport | stdio, command `stdio` | stdio, command `serve`; optional authenticated loopback HTTP |
+| MCP transport | stdio, command `stdio` | stdio, command `stdio`; authenticated loopback HTTP, command `http` |
 | Mail tools | 11 | 12, including attachment downloads |
 | Attachment text extraction | UTF-8 text, CSV, JSON, XML | PDF, DOCX, XLSX, PPTX, TXT, Markdown |
 | Add a local draft attachment | File picker or configured relative path | Configured relative path |
@@ -38,6 +38,19 @@ Run the command for the file you downloaded. If using a standalone Go EXE,
 rename it to `m365-mcp-windows-local-go.exe` or keep its architecture suffix in
 all commands and client paths. The ZIP contains this complete guide in both
 languages and license notices; only the EXE is needed at runtime.
+
+<details>
+<summary>ⓘ Go command changes and older releases</summary>
+
+The `stdio`, `http`, and `consumers` support described here requires a build
+containing the command/account-type update. Published Go `v0.1.3` uses `serve`
+and does not accept `consumers`; these changes do not update an existing EXE.
+After upgrading, replace `args: ["serve"]` with `args: ["stdio"]` or regenerate
+the configuration with `connection`. Replace `serve --http` with `http`.
+Existing encrypted sign-in state remains usable; a command-only upgrade does
+not require another sign-in.
+
+</details>
 
 ## Sign in with the built-in application
 
@@ -78,18 +91,18 @@ to the built-in application.
    **Single-page application**.
 4. Under **API permissions > Add a permission > Microsoft Graph > Delegated
    permissions**, add the three permissions in the table below. Do not create
-   a Client Secret, mailbox Application permissions, or an `access_as_user` API
-   for this local application.
+   a Client Secret, mailbox Application permissions, or expose a custom
+   `access_as_user` API scope for this local application.
 5. Continue with your edition's configuration below. When tenant policy allows
    user consent, grant the delegated permissions during sign-in. Use the
    organization's admin-consent process only when approval is required.
 
-| Registration's supported account types | Tenant setting | Editions |
-| --- | --- | --- |
-| Accounts in this organizational directory only | Owning Directory (tenant) GUID; recommended for one organization | Both |
-| Accounts in any organizational directory | `organizations`, or a specific tenant GUID | Both |
-| Organizational and personal Microsoft accounts | `common` | Both |
-| Personal Microsoft accounts only | `consumers` | .NET NativeAOT only |
+| Registration's supported account types (both editions) | Tenant setting |
+| --- | --- |
+| Accounts in this organizational directory only | Owning Directory (tenant) GUID; recommended for one organization |
+| Accounts in any organizational directory | `organizations`, or a specific tenant GUID |
+| Organizational and personal Microsoft accounts | `common` |
+| Personal Microsoft accounts only | `consumers` |
 
 | Graph delegated permission | Current use | Admin consent required by the permission itself |
 | --- | --- | --- |
@@ -114,12 +127,13 @@ Integrated Windows Authentication. See Microsoft's
 [desktop registration](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration)
 and [public-client guidance](https://learn.microsoft.com/en-us/entra/identity-platform/msal-client-applications).
 
-Go accepts tenant GUIDs, `organizations`, and `common`, but not `consumers`.
-For personal Outlook.com accounts in Go, register for organizational **and**
-personal accounts and use `common`. Changing the authority does not change the
-registration's supported account types. The account needs an accessible
-Outlook/Exchange mailbox. Application-registration access, if disabled in your
-tenant, must be granted separately from consent to mailbox permissions.
+Both editions accept tenant GUIDs, `organizations`, `common`, and `consumers`.
+For a personal-only application, use `consumers`; for an application supporting
+organizational and personal accounts, use `common`. Changing the authority
+does not change the registration's supported account types. The account needs
+an accessible Outlook/Exchange mailbox. Application-registration access, if
+disabled in your tenant, must be granted separately from consent to mailbox
+permissions.
 
 </details>
 
@@ -131,6 +145,14 @@ editions still request it by default. Removing it from **API permissions** does
 not change the EXE's request. .NET supports the custom-scope override below;
 Go currently has neither a custom-scope flag nor support for
 `M365_LOCAL_GRAPH_SCOPES`.
+
+Both default sign-in flows also request `openid`, `profile`, and
+`offline_access`; MSAL adds these automatically in Go. If administrator
+approval was already granted but users still see an approval prompt, match the
+failed sign-in's Application ID to **Enterprise applications > your app >
+Permissions > Admin consent** and compare the actual requested scopes with the
+organization-wide delegated grants. A grant for the administrator alone does
+not cover other users.
 
 All three delegated permissions have **AdminConsentRequired: No** in
 [Microsoft's permission reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
@@ -241,16 +263,16 @@ Copy the JSON from `connection` into the MCP client, or configure:
   "mcpServers": {
     "m365-local": {
       "command": "C:\\Tools\\m365-mcp-windows-local-go.exe",
-      "args": ["serve"]
+      "args": ["stdio"]
     }
   }
 }
 ```
 
-Go saves the selected application, tenant, and account at login. `serve` and
-`connection` use those saved settings; the client does not need the login
-environment variables. Changing variables or passing `--client-id` to `serve`
-does not switch the saved application. The MCP client starts the process;
+Go saves the selected application, tenant, and account at login. `stdio`,
+`http`, and `connection` use those saved settings; the client does not need the
+login environment variables. Only `login` accepts `--client-id` and `--tenant`;
+repeat it to change the saved application. The MCP client starts the process;
 stdout carries only protocol data and stderr carries logs.
 
 ### Streamable HTTP
@@ -259,13 +281,13 @@ For a client supporting custom request headers:
 
 ```powershell
 .\m365-mcp-windows-local-go.exe connection --http --port 8000
-.\m365-mcp-windows-local-go.exe serve --http --port 8000
+.\m365-mcp-windows-local-go.exe http --port 8000
 ```
 
 Copy the first command's JSON, including its bearer header, into the client.
 The listener binds only to `127.0.0.1` and every MCP request needs the local
 token. Keep it private. Re-login rotates this token, so regenerate HTTP
-configuration afterward. Stdio uses the default `serve` command instead.
+configuration afterward. Use `stdio` for stdio; it does not accept `--http`.
 
 <details>
 <summary>ⓘ Server OAuth connectors and local transports</summary>
@@ -306,7 +328,7 @@ For .NET, add this variable to the MCP server's `env` and call
 Omit `relative_path` to use its Windows file picker.
 
 For Go, run `connection` again after setting the folder; stdio JSON includes
-it in `env`. HTTP mode inherits the value when `serve` starts. Call
+it in `env`. HTTP mode inherits the value when `http` starts. Call
 `mail_add_draft_attachment(draft_id, relative_path="reports/weekly.docx")`.
 Go requires a relative path and has no file picker.
 
@@ -353,7 +375,7 @@ Stop the MCP client/server before changing credentials:
 For .NET, set the new application/tenant, run `doctor` and `login`, update the
 MCP client's `env`, and restart it. For Go, repeat `login` with the new flags
 or variables, then `connection`. Replace existing HTTP configuration because
-re-login rotates its token. Stdio keeps the executable path and `serve` argument.
+re-login rotates its token. Stdio keeps the executable path and `stdio` argument.
 
 <details>
 <summary>ⓘ Return to the built-in application and local state locations</summary>
@@ -393,7 +415,7 @@ removes credentials, not browser sessions or tenant consent.
 | `AADSTS7000218` / client secret requested | Correct the redirect platform; a desktop public client does not need a secret. |
 | `AADSTS700016` / app not found | Check Application (client) ID, selected tenant, and supported account types. |
 | .NET PowerShell login works but MCP asks again | Match Windows user and `env` values; `--ephemeral` does not persist state across processes. |
-| Go keeps the old application/account | Stop `serve`, log out, and repeat `login` with explicit flags, then `connection`. |
+| Go keeps the old application/account | Stop `stdio` or `http`, log out, and repeat `login` with explicit flags, then `connection`. |
 | `doctor` works but sign-in fails | .NET `doctor` validates local settings, not tenant registration or consent. |
 | Login works but Graph returns `403` | Check delegated mail grants and Exchange/Outlook mailbox availability. |
 | Go HTTP client gets `401` after login | Regenerate `connection --http` and replace the old bearer token. |
@@ -449,4 +471,4 @@ checksums, version details, and provenance do not replace Authenticode signing
 or vendor review. Worker resource limits are not a filesystem/network sandbox.
 Real tenant sign-in, client compatibility, and antivirus behavior require
 acceptance on the target PC. The editing environment must not build, test,
-install test dependencies, or create a test virtual environment. Updated: 2026-11-11.
+install test dependencies, or create a test virtual environment. Updated: 2026-11-12.

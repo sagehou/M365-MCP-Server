@@ -12,6 +12,10 @@ try
     var configuration = new LocalConfiguration(
         LocalConfiguration.BuiltInClientId, "organizations", ["https://graph.microsoft.com/Mail.ReadWrite"],
         Path.Combine(root, "state.bin"), false, false);
+    foreach (var tenant in new[] { "organizations", "common", "consumers", "22222222-2222-2222-2222-222222222222" })
+    {
+        Check((configuration with { TenantId = tenant }).Validate().Count == 0, "supported tenant was rejected: " + tenant);
+    }
     var state = new TokenState("ci-access", "ci-refresh", DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
         configuration.ClientId, configuration.TenantId);
     var store = new DpapiStateStore(configuration);

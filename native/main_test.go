@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"strings"
 	"testing"
 )
 
@@ -21,6 +22,8 @@ func TestLoginClientConfiguration(t *testing.T) {
 		{name: "built in", wantClient: projectClientID, wantTenant: "organizations"},
 		{name: "environment", clientEnv: customClientID, tenantEnv: tenantID, wantClient: customClientID, wantTenant: tenantID},
 		{name: "tenant only", tenantEnv: tenantID, wantClient: projectClientID, wantTenant: tenantID},
+		{name: "personal tenant environment", clientEnv: customClientID, tenantEnv: "consumers", wantClient: customClientID, wantTenant: "consumers"},
+		{name: "personal tenant flag", args: []string{"--client-id", customClientID, "--tenant", "consumers"}, wantClient: customClientID, wantTenant: "consumers"},
 		{name: "command line", args: []string{"--client-id", customClientID, "--tenant", tenantID}, wantClient: customClientID, wantTenant: tenantID},
 		{name: "flags override environment", clientEnv: "invalid", tenantEnv: "invalid", args: []string{"--client-id", customClientID, "--tenant", tenantID}, wantClient: customClientID, wantTenant: tenantID},
 		{name: "mixed sources", clientEnv: customClientID, tenantEnv: "organizations", args: []string{"--tenant", tenantID}, wantClient: customClientID, wantTenant: tenantID},
@@ -46,5 +49,25 @@ func TestLoginClientConfiguration(t *testing.T) {
 				t.Fatalf("unexpected validation result: %v", err)
 			}
 		})
+	}
+}
+
+func TestTransportCommandsRejectAmbiguousOptions(t *testing.T) {
+	for _, args := range [][]string{
+		{"stdio", "--http"},
+		{"stdio", "--port", "8000"},
+		{"stdio", "--client-id", builtInClientID},
+		{"http", "--http=false"},
+		{"http", "--port", "0"},
+		{"http", "--port", "65536"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			if err := run(args); err == nil || (!strings.Contains(err.Error(), "flag provided but not defined") && err.Error() != "invalid command arguments or port") {
+				t.Fatalf("ambiguous transport arguments were not rejected: %v", err)
+			}
+		})
+	}
+	if err := run([]string{"serve"}); err == nil || !strings.Contains(err.Error(), "use stdio") {
+		t.Fatalf("old command did not explain the migration: %v", err)
 	}
 }

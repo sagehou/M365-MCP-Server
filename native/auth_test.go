@@ -23,3 +23,13 @@ func TestAccountBinding(t *testing.T) {
 		}
 	}
 }
+
+func TestSupportedTenantAuthorities(t *testing.T) {
+	for _, tenant := range []string{"organizations", "common", "consumers", "22222222-2222-2222-2222-222222222222"} {
+		t.Run(tenant, func(t *testing.T) {
+			if _, err := newAuth(t.TempDir(), localConfig{ClientID: builtInClientID, Tenant: tenant}); err != nil {
+				t.Fatalf("supported tenant was rejected by the application or MSAL: %v", err)
+			}
+		})
+	}
+}
