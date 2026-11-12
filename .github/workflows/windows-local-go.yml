@@ -53,6 +53,16 @@ jobs:
           if ($unreachable.Count -ne 0) { throw "Unreachable application functions: $($unreachable -join '; ')" }
       - name: Test
         run: go test -race -timeout 120s ./...
+      - name: Check Windows installer in Windows PowerShell 5.1
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/check-windows-installer.ps1
+        working-directory: ${{ github.workspace }}
+      - name: Check Windows installer in PowerShell 7
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check-windows-installer.ps1
+        working-directory: ${{ github.workspace }}
       - name: Install vulnerability checker
         if: runner.os == 'Linux'
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0

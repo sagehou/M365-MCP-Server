@@ -16,6 +16,43 @@
 
 ## Install
 
+### One-command Go installation
+
+```powershell
+& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/sagehou/M365-MCP-Server/main/scripts/install-windows-local.ps1')))
+```
+
+Selects the latest stable Go release for AMD64/ARM64, verifies the package,
+EXE, and Skill SHA-256, and installs under `%LOCALAPPDATA%\Programs\M365-MCP`
+with the bilingual guides and license notices. The installer asks for Client ID
+and tenant ID; blank answers select the built-in public Client ID and
+`organizations`. It then starts browser sign-in and writes a stdio `mcp.json`.
+Merge its `m365-local` entry into the client's settings and install the complete
+`m365-mail/` folder through that client's Skill mechanism.
+
+<details>
+<summary>ⓘ Agent parameters and deferred sign-in</summary>
+
+An Agent should ask about custom IDs in the conversation before running the
+installer with `-NonInteractive -ClientId '<GUID>' -TenantId '<GUID>'`.
+For a single-tenant application, use its owning Directory (tenant) GUID;
+`organizations`, `common`, and `consumers` remain available for matching account
+types. Default IDs are used only when the user selects them. No Client Secret
+is required.
+
+Add `-SkipLogin` to prepare files without launching the browser. Run the exact
+command from the installed `login-command.txt` before using the MCP connection;
+Go persists the selected IDs with the account only after successful login.
+`-InstallDirectory` accepts a custom absolute destination. These options also
+work with a downloaded local copy of the installation script. The installer
+generates config for the Agent to merge; it does not edit existing client
+settings, install a service, or alter PATH. Close the MCP process before
+reinstalling. Windows PowerShell 5.1 and PowerShell 7 are supported.
+
+</details>
+
+### Manual installation (.NET or Go)
+
 Download the appropriate files from the
 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7):
 
