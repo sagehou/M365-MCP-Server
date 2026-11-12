@@ -110,13 +110,19 @@ Skill mechanism. The local HTTP endpoint does not implement MCP OAuth.
   the final draft before sending.”
 - “List the selected email's attachments and download the original PDF if this
   connection supports downloads.”
+- “Save the selected email's original attachment as downloads/report.pdf under
+  the configured attachment root, without opening a browser.”
 
 When updating, replace the installed `m365-mail` folder with the complete new
 folder and refresh the client. This consolidates `outlook-mail`,
 `outlook-mail-compose`, `outlook-mail-management`, and `outlook-attachments`;
 remove those old Skill copies from the client or replace its old WorkBuddy
-package so duplicate instructions are not selected. The MCP connection and
-EXE need no change for this instruction update.
+package so duplicate instructions are not selected. To use direct local saves,
+upgrade the .NET or Go EXE to v0.1.6 or later, configure `M365_ATTACHMENT_ROOT`
+in the MCP process environment, and create the destination's parent directories.
+Refresh/restart the MCP connection so it exposes the new tool. Updating the
+Skill alone does not add executable capabilities; older versions retain their
+existing supported workflows.
 
 ---
 

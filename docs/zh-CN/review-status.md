@@ -7,14 +7,16 @@
 | 版本 | 接入方式 | 工具 | 附件读取 |
 | --- | --- | --- | --- |
 | Python 服务器版 | 认证的 Streamable HTTP | 11 个核心工具；开启 OAuth 后另提供下载及上传授权工具 | 在隔离的 Linux Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
-| Windows .NET 版 | stdio | 11 个邮件工具 | 有大小限制的 UTF-8 文本、JSON、CSV、XML |
-| Windows Go 版 | stdio；带认证的本机回环 Streamable HTTP | 12 个邮件工具，包含本机下载 | 在 Windows Job Object Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
+| Windows .NET 版 | stdio | 12 个邮件工具，含附件直接保存 | 有大小限制的 UTF-8 文本、JSON、CSV、XML |
+| Windows Go 版 | stdio；带认证的本机回环 Streamable HTTP | 13 个邮件工具，含直接保存及下载 URL | 在 Windows Job Object Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 
 三套实现均支持纯文本草稿及最多 20 MiB 的草稿附件。发送结果只表示 Graph 已接受请求，
 不表示已送达；逐封确认或受限自动化授权仍由客户端或 Agent 负责。搜索只返回一个有边界的
 分页；续页游标、回复、转发、共享邮箱、OCR、Calendar、Drive、SharePoint、Teams 尚未实现。
 `v0.1.4` 包含 [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) 的复核修正，
 以及 [PR #63](https://github.com/sagehou/M365-MCP-Server/pull/63) 的本地命令和账户类型对齐。
+`v0.1.6` 增加共用的 `mail_save_attachment` 契约：在配置目录内有界保存原文件，父目录
+须已存在，不覆盖文件，并返回一致的字节数/SHA-256；没有增加 .NET PDF/Office 解析器。
 
 ## 发现与修正
 
@@ -45,9 +47,9 @@ PR 检查覆盖以下路径；CI、测试镜像发布和稳定版发布使用各
 | Python 测试及 `pip-audit` | 应用工厂、两代 MCP 协议、全部核心邮件工具、身份隔离、JWT/OBO、OAuth 发现/PKCE/刷新轮换/重放防护、上传下载句柄及 Worker 限额 |
 | Ruff、Vulture | 未使用导入、未定义名称、重复定义、不可达代码及置信度 100% 的未使用变量；三个 SDK 协议关键字参数使用逐行排除标注 |
 | Docker 烟测及 Trivy | 安装后的确切非 root 镜像、健康检查、认证、OAuth 存储、附件 Worker、Compose；阻止所有严重程度的已知容器问题，包括尚无修复的项目 |
-| Windows .NET 功能检查 | 通过 stdio 和模拟 Graph 覆盖全部 11 个工具，日期/搜索/分类/草稿校验，小附件及分块上传，错误脱敏、不重放结果不明确的写操作，DPAPI 绑定/临时状态、刷新及异常令牌响应 |
+| Windows .NET 功能检查 | 通过 stdio 和模拟 Graph 覆盖全部 12 个工具，二进制/空文件/大小边界保存、不覆盖、路径及链接拒绝，日期/搜索/分类/草稿校验，小附件及分块上传、错误脱敏，DPAPI 绑定/临时状态、刷新及异常令牌响应 |
 | Windows .NET 产物 | NativeAOT 单文件、Windows 详细信息、默认及覆盖 Client ID、PATH 无运行时时的启动 |
-| Windows Go 检查 | Windows/Linux 竞态测试、模块校验、vet、应用不可达函数检查，以及 Windows AMD64/ARM64 漏洞分析 |
+| Windows Go 检查 | Windows/Linux 竞态测试、统一保存结果契约、二进制/空文件/大小边界保存、并发不覆盖及路径/链接拒绝、模块校验、vet、应用不可达函数检查，以及 Windows AMD64/ARM64 漏洞分析 |
 | Windows Go 产物 | AMD64/ARM64 单文件构建、详细信息、ZIP/校验值、AMD64 无外部运行时启动，以及使用已保存个人账户状态的自动生成 stdio 配置 |
 
 ---

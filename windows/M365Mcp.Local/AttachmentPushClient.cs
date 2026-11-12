@@ -35,6 +35,87 @@ internal sealed class AttachmentPushClient
         string relativePath, out string name, out string contentType) =>
         OpenBoundedFile(RequireRoot(), relativePath, out name, out contentType);
 
+    internal static string[] SavePathSegments(string relativePath)
+    {
+        if (string.IsNullOrEmpty(relativePath) || Encoding.UTF8.GetByteCount(relativePath) > 1024
+            || relativePath.Any(character => char.IsControl(character) || "<>:\"\\|?*".Contains(character)))
+        {
+            throw new InvalidToolArgumentException("use a new relative file path with forward slashes under M365_ATTACHMENT_ROOT");
+        }
+        var parts = relativePath.Split('/');
+        foreach (var part in parts)
+        {
+            var stem = part.Split('.')[0].TrimEnd(' ').ToUpperInvariant();
+            if (part is "" or "." or ".." || part.TrimEnd(' ', '.') != part
+                || part.EnumerateRunes().Count() > 255
+                || stem is "CON" or "PRN" or "AUX" or "NUL" or "CONIN$" or "CONOUT$"
+                || (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal)
+                    || stem.StartsWith("LPT", StringComparison.Ordinal)) && "123456789¹²³".Contains(stem[3])))
+            {
+                throw new InvalidToolArgumentException("relative_path contains an invalid Windows path segment");
+            }
+        }
+        return parts;
+    }
+
+    internal static void SaveLocalArtifact(string relativePath, byte[] content)
+    {
+        var parts = SavePathSegments(relativePath);
+        var current = RequireRoot();
+        var directories = new List<SafeFileHandle>();
+        try
+        {
+            // Pin every parent without write/delete sharing before creating the file.
+            for (var index = 0; index < parts.Length; index++)
+            {
+                if (index > 0)
+                {
+                    current = Path.Combine(current, parts[index - 1]);
+                }
+                var handle = CreateFileW(current, 0, FileShare.Read, IntPtr.Zero,
+                    FileMode.Open, 0x02000000 | 0x00200000, IntPtr.Zero);
+                directories.Add(handle);
+                if (handle.IsInvalid
+                    || (File.GetAttributes(current) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != FileAttributes.Directory)
+                {
+                    throw new InvalidToolArgumentException("attachment root and parent directories must exist and must not be symbolic links or junctions");
+                }
+                current = FinalPath(handle);
+            }
+            var destination = Path.Combine(current, parts[^1]);
+            var created = false;
+            var saved = false;
+            try
+            {
+                using (var file = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    created = true;
+                    file.Write(content);
+                    file.Flush(flushToDisk: true);
+                }
+                saved = true;
+            }
+            catch (IOException) when (!created && File.Exists(destination))
+            {
+                throw new InvalidToolArgumentException("destination already exists; choose a new filename");
+            }
+            finally
+            {
+                if (created && !saved)
+                {
+                    File.Delete(destination);
+                }
+            }
+        }
+        finally
+        {
+            for (var index = directories.Count - 1; index >= 0; index--)
+            {
+                directories[index].Dispose();
+            }
+        }
+    }
+
     internal JsonObject Inspect(string relativePath)
     {
         using var file = OpenBoundedFile(root, relativePath, out var name, out var contentType);

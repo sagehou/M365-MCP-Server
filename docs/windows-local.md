@@ -8,15 +8,16 @@
 | Runtime installation | None | None |
 | Microsoft sign-in | System browser, Authorization Code + S256 PKCE | System browser, Authorization Code + S256 PKCE |
 | MCP transport | stdio, command `stdio` | stdio, command `stdio`; authenticated loopback HTTP, command `http` |
-| Mail tools | 11 | 12, including attachment downloads |
+| Mail tools | 12 | 13, including attachment download URLs |
 | Attachment text extraction | UTF-8 text, CSV, JSON, XML | PDF, DOCX, XLSX, PPTX, TXT, Markdown |
 | Add a local draft attachment | File picker or configured relative path | Configured relative path |
+| Save an original attachment | `mail_save_attachment`, configured relative path | Same interface and behavior as .NET |
 | Remote-server upload helper | `inspect-attachment`, `push-attachment` | Not provided |
 
 ## Install
 
 Download the appropriate files from the
-[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.5):
+[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.6):
 
 | Edition | Release file | Executable used below |
 | --- | --- | --- |
@@ -304,7 +305,7 @@ capability, not a Microsoft access token.
 
 Both editions provide `mail_search`, `mail_get`, `mail_create_draft`,
 `mail_send_draft`, `mail_add_draft_attachment`, `mail_list_attachments`,
-`mail_read_attachment`, `mail_mark_read`, `mail_archive`, `mail_move`, and
+`mail_read_attachment`, `mail_save_attachment`, `mail_mark_read`, `mail_archive`, `mail_move`, and
 `mail_set_category`. Go also provides `mail_download_attachment`.
 Every Graph request uses the signed-in user's `/me` mailbox.
 
@@ -317,6 +318,60 @@ confirmation or enforce an explicit bounded automation authorization covering
 recipients, trusted content/attachment sources, volume, and expiry. Graph
 acceptance does not prove delivery. Ambiguous writes are not automatically
 retried; inspect the draft and attachments before deciding what to do next.
+
+### Save an attachment to the configured folder
+
+Both editions, starting with v0.1.6, expose the same tool:
+
+```json
+{
+  "message_id": "<message ID>",
+  "attachment_id": "<attachment ID>",
+  "relative_path": "downloads/report.pdf"
+}
+```
+
+Set `M365_ATTACHMENT_ROOT` in the MCP process environment to an existing,
+operator-controlled absolute directory, for example `C:\M365Artifacts`, and
+create `C:\M365Artifacts\downloads` before this example. Call
+`mail_save_attachment` with the three required arguments above. Use forward
+slashes in `relative_path` for both editions. The EXE fetches the original
+Outlook file attachment and saves it directly; stdio and Go HTTP need no
+browser, local shell, file picker, or separate downloader. The destination is
+on the EXE's PC, including when the MCP client runs elsewhere.
+
+Both return the same result fields:
+
+```json
+{
+  "saved": true,
+  "relative_path": "downloads/report.pdf",
+  "name": "report.pdf",
+  "content_type": "application/pdf",
+  "content_length": 12345,
+  "content_sha256": "<SHA-256 of saved bytes>"
+}
+```
+
+<details>
+<summary>ⓘ Save limits, destination paths, and retries</summary>
+
+The limit is 10 MiB of decoded bytes per Outlook file attachment, including
+binary formats without a text parser; zero-byte files are accepted. Saving
+does not parse, open, or execute the file. Embedded mail items and reference
+attachments are not supported. `name` is the original provider filename;
+only the authorized `relative_path` determines the destination.
+
+The root and parent directories must exist. Absolute paths, backslashes,
+parent traversal, alternate data streams, Windows device names, and symbolic
+link/junction directories are rejected. Existing destination files are never
+overwritten, including simultaneous saves to the same filename. A failed
+write attempts to remove its incomplete file. After an ambiguous result,
+check the destination and its length/hash before retrying; the tool does not
+silently rename or overwrite. For unattended tasks, configure the destination
+and filename policy in advance rather than taking them from email content.
+
+</details>
 
 ### Add a local file
 
@@ -353,8 +408,9 @@ cached formula results; image-only PDFs require external OCR.
 
 Go downloads use unguessable, five-minute, single-use HTTP URLs bound to
 `127.0.0.1`. Stdio starts this listener on a random port. At most 16 downloads
-and 64 MiB are retained in memory; restart invalidates the URLs. Open them on
-the same PC. Attachment list `size` is provider metadata; fetched
+and 64 MiB are retained in memory; restart invalidates the URLs. A browser or
+trusted script on the same PC can consume a URL once. Prefer
+`mail_save_attachment` for automatic local saves. Attachment list `size` is provider metadata; fetched
 `content_length` is the decoded byte count.
 
 For a remote-server connector, the .NET EXE also offers `inspect-attachment`

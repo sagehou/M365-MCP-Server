@@ -96,11 +96,15 @@ skills/
 - “查找本周项目验收相关的邮件，总结选定的几封。”
 - “给 alice@example.com 起草进展邮件，添加 reports/weekly.docx，发送前展示完整草稿。”
 - “列出选定邮件的附件，当前连接支持下载时获取原始 PDF。”
+- “把选定邮件的原附件保存为配置目录下的 downloads/report.pdf，无需打开浏览器。”
 
 更新时用完整新文件夹替换已安装的 `m365-mail`，再刷新客户端。此 Skill 合并了原来的
 `outlook-mail`、`outlook-mail-compose`、`outlook-mail-management` 和
 `outlook-attachments`；从客户端移除旧 Skill 副本，或替换旧 WorkBuddy 连接器包，
-避免重复指令被选中。本次指令更新不要求改动 MCP 连接或替换 EXE。
+避免重复指令被选中。使用本地直接保存功能时，须将 .NET 或 Go EXE 升级至 v0.1.6
+及以后，在 MCP 进程环境中配置 `M365_ATTACHMENT_ROOT`，并预先创建目标父目录。
+刷新或重启 MCP 连接，使其暴露新工具。仅更新 Skill 不会增加 EXE 的能力；旧版本
+继续使用原有受支持流程。
 
 ---
 

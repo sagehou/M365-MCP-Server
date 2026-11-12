@@ -103,8 +103,11 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 response = Success(
                     id,
                     ToolError(
-                        $"Mailbox operation failed; consult stderr event {reference}. "
-                        + "For write operations, verify mailbox state before retrying."));
+                        request["params"] is JsonObject failedCall
+                            && StringValue(failedCall["name"]) == "mail_save_attachment"
+                            ? $"Attachment save failed; consult stderr event {reference}. Check the destination file before retrying."
+                            : $"Mailbox operation failed; consult stderr event {reference}. "
+                                + "For write operations, verify mailbox state before retrying."));
             }
 
             await WriteAsync(response);
@@ -121,7 +124,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
         ["serverInfo"] = new JsonObject
         {
             ["name"] = "M365 MCP Server (Windows Local)",
-            ["version"] = "0.1.5",
+            ["version"] = "0.1.6",
         },
     };
 
@@ -194,6 +197,16 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 },
                 "message_id", "attachment_id"),
             Tool(
+                "mail_save_attachment",
+                "Save one Outlook file attachment up to 10 MiB to a new relative_path under M365_ATTACHMENT_ROOT. Parent directories must exist. Never overwrites, opens, or executes the file. Requires an authorized destination.",
+                new JsonObject
+                {
+                    ["message_id"] = StringProperty("Outlook message ID"),
+                    ["attachment_id"] = StringProperty("Outlook attachment ID"),
+                    ["relative_path"] = StringProperty("New file under M365_ATTACHMENT_ROOT; use forward slashes and existing parent directories; never overwrites"),
+                },
+                "message_id", "attachment_id", "relative_path"),
+            Tool(
                 "mail_mark_read",
                 "Mark one message read or unread in the signed-in user's mailbox.",
                 new JsonObject
@@ -260,6 +273,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
             "mail_add_draft_attachment" => await graph.AddDraftAttachmentAsync(arguments, cancellationToken),
             "mail_list_attachments" => await graph.ListAttachmentsAsync(arguments, cancellationToken),
             "mail_read_attachment" => await graph.ReadAttachmentAsync(arguments, cancellationToken),
+            "mail_save_attachment" => await graph.SaveAttachmentAsync(arguments, cancellationToken),
             "mail_mark_read" => await graph.MarkReadAsync(arguments, cancellationToken),
             "mail_archive" => await graph.ArchiveAsync(arguments, cancellationToken),
             "mail_move" => await graph.MoveAsync(arguments, cancellationToken),
@@ -297,12 +311,17 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 required.Select(value => (JsonNode?)value).ToArray());
         }
 
-        return new JsonObject
+        var tool = new JsonObject
         {
             ["name"] = name,
             ["description"] = description,
             ["inputSchema"] = schema,
         };
+        if (name == "mail_save_attachment")
+        {
+            tool["annotations"] = new JsonObject { ["readOnlyHint"] = false };
+        }
+        return tool;
     }
 
     private static string? StringValue(JsonNode? node) =>

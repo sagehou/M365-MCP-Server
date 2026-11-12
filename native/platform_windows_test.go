@@ -93,8 +93,8 @@ func TestWindowsStdioConnectionWithConsumerAccount(t *testing.T) {
 	}
 	defer session.Close()
 	listed, err := session.ListTools(ctx, nil)
-	if err != nil || len(listed.Tools) != 12 {
-		t.Fatalf("stdio did not expose all twelve tools: %v %v", listed, err)
+	if err != nil || len(listed.Tools) != 13 {
+		t.Fatalf("stdio did not expose all thirteen tools: %v %v", listed, err)
 	}
 }
 

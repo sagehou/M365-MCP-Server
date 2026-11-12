@@ -17,6 +17,7 @@ internal sealed class LocalGraphClient(
     private const int DirectAttachmentLimit = 3_000_000;
     private const int UploadChunkBytes = 2 * 1024 * 1024;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+    private sealed record FileAttachment(string Id, string Name, string ContentType, byte[] Content);
 
     internal Task<JsonNode> SearchAsync(
         JsonObject arguments,
@@ -382,7 +383,7 @@ internal sealed class LocalGraphClient(
         };
     }
 
-    internal async Task<JsonNode> ReadAttachmentAsync(
+    private async Task<FileAttachment> FetchAttachmentAsync(
         JsonObject arguments,
         CancellationToken cancellationToken)
     {
@@ -397,14 +398,14 @@ internal sealed class LocalGraphClient(
 
         var type = attachment["@odata.type"]?.GetValue<string>();
         if (type is not null
-            && !type.EndsWith("fileAttachment", StringComparison.OrdinalIgnoreCase))
+            && !type.Equals("#microsoft.graph.fileAttachment", StringComparison.OrdinalIgnoreCase))
         {
             throw new GraphOperationException(
-                "Only Outlook file attachments can be read locally.");
+                "Only Outlook file attachments are supported.");
         }
 
         var encoded = attachment["contentBytes"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(encoded)
+        if (encoded is null
             || encoded.Length > 4 * ((10 * 1024 * 1024 + 2) / 3))
         {
             throw new GraphOperationException(
@@ -428,6 +429,18 @@ internal sealed class LocalGraphClient(
 
         var contentType = attachment["contentType"]?.GetValue<string>()
             ?? "application/octet-stream";
+        return new FileAttachment(
+            attachment["id"]?.GetValue<string>() ?? attachmentId,
+            attachment["name"]?.GetValue<string>() ?? "attachment", contentType, bytes);
+    }
+
+    internal async Task<JsonNode> ReadAttachmentAsync(
+        JsonObject arguments,
+        CancellationToken cancellationToken)
+    {
+        var file = await FetchAttachmentAsync(arguments, cancellationToken);
+        var bytes = file.Content;
+        var contentType = file.ContentType;
         if (!IsTextContent(contentType))
         {
             throw new GraphOperationException(
@@ -454,8 +467,8 @@ internal sealed class LocalGraphClient(
         {
             ["attachment"] = new JsonObject
             {
-                ["id"] = attachment["id"]?.GetValue<string>() ?? attachmentId,
-                ["name"] = attachment["name"]?.GetValue<string>() ?? "attachment",
+                ["id"] = file.Id,
+                ["name"] = file.Name,
                 ["content_type"] = contentType,
                 ["content_length"] = bytes.Length,
                 ["format"] = "text",
@@ -467,6 +480,26 @@ internal sealed class LocalGraphClient(
                 ["trusted"] = false,
                 ["source"] = "email_attachment",
             },
+        };
+    }
+
+    internal async Task<JsonNode> SaveAttachmentAsync(
+        JsonObject arguments,
+        CancellationToken cancellationToken)
+    {
+        var relativePath = RequiredString(arguments, "relative_path");
+        AttachmentPushClient.SavePathSegments(relativePath);
+        var file = await FetchAttachmentAsync(arguments, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        AttachmentPushClient.SaveLocalArtifact(relativePath, file.Content);
+        return new JsonObject
+        {
+            ["saved"] = true,
+            ["relative_path"] = relativePath,
+            ["name"] = file.Name,
+            ["content_type"] = file.ContentType,
+            ["content_length"] = file.Content.Length,
+            ["content_sha256"] = Convert.ToHexString(SHA256.HashData(file.Content)).ToLowerInvariant(),
         };
     }
 
