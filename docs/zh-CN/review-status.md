@@ -13,8 +13,8 @@
 三套实现均支持纯文本草稿及最多 20 MiB 的草稿附件。发送结果只表示 Graph 已接受请求，
 不表示已送达；逐封确认或受限自动化授权仍由客户端或 Agent 负责。搜索只返回一个有边界的
 分页；续页游标、回复、转发、共享邮箱、OCR、Calendar、Drive、SharePoint、Teams 尚未实现。
-最新已发布版本为 `v0.1.3`；本次复核对应
-[PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) 中的源码变更。
+`v0.1.4` 包含 [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) 的复核修正，
+以及 [PR #63](https://github.com/sagehou/M365-MCP-Server/pull/63) 的本地命令和账户类型对齐。
 
 ## 发现与修正
 
@@ -48,8 +48,8 @@ PR 检查覆盖以下路径；CI、测试镜像发布和稳定版发布使用各
 | Windows .NET 功能检查 | 通过 stdio 和模拟 Graph 覆盖全部 11 个工具，日期/搜索/分类/草稿校验，小附件及分块上传，错误脱敏、不重放结果不明确的写操作，DPAPI 绑定/临时状态、刷新及异常令牌响应 |
 | Windows .NET 产物 | NativeAOT 单文件、Windows 详细信息、默认及覆盖 Client ID、PATH 无运行时时的启动 |
 | Windows Go 检查 | Windows/Linux 竞态测试、模块校验、vet、应用不可达函数检查，以及 Windows AMD64/ARM64 漏洞分析 |
-| Windows Go 产物 | AMD64/ARM64 单文件构建、详细信息、ZIP/校验值、AMD64 无外部运行时启动 |
+| Windows Go 产物 | AMD64/ARM64 单文件构建、详细信息、ZIP/校验值、AMD64 无外部运行时启动，以及使用已保存个人账户状态的自动生成 stdio 配置 |
 
 ---
 
-已知漏洞扫描和静态分析反映被检查的快照，不能证明缺陷或漏洞绝对为零。这些检查未验证真实租户同意、真实 Graph 投递、目标 Agent 集成、Windows ARM64 实机运行、交互式文件选择框及杀毒/代码签名信任。本次未在本地测试、构建、安装依赖或创建虚拟环境。更新日期：2026-11-11。
+已知漏洞扫描和静态分析反映被检查的快照，不能证明缺陷或漏洞绝对为零。这些检查未验证真实租户同意、真实 Graph 投递、目标 Agent 集成、Windows ARM64 实机运行、交互式文件选择框及杀毒/代码签名信任。本次未在本地测试、构建、安装依赖或创建虚拟环境。更新日期：2026-11-12。

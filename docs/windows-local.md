@@ -16,7 +16,7 @@
 ## Install
 
 Download the appropriate files from the
-[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3):
+[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.4):
 
 | Edition | Release file | Executable used below |
 | --- | --- | --- |
@@ -42,9 +42,9 @@ languages and license notices; only the EXE is needed at runtime.
 <details>
 <summary>ⓘ Go command changes and older releases</summary>
 
-The `stdio`, `http`, and `consumers` support described here requires a build
-containing the command/account-type update. Published Go `v0.1.3` uses `serve`
-and does not accept `consumers`; these changes do not update an existing EXE.
+The `stdio`, `http`, and `consumers` support described here is available in Go
+`v0.1.4` and later. Go `v0.1.3` and earlier use `serve` and do not accept
+`consumers`; changing configuration does not update an existing EXE.
 After upgrading, replace `args: ["serve"]` with `args: ["stdio"]` or regenerate
 the configuration with `connection`. Replace `serve --http` with `http`.
 Existing encrypted sign-in state remains usable; a command-only upgrade does

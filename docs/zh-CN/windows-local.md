@@ -15,7 +15,7 @@
 
 ## 安装
 
-从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3)
+从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.4)
 下载对应文件：
 
 | 版本 | 发布文件 | 下文使用的 EXE |
@@ -40,8 +40,8 @@ ZIP 包包含本指南的中英文版本及许可声明，实际运行只需 EXE
 <details>
 <summary>ⓘ Go 命令更新与旧版配置</summary>
 
-下文的 `stdio`、`http` 和 `consumers` 支持需要包含本次命令与账户类型更新的构建。
-已发布的 Go `v0.1.3` 使用 `serve`，不接受 `consumers`；修改配置不会更新已有 EXE。
+下文的 `stdio`、`http` 和 `consumers` 支持适用于 Go `v0.1.4` 及以后版本。
+Go `v0.1.3` 及以前版本使用 `serve`，不接受 `consumers`；修改配置不会更新已有 EXE。
 升级程序后，将 `args: ["serve"]` 改为 `args: ["stdio"]`，或执行 `connection` 重新生成
 配置；HTTP 启动命令由 `serve --http` 改为 `http`。已有加密登录状态仍可使用，仅因
 命令更新无需重新登录。
