@@ -112,6 +112,7 @@ jobs:
               throw "Expected $command to request login before serving MCP: $output"
             }
           }
+          exit 0
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: windows-local-go-amd64
