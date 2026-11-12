@@ -18,18 +18,19 @@
 - 创建纯文本草稿、添加附件，并在客户端执行确认或受限授权后发送。
 - 标记已读/未读、归档、移动、设置分类。
 - 读取有界的附件文本；各版本的提取格式和下载能力统一列在对应指南中。
-- 两种本地版通过 `mail_save_attachment` 将原附件直接保存到配置目录，无需浏览器或 Shell。
+- 两种本地版通过 `mail_save_attachment` 流式保存原附件：默认 Windows 下载目录下的
+  M365-MCP，可选 `download_dir` 覆盖，默认上限 150 MiB 且可配置，无需浏览器或 Shell。
 
 服务器默认提供 11 项工具，启用服务器管理的 OAuth 后为 13 项；.NET 本地版为 12 项，
 Go 本地版为 13 项。
 
 ## 发布
 
-[下载 v0.1.6](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.6)。
+[下载 v0.1.7](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7)。
 
 | 产物 | 名称 |
 | --- | --- |
-| 容器镜像 | `ghcr.io/sagehou/m365-mcp-server:v0.1.6` |
+| 容器镜像 | `ghcr.io/sagehou/m365-mcp-server:v0.1.7` |
 | .NET NativeAOT，Windows x64 | `m365-mcp-windows-local-amd64.exe` |
 | Go，Windows x64 / ARM64 | `m365-mcp-windows-local-go-amd64.exe`、`m365-mcp-windows-local-go-arm64.exe` |
 | Go 双语指南压缩包 | `m365-mcp-windows-local-go-amd64.zip`、`m365-mcp-windows-local-go-arm64.zip` |
@@ -52,7 +53,7 @@ Attestation。两套本地版内置同一个公开 Client ID，也支持自建�
 - [安全设计](docs/zh-CN/security.md)
 - [开发计划](docs/zh-CN/development-plan.md)
 - [发布验收清单](docs/zh-CN/release-checklist.md)
-- [v0.1.6 发布说明](docs/zh-CN/releases/v0.1.6.md)
+- [v0.1.7 发布说明](docs/zh-CN/releases/v0.1.7.md)
 
 后续工作包括搜索翻页、回复/转发、HTML 撰写、OCR、共享邮箱、企业策略能力，以及
 Calendar/OneDrive/SharePoint/Teams。Windows Authenticode 签名和可选 WAM 集成也属于

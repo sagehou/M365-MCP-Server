@@ -21,19 +21,20 @@ for the server, .NET, or Go connection.
 - Mark read/unread, archive, move, and set categories.
 - Read bounded attachment text; extraction formats and download support depend
   on the edition and are listed in the local/server guide.
-- Save original attachments directly to the configured folder in both local
-  editions with `mail_save_attachment`, without a browser or shell.
+- Stream original attachments in both local editions with `mail_save_attachment`:
+  default Windows Downloads/M365-MCP, optional `download_dir`, and a configurable
+  150 MiB default limit, without a browser or shell.
 
 The server provides 11 tools by default or 13 with server-managed OAuth.
 The .NET local edition provides 12, and Go provides 13.
 
 ## Releases
 
-[Download v0.1.6](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.6).
+[Download v0.1.7](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7).
 
 | Artifact | Name |
 | --- | --- |
-| Container image | `ghcr.io/sagehou/m365-mcp-server:v0.1.6` |
+| Container image | `ghcr.io/sagehou/m365-mcp-server:v0.1.7` |
 | .NET NativeAOT, Windows x64 | `m365-mcp-windows-local-amd64.exe` |
 | Go, Windows x64 / ARM64 | `m365-mcp-windows-local-go-amd64.exe`, `m365-mcp-windows-local-go-arm64.exe` |
 | Go packages with both language guides | `m365-mcp-windows-local-go-amd64.zip`, `m365-mcp-windows-local-go-arm64.zip` |
@@ -58,7 +59,7 @@ environments, install test dependencies, or run local tests/builds.
 - [Security design](docs/security.md)
 - [Development plan](docs/development-plan.md)
 - [Release acceptance checklist](docs/release-checklist.md)
-- [v0.1.6 release notes](docs/releases/v0.1.6.md)
+- [v0.1.7 release notes](docs/releases/v0.1.7.md)
 
 Search continuation, reply/forward, HTML composition, OCR, shared mailboxes,
 enterprise policy features, and Calendar/OneDrive/SharePoint/Teams are future

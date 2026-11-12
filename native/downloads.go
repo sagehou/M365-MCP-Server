@@ -100,7 +100,7 @@ func (d *downloadStore) start(ctx context.Context, address string, mcpHandler ht
 		mux.Handle("/mcp", mcpHandler)
 		mux.Handle("/mcp/", mcpHandler)
 	}
-	server := &http.Server{Handler: localBoundary(mux, listener.Addr().String()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
+	server := &http.Server{Handler: localBoundary(mux, listener.Addr().String()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 6 * time.Minute, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)

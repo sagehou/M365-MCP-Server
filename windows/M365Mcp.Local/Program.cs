@@ -35,7 +35,7 @@ internal static class Program
             }
             if (command is "version" or "--version")
             {
-                Console.WriteLine("m365-mcp 0.1.6");
+                Console.WriteLine("m365-mcp 0.1.7");
                 return 0;
             }
             if (command == "doctor")
@@ -183,8 +183,10 @@ internal static class Program
               M365_LOCAL_TENANT_ID=<tenant id or organizations/common/consumers>
               M365_LOCAL_GRAPH_SCOPES=<space/comma-separated delegated scopes>
               M365_ATTACHMENT_ROOT=<trusted absolute artifact directory>
+              M365_MAX_DOWNLOAD_MIB=<positive integer; default 150 for attachment saves>
               M365_ATTACHMENT_PUSH_URL=<trusted HTTPS endpoint ending /uploads/push>
 
+            Saves default to Windows Downloads/M365-MCP; download_dir overrides the folder.
             stdio writes only MCP JSON-RPC messages to stdout. Diagnostics use stderr.
             Normal execution never installs a service or startup entry.
             """);

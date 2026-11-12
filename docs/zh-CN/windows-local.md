@@ -11,12 +11,12 @@
 | 邮件工具 | 12 项 | 13 项，含附件下载 URL |
 | 附件文本提取 | UTF-8 文本、CSV、JSON、XML | PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 | 添加本地草稿附件 | 文件选择框或配置目录下的相对路径 | 配置目录下的相对路径 |
-| 保存原附件 | `mail_save_attachment`，配置目录下的相对路径 | 与 .NET 的接口和行为一致 |
+| 保存原附件 | `mail_save_attachment`，默认下载目录下的 M365-MCP 或自定义目录；默认上限 150 MiB 且可配置 | 与 .NET 的接口和行为一致 |
 | 远端服务器上传辅助命令 | `inspect-attachment`、`push-attachment` | 不提供 |
 
 ## 安装
 
-从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.6)
+从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7)
 下载对应文件：
 
 | 版本 | 发布文件 | 下文使用的 EXE |
@@ -277,9 +277,10 @@ Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户�
 收件人、可信内容/附件来源、数量和有效期。Graph 接受请求不代表最终送达。结果不明的写入
 不会自动重试；先检查草稿和附件，再决定后续操作。
 
-### 保存附件到配置目录
+### 保存附件
 
-从 v0.1.6 起，两种版本提供相同工具：
+从 v0.1.7 起，两种版本采用相同的流式保存接口。调用 `mail_save_attachment`，
+传入三个必填参数：
 
 ```json
 {
@@ -289,12 +290,34 @@ Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户�
 }
 ```
 
-在 MCP 进程环境中，将 `M365_ATTACHMENT_ROOT` 设置为已存在、由操作者控制的绝对
-目录，例如 `C:\M365Artifacts`；此示例需先创建 `C:\M365Artifacts\downloads`。
-将上述三个必填参数传给 `mail_save_attachment`，两种版本的 `relative_path` 均用
-正斜杠。EXE 获取 Outlook 原始文件附件后直接保存，stdio 和 Go HTTP 均无需浏览器、
-本机 Shell、文件选择框或独立下载器。目标在 EXE 所在电脑，即使 MCP 客户端运行在别处
-也是如此。
+无需配置，此示例会保存到 Windows 当前用户实际“下载”目录下的
+`M365-MCP\downloads\report.pdf`，支持系统重定向后的下载目录。保存时自动创建缺失
+目录。两种版本的 `relative_path` 均使用正斜杠。EXE 将 Outlook 原始文件附件流式
+写入磁盘，stdio 和 Go HTTP 均无需浏览器、本机 Shell、文件选择框或独立下载器。
+目标在 EXE 所在电脑，即使 MCP 客户端运行在别处也是如此。
+
+| 优先级 | 目标目录 |
+| --- | --- |
+| 1 | 本次工具调用可选的绝对路径 `download_dir`，由用户、Skill 或 Agent 选择 |
+| 2 | MCP 进程环境中的 `M365_ATTACHMENT_ROOT` |
+| 3 | Windows“下载”目录下的 `M365-MCP` |
+
+例如，在参数中增加 `"download_dir": "D:\\MailArchive"`，本文件就保存到
+`D:\MailArchive\downloads\report.pdf`；只影响当前调用。用户没有指定目录或自动化
+规则时，Skill/Agent 可直接使用默认值，无需额外询问目录配置。
+
+需要持久自定义目录或大小上限时，在 MCP Server 的 `env` 中设置：
+
+```json
+{
+  "M365_ATTACHMENT_ROOT": "D:\\MailArchive",
+  "M365_MAX_DOWNLOAD_MIB": "512"
+}
+```
+
+两个变量均可选。Go `connection` 会将其进程环境中已设置的变量写入 stdio JSON，
+修改后重新生成配置；Go HTTP 在启动 `http` 时继承变量。环境变量改变后需重启 MCP
+连接；只在 `login` 时设置不会将它们持久保存在登录状态中。
 
 两种版本返回相同字段：
 
@@ -302,6 +325,7 @@ Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户�
 {
   "saved": true,
   "relative_path": "downloads/report.pdf",
+  "path": "C:\\Users\\Alice\\Downloads\\M365-MCP\\downloads\\report.pdf",
   "name": "report.pdf",
   "content_type": "application/pdf",
   "content_length": 12345,
@@ -312,14 +336,21 @@ Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户�
 <details>
 <summary>ⓘ 保存限制、目标路径与重试</summary>
 
-每个 Outlook 文件附件最多 10 MiB 解码字节，包括没有文本解析器的二进制格式；接受
-零字节文件。保存不会解析、打开或执行文件，不支持嵌入邮件项和引用附件。`name` 是
-服务方提供的原文件名，只有已获准的 `relative_path` 决定保存位置。
+每个文件默认上限 **150 MiB** 原始字节（157,286,400 字节）。`M365_MAX_DOWNLOAD_MIB`
+接受 MiB 单位的正整数，可提高或降低上限；这是应用限制，不保证 Graph 或租户允许相同
+大小。此前 10 MiB 保存限制来自内存 Base64/文本读取流程，并非 Graph 的附件硬上限。
+现在改用 Graph 原始字节 `$value` 端点，以 64 KiB 缓冲流式写入并增量计算 SHA-256，
+操作总超时为五分钟。文本读取及 Go 内存暂存的临时下载 URL 仍限制每个文件 10 MiB。
 
-根目录和父目录须已存在。拒绝绝对路径、反斜杠、父目录跳转、NTFS 备用数据流、Windows
-设备名及符号链接/联接目录。已有目标文件绝不覆盖，同时保存同名文件也只会成功一个。
-写入失败会尝试清理未完成文件；结果不明确时，先检查目标及大小/哈希，再决定是否重试，
-工具不会悄悄改名或覆盖。无人值守任务应提前配置目标和命名规则，不使用邮件内容决定。
+任意文件格式均可保存，包括零字节文件；不会解析、打开或执行文件。不支持嵌入邮件项和
+引用附件。`name` 是服务方提供的原文件名；`path` 是由目标目录与 `relative_path`
+确定的实际绝对保存路径。
+
+工具自动创建缺失的根目录和父目录。`relative_path` 拒绝绝对路径、反斜杠、父目录跳转、
+NTFS 备用数据流及 Windows 设备名，目标目录不得是符号链接或联接。已有目标文件绝不
+覆盖，同时保存同名文件也只会成功一个。超限、取消或传输失败时，会尝试清理未完成文件；
+结果不明确时，先检查目标及大小/哈希，再决定是否重试，工具不会悄悄改名或覆盖。
+无人值守任务使用可信的目标和命名规则，不从邮件内容中接受指令。
 
 </details>
 
@@ -352,7 +383,8 @@ Go 在独立 Worker 提取 PDF、DOCX、XLSX、PPTX、TXT、Markdown，限制为
 15 秒 CPU、20 秒总时间，最多两个同时运行。提取文件最大 10 MiB，Office 解压最大
 64 MiB/2,048 项，输出最多 100,000 字符。XLSX 使用缓存公式结果；扫描版 PDF 需要外部 OCR。
 
-Go 下载使用不可猜测、五分钟、一次性的 HTTP URL，仅绑定 `127.0.0.1`。stdio 在随机
+Go 临时下载支持最大 10 MiB 文件，使用不可猜测、五分钟、一次性的 HTTP URL，仅绑定
+`127.0.0.1`。stdio 在随机
 端口启动该监听器，内存最多保留 16 项、64 MiB，重启后 URL 失效。同一电脑上的浏览器或
 可信脚本可消费一次 URL；自动保存优先使用 `mail_save_attachment`。
 附件列表的 `size` 是服务方元数据，获取后的 `content_length` 是实际解码字节数。

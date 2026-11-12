@@ -11,13 +11,13 @@
 | Mail tools | 12 | 13, including attachment download URLs |
 | Attachment text extraction | UTF-8 text, CSV, JSON, XML | PDF, DOCX, XLSX, PPTX, TXT, Markdown |
 | Add a local draft attachment | File picker or configured relative path | Configured relative path |
-| Save an original attachment | `mail_save_attachment`, configured relative path | Same interface and behavior as .NET |
+| Save an original attachment | `mail_save_attachment`, default Downloads/M365-MCP or custom directory; configurable 150 MiB default limit | Same interface and behavior as .NET |
 | Remote-server upload helper | `inspect-attachment`, `push-attachment` | Not provided |
 
 ## Install
 
 Download the appropriate files from the
-[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.6):
+[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7):
 
 | Edition | Release file | Executable used below |
 | --- | --- | --- |
@@ -319,9 +319,10 @@ recipients, trusted content/attachment sources, volume, and expiry. Graph
 acceptance does not prove delivery. Ambiguous writes are not automatically
 retried; inspect the draft and attachments before deciding what to do next.
 
-### Save an attachment to the configured folder
+### Save an attachment
 
-Both editions, starting with v0.1.6, expose the same tool:
+Both editions, starting with v0.1.7, use the same streaming save interface.
+Call `mail_save_attachment` with three required arguments:
 
 ```json
 {
@@ -331,14 +332,39 @@ Both editions, starting with v0.1.6, expose the same tool:
 }
 ```
 
-Set `M365_ATTACHMENT_ROOT` in the MCP process environment to an existing,
-operator-controlled absolute directory, for example `C:\M365Artifacts`, and
-create `C:\M365Artifacts\downloads` before this example. Call
-`mail_save_attachment` with the three required arguments above. Use forward
-slashes in `relative_path` for both editions. The EXE fetches the original
-Outlook file attachment and saves it directly; stdio and Go HTTP need no
+Without configuration, the example saves to `M365-MCP\downloads\report.pdf`
+inside the Windows user's actual Downloads folder, including a redirected
+Downloads folder. Missing destination directories are created when saving.
+Use forward slashes in `relative_path` for both editions. The EXE streams the
+original Outlook file attachment directly to disk; stdio and Go HTTP need no
 browser, local shell, file picker, or separate downloader. The destination is
 on the EXE's PC, including when the MCP client runs elsewhere.
+
+| Priority | Destination directory |
+| --- | --- |
+| 1 | Optional absolute `download_dir` in this tool call, chosen by the user, Skill, or Agent |
+| 2 | `M365_ATTACHMENT_ROOT` in the MCP process environment |
+| 3 | Windows Downloads folder plus `M365-MCP` |
+
+For example, add `"download_dir": "D:\\MailArchive"` to save this file to
+`D:\MailArchive\downloads\report.pdf`. This changes only the current call.
+When the user has not specified a directory or an automation policy, the
+Skill/Agent may use the default without asking for extra configuration.
+
+For a persistent custom directory or size limit, set the MCP server's `env`:
+
+```json
+{
+  "M365_ATTACHMENT_ROOT": "D:\\MailArchive",
+  "M365_MAX_DOWNLOAD_MIB": "512"
+}
+```
+
+Both variables are optional. Go `connection` includes them in stdio JSON
+when they are set in its environment; regenerate the configuration after
+changing them. Go HTTP inherits them when `http` starts. Restart the MCP
+connection after environment changes; setting them only for `login` does not
+persist them in login state.
 
 Both return the same result fields:
 
@@ -346,6 +372,7 @@ Both return the same result fields:
 {
   "saved": true,
   "relative_path": "downloads/report.pdf",
+  "path": "C:\\Users\\Alice\\Downloads\\M365-MCP\\downloads\\report.pdf",
   "name": "report.pdf",
   "content_type": "application/pdf",
   "content_length": 12345,
@@ -356,20 +383,29 @@ Both return the same result fields:
 <details>
 <summary>ⓘ Save limits, destination paths, and retries</summary>
 
-The limit is 10 MiB of decoded bytes per Outlook file attachment, including
-binary formats without a text parser; zero-byte files are accepted. Saving
-does not parse, open, or execute the file. Embedded mail items and reference
-attachments are not supported. `name` is the original provider filename;
-only the authorized `relative_path` determines the destination.
+The default per-file limit is **150 MiB** of original bytes (157,286,400 bytes).
+`M365_MAX_DOWNLOAD_MIB` accepts a positive integer in MiB to raise or lower it;
+this is an application limit, not a guarantee of Graph or tenant availability.
+The former 10 MiB save limit came from the in-memory Base64/text-reading path,
+not a Graph attachment hard limit. Saving now uses Graph's raw-byte `$value`
+endpoint with a 64 KiB buffer and incremental SHA-256. The operation has a
+five-minute timeout. Text reading and Go's in-memory temporary download URLs
+remain limited to 10 MiB per file.
 
-The root and parent directories must exist. Absolute paths, backslashes,
-parent traversal, alternate data streams, Windows device names, and symbolic
-link/junction directories are rejected. Existing destination files are never
-overwritten, including simultaneous saves to the same filename. A failed
-write attempts to remove its incomplete file. After an ambiguous result,
+Any file format, including zero-byte files, can be saved without parsing,
+opening, or executing it. Embedded mail items and reference attachments are
+unsupported. `name` is the original provider filename; `path` is the actual
+absolute destination selected by the directory and `relative_path`.
+
+The tool creates missing root and parent directories. `relative_path` rejects
+absolute paths, backslashes, parent traversal, alternate data streams, and
+Windows device names. Destination directories must not be symbolic links or
+junctions. Existing destination files are never overwritten, including
+simultaneous saves to the same filename. An over-limit, cancelled, or failed
+transfer attempts to remove its incomplete file. After an ambiguous result,
 check the destination and its length/hash before retrying; the tool does not
-silently rename or overwrite. For unattended tasks, configure the destination
-and filename policy in advance rather than taking them from email content.
+silently rename or overwrite. For unattended tasks, use a trusted destination
+and filename policy rather than taking instructions from email content.
 
 </details>
 
@@ -406,7 +442,8 @@ time, and at most two active workers. Extraction is limited to 10 MiB files,
 64 MiB/2,048-entry Office expansion, and 100,000 output characters. XLSX uses
 cached formula results; image-only PDFs require external OCR.
 
-Go downloads use unguessable, five-minute, single-use HTTP URLs bound to
+Go temporary downloads accept files up to 10 MiB and use unguessable,
+five-minute, single-use HTTP URLs bound to
 `127.0.0.1`. Stdio starts this listener on a random port. At most 16 downloads
 and 64 MiB are retained in memory; restart invalidates the URLs. A browser or
 trusted script on the same PC can consume a URL once. Prefer

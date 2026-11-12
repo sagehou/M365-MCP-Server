@@ -40,6 +40,11 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 			io.WriteString(w, `{"error":{"message":"PROVIDER_SECRET"}}`)
 			return
 		}
+		if strings.HasSuffix(r.URL.Path, "/attachments/file/$value") {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			io.WriteString(w, "hello")
+			return
+		}
 		if strings.HasSuffix(r.URL.Path, "/attachments/file") {
 			json.NewEncoder(w).Encode(map[string]any{"@odata.type": "#microsoft.graph.fileAttachment", "id": "file", "name": "notes.txt", "contentType": "text/plain", "size": 9999, "contentBytes": base64.StdEncoding.EncodeToString([]byte("hello"))})
 			return
@@ -106,7 +111,7 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 				Required   []string       `json:"required"`
 				Properties map[string]any `json:"properties"`
 			}
-			if err != nil || json.Unmarshal(encoded, &schema) != nil || len(schema.Properties) != 3 || len(schema.Required) != 3 || tool.Annotations == nil || tool.Annotations.ReadOnlyHint {
+			if err != nil || json.Unmarshal(encoded, &schema) != nil || len(schema.Properties) != 4 || len(schema.Required) != 3 || schema.Properties["download_dir"] == nil || tool.Annotations == nil || tool.Annotations.ReadOnlyHint {
 				t.Fatal("save tool must require the common three arguments and be a write operation")
 			}
 			for _, key := range []string{"message_id", "attachment_id", "relative_path"} {
@@ -171,7 +176,7 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 			}
 			if tc.name == "mail_save_attachment" {
 				content, err := os.ReadFile(filepath.Join(root, "saved.txt"))
-				if err != nil || string(content) != "hello" || payload["content_length"] != float64(5) || payload["saved"] != true || len(payload) != 6 {
+				if err != nil || string(content) != "hello" || payload["content_length"] != float64(5) || payload["saved"] != true || payload["path"] != filepath.Join(root, "saved.txt") || len(payload) != 7 {
 					t.Fatalf("saved file or common result schema mismatch: %v %v", payload, err)
 				}
 			}

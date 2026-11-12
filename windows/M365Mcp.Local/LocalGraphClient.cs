@@ -487,20 +487,71 @@ internal sealed class LocalGraphClient(
         JsonObject arguments,
         CancellationToken cancellationToken)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(5));
+        cancellationToken = timeout.Token;
         var relativePath = RequiredString(arguments, "relative_path");
         AttachmentPushClient.SavePathSegments(relativePath);
-        var file = await FetchAttachmentAsync(arguments, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        AttachmentPushClient.SaveLocalArtifact(relativePath, file.Content);
+        var directory = AttachmentPushClient.DownloadDirectory(OptionalString(arguments, "download_dir"));
+        var limit = AttachmentPushClient.DownloadLimit();
+        var messageId = RequiredString(arguments, "message_id");
+        var attachmentId = RequiredString(arguments, "attachment_id");
+        var attachmentPath = $"/me/messages/{Segment(messageId)}/attachments/{Segment(attachmentId)}";
+        var metadata = await RequestAsync(HttpMethod.Get,
+            attachmentPath + "?%24select=id,name,contentType", null, cancellationToken);
+        if (metadata["@odata.type"]?.GetValue<string>() is not string kind
+            || !kind.Equals("#microsoft.graph.fileAttachment", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidToolArgumentException("only Outlook file attachments are supported");
+        }
+        var name = metadata["name"]?.GetValue<string>();
+        var contentType = metadata["contentType"]?.GetValue<string>();
+        if (string.IsNullOrEmpty(name) || name.Length > 4096 || (contentType is not null && contentType.Length > 1024))
+        {
+            throw new GraphOperationException("Attachment metadata is invalid.");
+        }
+        using var response = await OpenAttachmentStreamAsync(attachmentPath, cancellationToken);
+        if (response.Content.Headers.ContentLength > limit)
+        {
+            throw new InvalidToolArgumentException("attachment exceeds the M365_MAX_DOWNLOAD_MIB limit");
+        }
+        await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var saved = await AttachmentPushClient.SaveLocalArtifactAsync(relativePath, directory, input, limit, cancellationToken);
         return new JsonObject
         {
             ["saved"] = true,
             ["relative_path"] = relativePath,
-            ["name"] = file.Name,
-            ["content_type"] = file.ContentType,
-            ["content_length"] = file.Content.Length,
-            ["content_sha256"] = Convert.ToHexString(SHA256.HashData(file.Content)).ToLowerInvariant(),
+            ["path"] = saved.Path,
+            ["name"] = name,
+            ["content_type"] = string.IsNullOrEmpty(contentType) ? "application/octet-stream" : contentType,
+            ["content_length"] = saved.ContentLength,
+            ["content_sha256"] = saved.ContentSha256,
         };
+    }
+
+    private async Task<HttpResponseMessage> OpenAttachmentStreamAsync(string attachmentPath, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, GraphBase + attachmentPath + "/$value");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+                await auth.GetAccessTokenAsync(interactiveAllowed: true, cancellationToken));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
+            var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0)
+            {
+                response.Dispose();
+                auth.InvalidateAccessToken();
+                continue;
+            }
+            if (response.IsSuccessStatusCode)
+            {
+                return response;
+            }
+            response.Dispose();
+            throw new GraphOperationException("Microsoft Graph rejected the attachment download.");
+        }
+        throw new GraphOperationException("Microsoft Graph authorization failed.");
     }
 
     internal async Task<JsonNode> MarkReadAsync(

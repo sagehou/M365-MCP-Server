@@ -4,10 +4,19 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
+
+func defaultDownloadDirectory() (string, error) {
+	path, err := windows.KnownFolderPath(windows.FOLDERID_Downloads, 0x4000) // KF_FLAG_DONT_VERIFY: create lazily when saving.
+	if err != nil {
+		return "", errors.New("could not locate the Windows Downloads folder")
+	}
+	return filepath.Join(path, "M365-MCP"), nil
+}
 
 func protectData(data []byte) ([]byte, error) {
 	return dpapi(data, false)

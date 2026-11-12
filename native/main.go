@@ -20,7 +20,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const version = "0.1.6"
+const version = "0.1.7"
 const builtInClientID = "6e35216e-2623-43cc-b867-83bec0865cf3"
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "M365 MCP for Windows\nCommands: login [--client-id ID] [--tenant ID], stdio, http [--port 8000], connection [--http --port 8000], logout, version\nBuilt-in public Client ID: "+builtInClientID+"\nTenants: tenant GUID, organizations, common, consumers\nLogin overrides: M365_LOCAL_CLIENT_ID, M365_LOCAL_TENANT_ID; command-line flags take precedence.")
+		fmt.Fprintln(os.Stderr, "M365 MCP for Windows\nCommands: login [--client-id ID] [--tenant ID], stdio, http [--port 8000], connection [--http --port 8000], logout, version\nBuilt-in public Client ID: "+builtInClientID+"\nTenants: tenant GUID, organizations, common, consumers\nLogin overrides: M365_LOCAL_CLIENT_ID, M365_LOCAL_TENANT_ID; command-line flags take precedence.\nAttachment saves: download_dir overrides M365_ATTACHMENT_ROOT; default Windows Downloads/M365-MCP.\nM365_MAX_DOWNLOAD_MIB: positive integer save limit; default 150 MiB.")
 		return nil
 	}
 	if args[0] == "version" {
@@ -186,11 +186,21 @@ func printConnection(dir string, httpMode bool, port int) error {
 			return err
 		}
 		connection = map[string]any{"command": executable, "args": []string{"stdio"}}
+		environment := map[string]string{}
 		if root := os.Getenv("M365_ATTACHMENT_ROOT"); root != "" {
 			if !filepath.IsAbs(root) {
 				return errors.New("M365_ATTACHMENT_ROOT must be an absolute operator-controlled directory")
 			}
-			connection["env"] = map[string]string{"M365_ATTACHMENT_ROOT": root}
+			environment["M365_ATTACHMENT_ROOT"] = root
+		}
+		if limit := os.Getenv("M365_MAX_DOWNLOAD_MIB"); limit != "" {
+			if _, err := downloadLimit(); err != nil {
+				return err
+			}
+			environment["M365_MAX_DOWNLOAD_MIB"] = limit
+		}
+		if len(environment) > 0 {
+			connection["env"] = environment
 		}
 	}
 	encoder := json.NewEncoder(os.Stdout)

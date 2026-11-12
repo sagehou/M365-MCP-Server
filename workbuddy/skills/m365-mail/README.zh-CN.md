@@ -96,15 +96,20 @@ skills/
 - “查找本周项目验收相关的邮件，总结选定的几封。”
 - “给 alice@example.com 起草进展邮件，添加 reports/weekly.docx，发送前展示完整草稿。”
 - “列出选定邮件的附件，当前连接支持下载时获取原始 PDF。”
-- “把选定邮件的原附件保存为配置目录下的 downloads/report.pdf，无需打开浏览器。”
+- “把选定邮件的原附件保存为默认下载目录下的 reports/report.pdf。”
+- “使用 download_dir 将这些附件保存到 D:\MailArchive。”
 
 更新时用完整新文件夹替换已安装的 `m365-mail`，再刷新客户端。此 Skill 合并了原来的
 `outlook-mail`、`outlook-mail-compose`、`outlook-mail-management` 和
 `outlook-attachments`；从客户端移除旧 Skill 副本，或替换旧 WorkBuddy 连接器包，
-避免重复指令被选中。使用本地直接保存功能时，须将 .NET 或 Go EXE 升级至 v0.1.6
-及以后，在 MCP 进程环境中配置 `M365_ATTACHMENT_ROOT`，并预先创建目标父目录。
-刷新或重启 MCP 连接，使其暴露新工具。仅更新 Skill 不会增加 EXE 的能力；旧版本
-继续使用原有受支持流程。
+避免重复指令被选中。使用本地直接保存功能时，将 .NET 或 Go EXE 升级至 v0.1.7
+及以后，刷新或重启 MCP 连接以加载当前工具列表。无需配置下载目录：默认保存到 Windows
+实际“下载”目录下的 `M365-MCP`，缺失目录自动创建。用户、Skill 或 Agent 可按任务
+传入绝对 `download_dir`，其优先级高于可选的进程环境变量 `M365_ATTACHMENT_ROOT`
+及默认目录。原文件保存上限默认 150 MiB，可在 MCP Server 的环境中设置正整数
+`M365_MAX_DOWNLOAD_MIB` 修改；文本读取及 Go 临时 URL 仍限制 10 MiB。环境变量改变
+后需要重启 MCP 进程；只在 `login` 时设置不会持久保存。仅更新 Skill 不会增加 EXE
+的能力；旧版本继续使用原有受支持流程。
 
 ---
 

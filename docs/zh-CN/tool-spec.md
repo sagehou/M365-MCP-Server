@@ -111,21 +111,34 @@ Windows Go stdio 或本机回环 HTTP 的同名工具必须提供 `draft_id` 和
 
 ### mail_save_attachment
 
-Windows .NET 和 Go v0.1.6+ 提供相同的三个必填参数：`message_id`、`attachment_id`、
-`relative_path`。Python 服务器版不提供此工具。将最多 10 MiB 解码字节的 Outlook 原始
-文件附件保存到操作者配置的 `M365_ATTACHMENT_ROOT` 内，接受零字节文件。这是文件系统
-写入操作，不是只读预览；本机 stdio 和 Go HTTP 均无需浏览器或 Shell。
+Windows .NET 和 Go v0.1.7+ 提供相同参数：
 
-使用正斜杠，例如 `downloads/report.pdf`。根目录和父目录须已存在，且不能是符号链接或
-联接。拒绝绝对路径、反斜杠、父目录跳转、NTFS 备用数据流、Windows 设备名及已有目标；
-同时保存也不会相互覆盖。调用者指定已获准路径，不使用不可信的服务方文件名决定位置。
-任何文件格式均可原样保存，不解析或执行；不支持邮件项/引用附件。写入失败会尝试清理
-未完成文件；结果不明确时先检查目标再决定是否重试，不悄悄改名或覆盖。
+| 参数 | 必填 | 含义 |
+| --- | --- | --- |
+| `message_id` | 是 | Outlook 邮件 ID |
+| `attachment_id` | 是 | Outlook 文件附件 ID |
+| `relative_path` | 是 | 使用正斜杠的新文件名，如 `reports/report.pdf` |
+| `download_dir` | 否 | EXE 所在电脑上的绝对目标目录，由用户、Skill 或 Agent 选择 |
 
-两种版本返回相同字段：`saved`、`relative_path`、`name`、`content_type`、
-`content_length`、`content_sha256`。`name` 是服务方提供的原文件名；大小和 SHA-256
-对应保存的实际字节。不返回原始字节、绝对路径或下载 URL。文件保存在 EXE 所在电脑，
-即使由远端客户端调用也是如此。
+目录优先级为本次调用的 `download_dir`，其次为进程环境的 `M365_ATTACHMENT_ROOT`，
+最后为 Windows 实际“下载”目录下的 `M365-MCP`。保存时自动创建缺失的根目录及父目录。
+Python 服务器版不提供此文件系统写入工具。本地 stdio 和 Go HTTP 均无需浏览器或 Shell。
+
+从 Graph 的 `$value` 端点获取原始字节，以 64 KiB 缓冲流式写入磁盘，增量计算 SHA-256，
+操作总超时五分钟。每个文件默认上限 150 MiB（157,286,400 字节）；`M365_MAX_DOWNLOAD_MIB`
+接受 MiB 单位的正整数，可提高或降低上限。这是应用限制，仍受 Graph 及租户限制。
+文本读取及 Go 内存暂存的临时下载 URL 继续保留 10 MiB 上限。
+
+`relative_path` 拒绝绝对路径、反斜杠、父目录跳转、NTFS 备用数据流及 Windows 设备名。
+目标目录不得是符号链接或联接。拒绝已有目标文件，并发保存也不会互相覆盖。调用方选择的
+目录和相对路径决定目标，不使用不可信的服务方原文件名。所有文件格式均可原样保存，
+包括零字节文件；不解析或执行，不支持邮件项和引用附件。超限、取消或传输失败时尝试
+删除未完成文件，结果不明确时先检查目标再决定是否重试，不悄悄改名或覆盖。
+
+两种版本均只返回 `saved`、`relative_path`、`path`、`name`、`content_type`、
+`content_length`、`content_sha256`。`path` 为实际绝对保存路径，`name` 是服务方原文件名，
+实际字节数和 SHA-256 描述保存的原始字节。不返回原始字节或下载 URL。文件位于 EXE
+所在电脑，远端客户端调用也一样。
 
 ### mail_download_attachment
 

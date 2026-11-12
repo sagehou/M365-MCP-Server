@@ -4,8 +4,8 @@
 
 ## 当前交付顺序
 
-1. `v0.1.1` 已按 MIT 许可证[发布](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)，
-   包含容器镜像和 Windows 单文件 EXE。
+1. `v0.1.7` 按 MIT 许可证交付容器镜像、Windows .NET/Go 单文件 EXE 及通用双语
+   `m365-mail` Skill。
 2. 草稿文件附件能力已包含在 v0.1.1：远端客户端可用二进制暂存和一次性推送
    凭据，Windows 本地 stdio 可用受限的产物相对路径或原生文件选择框，单文件
    最多 20 MiB。
@@ -16,7 +16,7 @@
 
 ## Windows 本地模式实现状态
 
-已发布的 Windows 实现位于 `windows/M365Mcp.Local`，使用方式见
+已发布的 Windows 实现位于 `windows/M365Mcp.Local` 和 `native`，使用方式见
 [Windows 本地模式指南](windows-local.md)。
 
 v0.1.0 已交付：
@@ -35,9 +35,17 @@ v0.1.1 新增：
 - `M365_ATTACHMENT_ROOT` 下的相对路径附件自动化
 - 远端 Connector 使用的 `inspect-attachment` 和 `push-attachment` 命令
 
+v0.1.2 起陆续新增：
+
+- .NET 10 NativeAOT 与 Go AMD64/ARM64 单文件；共用 `stdio` 及租户/账户选项
+- Go PDF/Office 提取及临时下载 URL
+- 两版均通过 `mail_save_attachment` 流式保存原附件；v0.1.7 默认 Windows 下载目录下
+  的 M365-MCP，可选 `download_dir`、自动创建目录，默认上限 150 MiB 且可配置
+
 当前设计边界：
 
-- 本地丰富附件提取及下载能力尚未与远端对齐
+- .NET 读取 UTF-8 文本/CSV/JSON/XML，没有 PDF/Office 解析器或下载 URL 端点；两版
+  均可直接保存原文件
 - SHA-256 与 GitHub 构建来源证明已发布；可选 Authenticode 签名和 SBOM 是独立分发改进
 - 是否增加 Windows Web Account Manager 取决于部署需求
 
@@ -77,8 +85,9 @@ Tools：
 - mail_move
 - mail_set_category
 
-Windows 本地模式当前实现了以上除 `mail_download_attachment` 之外的全部项目；
-本地 `mail_read_attachment` 仅支持有边界的文本类内容。
+Windows Go 实现上述全部项目；.NET 不提供 `mail_download_attachment`，其
+`mail_read_attachment` 限于有边界的 UTF-8 文本类内容。两版另提供
+`mail_save_attachment` 和有大小限制的草稿附件。
 
 ## Phase 3 - 附件处理
 

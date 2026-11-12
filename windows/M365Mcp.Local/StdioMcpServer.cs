@@ -94,7 +94,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 or UnauthorizedAccessException
                 or JsonException
                 or InvalidOperationException
-                or TaskCanceledException)
+                or OperationCanceledException)
             {
                 var reference = Convert.ToHexString(
                     RandomNumberGenerator.GetBytes(8)).ToLowerInvariant();
@@ -124,7 +124,7 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
         ["serverInfo"] = new JsonObject
         {
             ["name"] = "M365 MCP Server (Windows Local)",
-            ["version"] = "0.1.6",
+            ["version"] = "0.1.7",
         },
     };
 
@@ -198,12 +198,13 @@ internal sealed class StdioMcpServer(LocalGraphClient graph)
                 "message_id", "attachment_id"),
             Tool(
                 "mail_save_attachment",
-                "Save one Outlook file attachment up to 10 MiB to a new relative_path under M365_ATTACHMENT_ROOT. Parent directories must exist. Never overwrites, opens, or executes the file. Requires an authorized destination.",
+                "Stream an Outlook file attachment to a new relative_path. Optional absolute download_dir overrides M365_ATTACHMENT_ROOT and the default Windows Downloads/M365-MCP folder. Creates missing directories; never overwrites, opens, or executes the file. Default limit 150 MiB; configurable with M365_MAX_DOWNLOAD_MIB.",
                 new JsonObject
                 {
                     ["message_id"] = StringProperty("Outlook message ID"),
                     ["attachment_id"] = StringProperty("Outlook attachment ID"),
-                    ["relative_path"] = StringProperty("New file under M365_ATTACHMENT_ROOT; use forward slashes and existing parent directories; never overwrites"),
+                    ["relative_path"] = StringProperty("New relative filename with forward slashes; missing parent directories are created; never overwrites"),
+                    ["download_dir"] = StringProperty("Optional absolute destination directory on the EXE's PC; overrides M365_ATTACHMENT_ROOT and Windows Downloads/M365-MCP"),
                 },
                 "message_id", "attachment_id", "relative_path"),
             Tool(

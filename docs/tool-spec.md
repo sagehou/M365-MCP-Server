@@ -127,28 +127,44 @@ list value to accept or reject the attachment.
 
 ### mail_save_attachment
 
-Windows .NET and Go v0.1.6+ expose the same required input:
-`message_id`, `attachment_id`, and `relative_path`. The Python server does not
-expose this tool. Save the original Outlook file attachment, up to 10 MiB of
-decoded bytes including zero-byte files, under the operator-configured
-`M365_ATTACHMENT_ROOT`. This is a filesystem write, not a read-only preview.
-It works over local stdio and Go HTTP without a browser or shell.
+Windows .NET and Go v0.1.7+ expose the same input:
 
-Use forward slashes, for example `downloads/report.pdf`. The root and parent
-directories must exist and must not be symbolic links or junctions. Reject
-absolute paths, backslashes, parent traversal, alternate data streams, Windows
-device names, and existing destinations; simultaneous saves never overwrite
-each other. The caller chooses an authorized path, not the untrusted provider
-filename. All file formats can be saved without parsing or execution; mail
-item/reference attachments are unsupported. A failed write attempts to remove
-the incomplete file. Check the destination after an ambiguous failure before
-retrying rather than silently renaming or overwriting.
+| Argument | Required | Meaning |
+| --- | --- | --- |
+| `message_id` | Yes | Outlook message ID |
+| `attachment_id` | Yes | Outlook file attachment ID |
+| `relative_path` | Yes | New filename with forward slashes, such as `reports/report.pdf` |
+| `download_dir` | No | Absolute destination directory on the EXE's PC, chosen by the user, Skill, or Agent |
 
-Both return exactly `saved`, `relative_path`, `name`, `content_type`,
-`content_length`, and `content_sha256`. `name` is the original provider filename;
-`content_length` and the SHA-256 describe the saved bytes. No raw bytes,
-absolute path, or download URL are returned. The file is on the EXE's PC,
-including when a remote client calls the tool.
+Directory priority is this call's `download_dir`, then the process environment's
+`M365_ATTACHMENT_ROOT`, then the actual Windows Downloads folder plus
+`M365-MCP`. Missing root and parent directories are created on save. The Python
+server does not expose this filesystem-write tool. It works over local stdio
+and Go HTTP without a browser or shell.
+
+Stream original bytes from Graph's `$value` endpoint to disk with a 64 KiB
+buffer, incremental SHA-256, and a five-minute operation timeout. The default
+per-file limit is 150 MiB (157,286,400 bytes); `M365_MAX_DOWNLOAD_MIB` accepts a
+positive integer in MiB to raise or lower it. This is an application limit;
+Graph and tenant limits still apply. Text reading and Go's in-memory temporary
+download URLs retain their 10 MiB limits.
+
+`relative_path` rejects absolute paths, backslashes, parent traversal, alternate
+data streams, and Windows device names. Destination directories must not be
+symbolic links or junctions. Existing destinations are rejected; simultaneous
+saves never overwrite each other. The caller's chosen directory and relative
+path determine the destination, not the untrusted provider filename. All file
+formats, including zero-byte files, can be saved without parsing or execution;
+mail item/reference attachments are unsupported. An over-limit, cancelled, or
+failed transfer attempts to remove the incomplete file. Check the destination
+after an ambiguous failure before retrying rather than silently renaming or
+overwriting.
+
+Both return exactly `saved`, `relative_path`, `path`, `name`, `content_type`,
+`content_length`, and `content_sha256`. `path` is the actual absolute saved path;
+`name` is the original provider filename. `content_length` and the SHA-256
+describe the saved bytes. No raw bytes or download URL are returned. The file
+is on the EXE's PC, including when a remote client calls the tool.
 
 ### mail_download_attachment
 

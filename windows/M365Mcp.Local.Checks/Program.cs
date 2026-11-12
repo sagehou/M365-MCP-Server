@@ -92,6 +92,8 @@ try
     var saveTool = ((JsonArray)results[1]["result"]!["tools"]!).Single(tool => tool?["name"]?.GetValue<string>() == "mail_save_attachment")!;
     Check(saveTool["inputSchema"]?["required"] is JsonArray { Count: 3 } required
         && required.Select(value => value!.GetValue<string>()).SequenceEqual(["message_id", "attachment_id", "relative_path"])
+        && saveTool["inputSchema"]?["properties"] is JsonObject { Count: 4 } properties
+        && properties.ContainsKey("download_dir")
         && saveTool["annotations"]?["readOnlyHint"]?.GetValue<bool>() is false,
         "save tool must require the common three arguments and be a write operation");
     foreach (var result in results.Skip(2))
@@ -201,126 +203,167 @@ static void Check(bool condition, string message)
 
 static async Task CheckAttachmentSaving(LocalGraphClient graph, MockGraph transport, string root)
 {
-    Directory.CreateDirectory(Path.Combine(root, "downloads"));
-    foreach (var (id, content, kind, valid) in new[]
-    {
-        ("binary", new byte[] { 0, 255, 1, 128 }, "#microsoft.graph.fileAttachment", true),
-        ("empty", Array.Empty<byte>(), "#microsoft.graph.fileAttachment", true),
-        ("limit", new byte[10 * 1024 * 1024], "#microsoft.graph.fileAttachment", true),
-        ("oversized", new byte[10 * 1024 * 1024 + 1], "#microsoft.graph.fileAttachment", false),
-        ("item", new byte[] { 1 }, "#microsoft.graph.itemAttachment", false),
-    })
-    {
-        var response = new JsonObject
-        {
-            ["@odata.type"] = kind, ["id"] = "file", ["name"] = "../untrusted.exe",
-            ["contentType"] = "application/octet-stream", ["size"] = 99999999,
-            ["contentBytes"] = Convert.ToBase64String(content),
-        }.ToJsonString();
-        var relativePath = "downloads/" + id + ".bin";
-        transport.Expect("GET", "/v1.0/me/messages/message/attachments/file", response);
-        var arguments = new JsonObject
-        {
-            ["message_id"] = "message", ["attachment_id"] = "file", ["relative_path"] = relativePath,
-        }.ToJsonString();
-        var result = (await Exchange(graph, Call("mail_save_attachment", arguments)))[0];
-        var destination = Path.Combine(root, "downloads", id + ".bin");
-        if (valid)
-        {
-            var payload = Payload(result);
-            Check(result["result"]?["isError"]?.GetValue<bool>() is false
-                && payload is JsonObject { Count: 6 } && payload["saved"]?.GetValue<bool>() is true
-                && payload["relative_path"]?.GetValue<string>() == relativePath
-                && payload["content_length"]?.GetValue<int>() == content.Length
-                && payload["content_sha256"]?.GetValue<string>() == Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant()
-                && (await File.ReadAllBytesAsync(destination)).SequenceEqual(content),
-                "attachment bytes or common result schema changed: " + id);
-            transport.Expect("GET", "/v1.0/me/messages/message/attachments/file", response);
-            var duplicate = (await Exchange(graph, Call("mail_save_attachment", arguments)))[0];
-            Check(duplicate["result"]?["isError"]?.GetValue<bool>() is true
-                && (await File.ReadAllBytesAsync(destination)).SequenceEqual(content), "save must not overwrite an existing file");
-        }
-        else
-        {
-            Check(result["result"]?["isError"]?.GetValue<bool>() is true && !File.Exists(destination),
-                "unsupported or oversized attachment left a file");
-        }
-        transport.CheckEmpty();
-    }
-    foreach (var relativePath in new[]
-    {
-        "", "/outside.bin", "../outside.bin", "a/../outside.bin", "a//b.bin", "a\\b.bin", "C:/outside.bin",
-        "file.bin:stream", "file.bin.", "file.bin ", "CON.txt", "COM1.bin", "LPT³.txt", "a\0.bin", "a?.bin", "missing/file.bin",
-    })
-    {
-        try
-        {
-            AttachmentPushClient.SaveLocalArtifact(relativePath, [1, 2, 3]);
-            throw new Exception("unsafe or missing parent path accepted: " + relativePath);
-        }
-        catch (InvalidToolArgumentException) { }
-    }
-    var outside = Path.Combine(root, "outside");
-    Directory.CreateDirectory(outside);
-    var link = Path.Combine(root, "linked");
-    Directory.CreateSymbolicLink(link, outside);
+    var previousLimit = Environment.GetEnvironmentVariable("M365_MAX_DOWNLOAD_MIB");
     try
     {
+        foreach (var (id, content, kind, valid, limit, unknownLength) in new[]
+        {
+            ("binary", new byte[] { 0, 255, 1, 128 }, "#microsoft.graph.fileAttachment", true, "", false),
+            ("empty", Array.Empty<byte>(), "#microsoft.graph.fileAttachment", true, "", false),
+            ("large", new byte[17 * 1024 * 1024], "#microsoft.graph.fileAttachment", true, "", false),
+            ("limit", new byte[1024 * 1024], "#microsoft.graph.fileAttachment", true, "1", false),
+            ("oversized-header", new byte[1024 * 1024 + 1], "#microsoft.graph.fileAttachment", false, "1", false),
+            ("oversized-stream", new byte[1024 * 1024 + 1], "#microsoft.graph.fileAttachment", false, "1", true),
+            ("item", new byte[] { 1 }, "#microsoft.graph.itemAttachment", false, "", false),
+        })
+        {
+            Environment.SetEnvironmentVariable("M365_MAX_DOWNLOAD_MIB", limit);
+            var response = new JsonObject
+            {
+                ["@odata.type"] = kind, ["id"] = "file", ["name"] = "../untrusted.exe",
+                ["contentType"] = "application/octet-stream", ["size"] = 99999999,
+            }.ToJsonString();
+            var relativePath = "downloads/" + id + ".bin";
+            var arguments = new JsonObject
+            {
+                ["message_id"] = "message", ["attachment_id"] = "file", ["relative_path"] = relativePath,
+            };
+            var destinationRoot = root;
+            if (id == "binary")
+            {
+                destinationRoot = Path.Combine(root, "agent", "override");
+                arguments["download_dir"] = destinationRoot;
+            }
+            void ExpectDownload()
+            {
+                transport.Expect("GET", "/v1.0/me/messages/message/attachments/file", response,
+                    (request, _) => Check(Query(request)["$select"] == "id,name,contentType", "save must fetch metadata without base64 content"));
+                if (kind == "#microsoft.graph.fileAttachment")
+                {
+                    transport.Expect("GET", "/v1.0/me/messages/message/attachments/file/$value", "",
+                        (request, _) => Check(request.Headers.Accept.Single().MediaType == "application/octet-stream", "save must request raw attachment bytes"),
+                        content: unknownLength ? new UnknownLengthContent(content) : new ByteArrayContent(content));
+                }
+            }
+            ExpectDownload();
+            var result = (await Exchange(graph, Call("mail_save_attachment", arguments.ToJsonString())))[0];
+            var destination = Path.Combine(destinationRoot, "downloads", id + ".bin");
+            if (valid)
+            {
+                var payload = Payload(result);
+                Check(result["result"]?["isError"]?.GetValue<bool>() is false
+                    && payload is JsonObject { Count: 7 } && payload["saved"]?.GetValue<bool>() is true
+                    && payload["relative_path"]?.GetValue<string>() == relativePath
+                    && payload["path"]?.GetValue<string>() == destination
+                    && payload["content_length"]?.GetValue<long>() == content.Length
+                    && payload["content_sha256"]?.GetValue<string>() == Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant()
+                    && (await File.ReadAllBytesAsync(destination)).SequenceEqual(content),
+                    "attachment bytes or common result schema changed: " + id);
+                ExpectDownload();
+                var duplicate = (await Exchange(graph, Call("mail_save_attachment", arguments.ToJsonString())))[0];
+                Check(duplicate["result"]?["isError"]?.GetValue<bool>() is true
+                    && (await File.ReadAllBytesAsync(destination)).SequenceEqual(content), "save must not overwrite an existing file");
+            }
+            else
+            {
+                Check(result["result"]?["isError"]?.GetValue<bool>() is true && !File.Exists(destination),
+                    "unsupported or oversized attachment left a file");
+            }
+            transport.CheckEmpty();
+        }
+        async Task Save(string relativePath, byte[] bytes, CancellationToken cancellationToken = default)
+        {
+            using var input = new MemoryStream(bytes, writable: false);
+            await AttachmentPushClient.SaveLocalArtifactAsync(relativePath, root, input, 150L * 1024 * 1024, cancellationToken);
+        }
+        foreach (var relativePath in new[]
+        {
+            "", "/outside.bin", "../outside.bin", "a/../outside.bin", "a//b.bin", "a\\b.bin", "C:/outside.bin",
+            "file.bin:stream", "file.bin.", "file.bin ", "CON.txt", "COM1.bin", "LPT³.txt", "a\0.bin", "a?.bin",
+        })
+        {
+            try { await Save(relativePath, [1, 2, 3]); throw new Exception("unsafe path accepted: " + relativePath); }
+            catch (InvalidToolArgumentException) { }
+        }
+        var outside = Path.Combine(root, "outside");
+        Directory.CreateDirectory(outside);
+        var link = Path.Combine(root, "linked");
+        Directory.CreateSymbolicLink(link, outside);
         try
         {
-            AttachmentPushClient.SaveLocalArtifact("linked/escaped.bin", [1, 2, 3]);
-            throw new Exception("parent symbolic link was followed");
+            try { await Save("linked/escaped.bin", [1, 2, 3]); throw new Exception("parent symbolic link was followed"); }
+            catch (InvalidToolArgumentException) { }
+            using var input = new MemoryStream([1, 2, 3]);
+            try
+            {
+                await AttachmentPushClient.SaveLocalArtifactAsync("file.bin", Path.Combine(link, "new"), input, 100, CancellationToken.None);
+                throw new Exception("symbolic link was followed while creating download directories");
+            }
+            catch (InvalidToolArgumentException) { }
+            Check(Directory.GetFileSystemEntries(outside).Length == 0, "save created files or folders outside the chosen directory");
         }
-        catch (InvalidToolArgumentException) { }
-        Check(!File.Exists(Path.Combine(outside, "escaped.bin")), "save escaped the configured directory");
-    }
-    finally
-    {
-        Directory.Delete(link);
-    }
-    var fileLink = Path.Combine(root, "file-link.bin");
-    File.CreateSymbolicLink(fileLink, Path.Combine(outside, "new.bin"));
-    try
-    {
+        finally { Directory.Delete(link); }
+        var fileLink = Path.Combine(root, "file-link.bin");
+        File.CreateSymbolicLink(fileLink, Path.Combine(outside, "new.bin"));
         try
         {
-            AttachmentPushClient.SaveLocalArtifact("file-link.bin", [1]);
-            throw new Exception("destination symbolic link was followed");
+            try { await Save("file-link.bin", [1]); throw new Exception("destination symbolic link was followed"); }
+            catch (Exception exception) when (exception is IOException or InvalidToolArgumentException) { }
+            Check(!File.Exists(Path.Combine(outside, "new.bin")), "destination link escaped the configured directory");
         }
-        catch (Exception exception) when (exception is IOException or InvalidToolArgumentException) { }
-        Check(!File.Exists(Path.Combine(outside, "new.bin")), "destination link escaped the configured directory");
-    }
-    finally
-    {
-        File.Delete(fileLink);
-    }
-    var successes = 0;
-    await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
-    {
+        finally { File.Delete(fileLink); }
+        var successes = 0;
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(async _ =>
+        {
+            try { await Save("unique.bin", [0, 255, 128]); Interlocked.Increment(ref successes); }
+            catch (Exception exception) when (exception is IOException or InvalidToolArgumentException) { }
+        }));
+        Check(successes == 1 && (await File.ReadAllBytesAsync(Path.Combine(root, "unique.bin"))).SequenceEqual(new byte[] { 0, 255, 128 }),
+            "concurrent saves must create exactly one intact file");
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        try { await Save("cancelled.bin", [1], cancelled.Token); throw new Exception("cancelled save succeeded"); }
+        catch (OperationCanceledException) { }
+        Check(!File.Exists(Path.Combine(root, "cancelled.bin")), "cancelled save left an incomplete file");
+        using var broken = new FailedDownloadStream();
         try
         {
-            AttachmentPushClient.SaveLocalArtifact("unique.bin", [0, 255, 128]);
-            Interlocked.Increment(ref successes);
+            await AttachmentPushClient.SaveLocalArtifactAsync("failed.bin", root, broken, 100, CancellationToken.None);
+            throw new Exception("broken transfer succeeded");
         }
-        catch (Exception exception) when (exception is IOException or InvalidToolArgumentException) { }
-    })));
-    Check(successes == 1 && (await File.ReadAllBytesAsync(Path.Combine(root, "unique.bin"))).SequenceEqual(new byte[] { 0, 255, 128 }),
-        "concurrent saves must create exactly one intact file");
-    var oldRoot = Environment.GetEnvironmentVariable("M365_ATTACHMENT_ROOT");
-    Environment.SetEnvironmentVariable("M365_ATTACHMENT_ROOT", null);
-    try
-    {
+        catch (IOException) { }
+        Check(!File.Exists(Path.Combine(root, "failed.bin")), "broken transfer left an incomplete file");
+        var oldRoot = Environment.GetEnvironmentVariable("M365_ATTACHMENT_ROOT");
+        Environment.SetEnvironmentVariable("M365_ATTACHMENT_ROOT", null);
         try
         {
-            AttachmentPushClient.SaveLocalArtifact("no-root.bin", [1]);
-            throw new Exception("save did not require a configured root");
+            var defaultRoot = AttachmentPushClient.DownloadDirectory();
+            Check(Path.IsPathFullyQualified(defaultRoot) && Path.GetFileName(defaultRoot) == "M365-MCP", "Windows Downloads default is unavailable");
+            var relative = "ci-" + Guid.NewGuid() + "/default.bin";
+            try
+            {
+                using var input = new MemoryStream([1, 2, 3]);
+                var saved = await AttachmentPushClient.SaveLocalArtifactAsync(relative, defaultRoot, input, 100, CancellationToken.None);
+                Check(File.Exists(saved.Path), "default directory did not create a file");
+            }
+            finally { Directory.Delete(Path.Combine(defaultRoot, relative.Split('/')[0]), recursive: true); }
+            Check(AttachmentPushClient.DownloadDirectory(root) == root, "explicit directory override failed");
+            try { AttachmentPushClient.DownloadDirectory("relative/path"); throw new Exception("relative override accepted"); }
+            catch (InvalidToolArgumentException) { }
         }
-        catch (InvalidToolArgumentException) { }
+        finally { Environment.SetEnvironmentVariable("M365_ATTACHMENT_ROOT", oldRoot); }
+        Environment.SetEnvironmentVariable("M365_MAX_DOWNLOAD_MIB", null);
+        Check(AttachmentPushClient.DownloadLimit() == 150L * 1024 * 1024, "default limit must be 150 MiB");
+        foreach (var value in new[] { "0", "-1", "x", "1.5", "8796093022208" })
+        {
+            Environment.SetEnvironmentVariable("M365_MAX_DOWNLOAD_MIB", value);
+            try { AttachmentPushClient.DownloadLimit(); throw new Exception("invalid limit accepted: " + value); }
+            catch (InvalidToolArgumentException) { }
+        }
+        Environment.SetEnvironmentVariable("M365_MAX_DOWNLOAD_MIB", "512");
+        Check(AttachmentPushClient.DownloadLimit() == 512L * 1024 * 1024, "configured download limit was not applied");
     }
-    finally
-    {
-        Environment.SetEnvironmentVariable("M365_ATTACHMENT_ROOT", oldRoot);
-    }
+    finally { Environment.SetEnvironmentVariable("M365_MAX_DOWNLOAD_MIB", previousLimit); }
 }
 
 static JsonObject Rpc(string method) => new() { ["jsonrpc"] = "2.0", ["id"] = 1, ["method"] = method };
@@ -362,7 +405,7 @@ sealed class MockGraph : HttpMessageHandler
     private readonly Queue<Func<HttpRequestMessage, Task<HttpResponseMessage>>> requests = new();
 
     internal void Expect(string method, string path, string response, Action<HttpRequestMessage, JsonNode?>? inspect = null,
-        HttpStatusCode status = HttpStatusCode.OK)
+        HttpStatusCode status = HttpStatusCode.OK, HttpContent? content = null)
     {
         requests.Enqueue(async request =>
         {
@@ -381,7 +424,7 @@ sealed class MockGraph : HttpMessageHandler
                 body = JsonNode.Parse(await request.Content.ReadAsStringAsync());
             }
             inspect?.Invoke(request, body);
-            return new HttpResponseMessage(status) { Content = new StringContent(response, Encoding.UTF8, "application/json") };
+            return new HttpResponseMessage(status) { Content = content ?? new StringContent(response, Encoding.UTF8, "application/json") };
         });
     }
 
@@ -392,4 +435,20 @@ sealed class MockGraph : HttpMessageHandler
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
         requests.Count == 0 ? throw new Exception("Unexpected network request: " + request.RequestUri) : requests.Dequeue()(request);
+}
+
+sealed class UnknownLengthContent(byte[] bytes) : HttpContent
+{
+    protected override bool TryComputeLength(out long length) { length = 0; return false; }
+    protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => stream.WriteAsync(bytes).AsTask();
+    protected override Task<Stream> CreateContentReadStreamAsync() => Task.FromResult<Stream>(new MemoryStream(bytes, writable: false));
+}
+
+sealed class FailedDownloadStream() : MemoryStream(new byte[] { 1, 2, 3 }, writable: false)
+{
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        if (Position == Length) { throw new IOException("PROVIDER_SECRET"); }
+        return base.ReadAsync(buffer, cancellationToken);
+    }
 }
