@@ -233,7 +233,14 @@ jobs:
           pattern: windows-local-go-*
           merge-multiple: true
           path: release-assets
-      - name: Verify Windows checksum
+      - name: Package shared mail Skill
+        run: |
+          git archive --format=zip --prefix=m365-mail/ \
+            --output=release-assets/m365-mail-skill.zip \
+            "${GITHUB_SHA}:workbuddy/skills/m365-mail"
+          cd release-assets
+          sha256sum m365-mail-skill.zip >> SHA256SUMS.txt
+      - name: Verify release checksums
         run: |
           cd release-assets
           cat m365-mcp-windows-local-amd64.exe.sha256 >> SHA256SUMS.txt
@@ -299,7 +306,7 @@ jobs:
             docker tag m365-mcp-server:release "$tag"
             docker push "$tag"
           done <<< "$IMAGE_TAGS"
-      - name: Create GitHub Release with Windows assets
+      - name: Create GitHub Release with Windows and Skill assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -313,6 +320,7 @@ jobs:
             release-assets/m365-mcp-windows-local-go-arm64.exe.sha256 \
             release-assets/m365-mcp-windows-local-go-amd64.zip \
             release-assets/m365-mcp-windows-local-go-arm64.zip \
+            release-assets/m365-mail-skill.zip \
             release-assets/SHA256SUMS.txt \
             release-assets/LICENSE \
             --verify-tag \
