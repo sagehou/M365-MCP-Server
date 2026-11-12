@@ -24,17 +24,17 @@ The .NET local edition provides 11, and Go provides 12.
 
 ## Releases
 
-[Download v0.1.3](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3).
+[Download v0.1.4](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.4).
 
 | Artifact | Name |
 | --- | --- |
-| Container image | `ghcr.io/sagehou/m365-mcp-server:v0.1.3` |
+| Container image | `ghcr.io/sagehou/m365-mcp-server:v0.1.4` |
 | .NET NativeAOT, Windows x64 | `m365-mcp-windows-local-amd64.exe` |
 | Go, Windows x64 / ARM64 | `m365-mcp-windows-local-go-amd64.exe`, `m365-mcp-windows-local-go-arm64.exe` |
 | Go packages with both language guides | `m365-mcp-windows-local-go-amd64.zip`, `m365-mcp-windows-local-go-arm64.zip` |
 
 The release includes SHA-256 checksums and EXE hashes in its description.
-The .NET artifact also has GitHub Artifact Attestation. Both local editions
+All three EXEs also have GitHub Artifact Attestation. Both local editions
 include the same public Client ID and support your own application; their
 configuration steps are in the single local guide.
 
@@ -52,7 +52,7 @@ environments, install test dependencies, or run local tests/builds.
 - [Security design](docs/security.md)
 - [Development plan](docs/development-plan.md)
 - [Release acceptance checklist](docs/release-checklist.md)
-- [v0.1.3 release notes](docs/releases/v0.1.3.md)
+- [v0.1.4 release notes](docs/releases/v0.1.4.md)
 
 Search continuation, reply/forward, HTML composition, OCR, shared mailboxes,
 enterprise policy features, and Calendar/OneDrive/SharePoint/Teams are future
@@ -70,4 +70,4 @@ dependencies retain their own licenses.
 
 Real tenant consent and client behavior require deployment acceptance. Windows
 EXEs are unsigned; hashes and provenance do not guarantee antivirus acceptance.
-Updated: 2026-11-11.
+Updated: 2026-11-12.

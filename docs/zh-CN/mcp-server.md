@@ -5,7 +5,7 @@
 | 项目 | 配置 |
 | --- | --- |
 | 运行环境 | 非 root 容器中的 Python 3.12 |
-| 镜像 | `ghcr.io/sagehou/m365-mcp-server:v0.1.3` |
+| 镜像 | `ghcr.io/sagehou/m365-mcp-server:v0.1.4` |
 | MCP 入口 | `https://<你的域名>/mcp/`，使用 Streamable HTTP |
 | 身份 | Microsoft Entra 用户委托身份，通过 OBO 和 `/me` 访问 Graph |
 | Entra 应用 | 自建一个机密客户端应用，同时用于 API 和浏览器登录 |
@@ -108,7 +108,7 @@ cp deploy/.env.example deploy/.env
 编辑 `deploy/.env`。使用服务器管理的浏览器登录（包括 WorkBuddy）时填写：
 
 ```dotenv
-M365_MCP_IMAGE=ghcr.io/sagehou/m365-mcp-server:v0.1.3
+M365_MCP_IMAGE=ghcr.io/sagehou/m365-mcp-server:v0.1.4
 CLIENT_ID=<application-client-id>
 CLIENT_SECRET=<client-secret-value>
 CLIENT_CERT_PATH=
@@ -389,4 +389,4 @@ OBO 故障可通过安全审计字段 `entra_error`、`entra_suberror`、`entra_
 ---
 
 仓库构建与测试仅通过 GitHub Actions 执行，编辑环境不得运行本地测试或安装测试依赖。
-CI 使用模拟身份流程，不能代替目标租户和客户端验收。更新日期：2026-11-11。
+CI 使用模拟身份流程，不能代替目标租户和客户端验收。更新日期：2026-11-12。

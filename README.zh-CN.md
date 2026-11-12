@@ -21,16 +21,16 @@ Go 本地版为 12 项。
 
 ## 发布
 
-[下载 v0.1.3](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.3)。
+[下载 v0.1.4](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.4)。
 
 | 产物 | 名称 |
 | --- | --- |
-| 容器镜像 | `ghcr.io/sagehou/m365-mcp-server:v0.1.3` |
+| 容器镜像 | `ghcr.io/sagehou/m365-mcp-server:v0.1.4` |
 | .NET NativeAOT，Windows x64 | `m365-mcp-windows-local-amd64.exe` |
 | Go，Windows x64 / ARM64 | `m365-mcp-windows-local-go-amd64.exe`、`m365-mcp-windows-local-go-arm64.exe` |
 | Go 双语指南压缩包 | `m365-mcp-windows-local-go-amd64.zip`、`m365-mcp-windows-local-go-arm64.zip` |
 
-Release 包含 SHA-256 校验文件及说明中的 EXE 哈希。.NET 产物另有 GitHub Artifact
+Release 包含 SHA-256 校验文件及说明中的 EXE 哈希。三个 EXE 均提供 GitHub Artifact
 Attestation。两套本地版内置同一个公开 Client ID，也支持自建应用，配置步骤统一写在
 本地版指南中。
 
@@ -47,7 +47,7 @@ Attestation。两套本地版内置同一个公开 Client ID，也支持自建�
 - [安全设计](docs/zh-CN/security.md)
 - [开发计划](docs/zh-CN/development-plan.md)
 - [发布验收清单](docs/zh-CN/release-checklist.md)
-- [v0.1.3 发布说明](docs/zh-CN/releases/v0.1.3.md)
+- [v0.1.4 发布说明](docs/zh-CN/releases/v0.1.4.md)
 
 后续工作包括搜索翻页、回复/转发、HTML 撰写、OCR、共享邮箱、企业策略能力，以及
 Calendar/OneDrive/SharePoint/Teams。Windows Authenticode 签名和可选 WAM 集成也属于
@@ -62,4 +62,4 @@ Calendar/OneDrive/SharePoint/Teams。Windows Authenticode 签名和可选 WAM �
 ---
 
 真实租户同意和客户端行为需在部署环境验收。Windows EXE 尚未签名；哈希和来源证明
-不保证杀毒软件放行。更新日期：2026-11-11。
+不保证杀毒软件放行。更新日期：2026-11-12。

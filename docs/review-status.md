@@ -15,8 +15,9 @@ returns Graph acceptance without claiming delivery. Per-message confirmation or
 bounded automation authorization remains a client/agent responsibility. Search
 returns one bounded page; continuation cursors, replies, forwarding, shared
 mailboxes, OCR, Calendar, Drive, SharePoint and Teams are outside the implemented
-scope. The latest published release is `v0.1.3`; this review describes the source
-changes in [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60).
+scope. Release `v0.1.4` includes the review corrections in
+[PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) and the local-command
+and account-type alignment in [PR #63](https://github.com/sagehou/M365-MCP-Server/pull/63).
 
 ## Findings and corrections
 
@@ -61,8 +62,8 @@ share the dependency/security gates relevant to their artifacts.
 | Windows .NET checks | All 11 tools through stdio with mock Graph, date/search/category/draft validation, small and chunked attachments, sanitized failures, no ambiguous write replay, DPAPI binding/ephemeral state, refresh and malformed token responses |
 | Windows .NET artifact | NativeAOT single executable, Windows file details, client-ID defaults/overrides and startup without a runtime on PATH |
 | Windows Go checks | Windows/Linux race tests, module verification, vet, unreachable application functions and Windows AMD64/ARM64 vulnerability analysis |
-| Windows Go artifacts | Single-file AMD64/ARM64 builds, version details, ZIPs/checksums and AMD64 startup without an external runtime |
+| Windows Go artifacts | Single-file AMD64/ARM64 builds, version details, ZIPs/checksums, AMD64 startup without an external runtime, and generated stdio configuration with persisted personal-account state |
 
 ---
 
-Known-advisory scans and static analysis describe the checked snapshot, not a proof of zero defects or vulnerabilities. Live tenant consent, real Graph delivery, target-agent integration, Windows ARM64 execution, interactive file-picker behavior and antivirus/code-signing trust have not been validated by these checks. No local tests, builds, dependency installs or virtual environments were used. Updated: 2026-11-11.
+Known-advisory scans and static analysis describe the checked snapshot, not a proof of zero defects or vulnerabilities. Live tenant consent, real Graph delivery, target-agent integration, Windows ARM64 execution, interactive file-picker behavior and antivirus/code-signing trust have not been validated by these checks. No local tests, builds, dependency installs or virtual environments were used. Updated: 2026-11-12.
