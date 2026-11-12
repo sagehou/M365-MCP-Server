@@ -15,10 +15,10 @@ the available tools and their schemas.
 
 ## Install in Codex or Claude Code
 
-1. [Download/extract the source archive](https://github.com/sagehou/M365-MCP-Server/archive/refs/heads/main.zip),
-   or clone the repository, and open a terminal at its root. The shared source
-   is `workbuddy/skills/m365-mail/`; its location
-   also lets WorkBuddy include it without maintaining another copy.
+1. [Download m365-mail-skill.zip](https://github.com/sagehou/M365-MCP-Server/releases/latest/download/m365-mail-skill.zip)
+   and extract it into a working folder. Open a terminal in that folder; it
+   should contain the `m365-mail/` directory. Verify the ZIP's SHA-256 against
+   the release's `SHA256SUMS.txt`.
 2. Copy the **whole `m365-mail` folder**, including `references/`, into one
    client Skill directory:
 
@@ -32,7 +32,7 @@ Windows PowerShell, personal Codex installation:
 ```powershell
 $m365SkillParent = Join-Path $env:USERPROFILE '.agents\skills'
 New-Item -ItemType Directory -Path $m365SkillParent -Force | Out-Null
-Copy-Item -LiteralPath '.\workbuddy\skills\m365-mail' -Destination $m365SkillParent -Recurse
+Copy-Item -LiteralPath '.\m365-mail' -Destination $m365SkillParent -Recurse
 ```
 
 For Claude Code, set `$m365SkillParent` to
@@ -44,7 +44,7 @@ macOS/Linux shell, personal Codex installation:
 ```bash
 m365_skill_parent="$HOME/.agents/skills"
 mkdir -p "$m365_skill_parent"
-cp -R workbuddy/skills/m365-mail "$m365_skill_parent/"
+cp -R m365-mail "$m365_skill_parent/"
 ```
 
 For Claude Code, use `"$HOME/.claude/skills"`; for project scope, use the
@@ -64,6 +64,11 @@ The paths and invocation forms follow the official
 Other Agent Skills clients can use the same complete folder in their own
 documented Skill directory. A client with MCP support alone may not discover
 Skills; it must also support the Skill format or load the instructions manually.
+
+For a clone or [source archive](https://github.com/sagehou/M365-MCP-Server/archive/refs/heads/main.zip),
+the shared source remains `workbuddy/skills/m365-mail/`. Run from the repository
+root and use that source path instead of `m365-mail` in the copy commands.
+WorkBuddy packages this same folder without maintaining another Skill copy.
 
 `SKILL.md` is the single entry point. Its Chinese link opens the complete
 [Chinese instructions](references/zh-CN.md); both versions use the same tool

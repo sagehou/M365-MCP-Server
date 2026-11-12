@@ -15,7 +15,7 @@
 
 ## 安装
 
-从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.4)
+从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.5)
 下载对应文件：
 
 | 版本 | 发布文件 | 下文使用的 EXE |

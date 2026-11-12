@@ -5,7 +5,7 @@
 | Item | Configuration |
 | --- | --- |
 | Runtime | Python 3.12 in a non-root container |
-| Image | `ghcr.io/sagehou/m365-mcp-server:v0.1.4` |
+| Image | `ghcr.io/sagehou/m365-mcp-server:v0.1.5` |
 | MCP endpoint | Streamable HTTP at `https://<your-host>/mcp/` |
 | Identity | Microsoft Entra delegated user identity; Graph access through OBO and `/me` |
 | Entra application | One self-managed confidential application for the API and browser sign-in |
@@ -121,7 +121,7 @@ cp deploy/.env.example deploy/.env
 Edit `deploy/.env`. For server-managed browser sign-in, including WorkBuddy:
 
 ```dotenv
-M365_MCP_IMAGE=ghcr.io/sagehou/m365-mcp-server:v0.1.4
+M365_MCP_IMAGE=ghcr.io/sagehou/m365-mcp-server:v0.1.5
 CLIENT_ID=<application-client-id>
 CLIENT_SECRET=<client-secret-value>
 CLIENT_CERT_PATH=

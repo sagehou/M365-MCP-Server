@@ -13,9 +13,9 @@
 
 ## 安装到 Codex 或 Claude Code
 
-1. [下载并解压源码包](https://github.com/sagehou/M365-MCP-Server/archive/refs/heads/main.zip)，
-   或克隆仓库，在仓库根目录打开终端。共享源文件位于
-   `workbuddy/skills/m365-mail/`，复用此位置也便于 WorkBuddy 打包，无需维护另一份。
+1. [下载 m365-mail-skill.zip](https://github.com/sagehou/M365-MCP-Server/releases/latest/download/m365-mail-skill.zip)，
+   解压到一个工作目录，在该目录打开终端；其中应包含 `m365-mail/` 文件夹。
+   将 ZIP 的 SHA-256 与 Release 的 `SHA256SUMS.txt` 核对。
 2. 将**整个 `m365-mail` 文件夹**（含 `references/`）复制到一个客户端 Skill 目录：
 
 | 客户端 | 个人安装 | 项目安装 | 显式调用 |
@@ -28,7 +28,7 @@ Windows PowerShell，安装到个人 Codex：
 ```powershell
 $m365SkillParent = Join-Path $env:USERPROFILE '.agents\skills'
 New-Item -ItemType Directory -Path $m365SkillParent -Force | Out-Null
-Copy-Item -LiteralPath '.\workbuddy\skills\m365-mail' -Destination $m365SkillParent -Recurse
+Copy-Item -LiteralPath '.\m365-mail' -Destination $m365SkillParent -Recurse
 ```
 
 Claude Code 将 `$m365SkillParent` 改为
@@ -40,7 +40,7 @@ macOS/Linux Shell，安装到个人 Codex：
 ```bash
 m365_skill_parent="$HOME/.agents/skills"
 mkdir -p "$m365_skill_parent"
-cp -R workbuddy/skills/m365-mail "$m365_skill_parent/"
+cp -R m365-mail "$m365_skill_parent/"
 ```
 
 Claude Code 使用 `"$HOME/.claude/skills"`；项目安装使用目标项目的 `.agents/skills`
@@ -57,6 +57,10 @@ Claude Code 使用 `"$HOME/.claude/skills"`；项目安装使用目标项目的 
 和 [Claude Code Skill 文档](https://code.claude.com/docs/en/skills)。其他 Agent Skills
 客户端可将同一个完整文件夹放入其文档指定的 Skill 目录。仅支持 MCP 的客户端不一定
 能发现 Skill，还须支持 Skill 格式或允许手动加载指令。
+
+克隆仓库或使用[源码包](https://github.com/sagehou/M365-MCP-Server/archive/refs/heads/main.zip)
+时，共享源文件仍在 `workbuddy/skills/m365-mail/`。从仓库根目录运行复制命令，将源路径
+`m365-mail` 换成该路径。WorkBuddy 打包同一个文件夹，无需维护另一份 Skill。
 
 `SKILL.md` 是唯一入口，其中的中文链接指向完整[中文指令](references/zh-CN.md)，
 两种语言使用一致的工具名称和能力边界。远端上传仅在需要时加载单独参考文件。不要把

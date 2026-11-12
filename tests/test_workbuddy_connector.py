@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 import re
-import shutil
+import subprocess
+import zipfile
 
 from test_documentation import missing_markdown_links
 
@@ -30,7 +31,7 @@ def test_connector_uses_official_oauth_package_shape_without_credentials() -> No
     assert metadata["source"] == "sagehou-m365-mcp-server"
     assert re.fullmatch(r"[a-z0-9-]+", metadata["source"])
     assert metadata["type"] == "mcp"
-    assert metadata["version"] == "0.1.4"
+    assert metadata["version"] == "0.1.5"
     assert metadata["minWorkbuddyVersion"] == "4.24.0"
     assert len(metadata["examples_zh"]) >= 2
     assert len(metadata["examples_en"]) >= 2
@@ -56,9 +57,23 @@ def test_connector_ships_one_portable_skill_without_preapproved_tools() -> None:
     assert set(frontmatter) == {"name", "description"}
 
 
-def test_shared_skill_keeps_its_references_after_standalone_install(tmp_path: Path) -> None:
+def test_shared_skill_keeps_its_references_after_release_zip_install(tmp_path: Path) -> None:
+    package = tmp_path / "m365-mail-skill.zip"
+    subprocess.run(
+        [
+            "git", "archive", "--format=zip", "--prefix=m365-mail/",
+            f"--output={package}", "HEAD:workbuddy/skills/m365-mail",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+    with zipfile.ZipFile(package) as archive:
+        assert {name for name in archive.namelist() if not name.endswith("/")} == {
+            path.relative_to(SKILL.parent).as_posix()
+            for path in SKILL.rglob("*") if path.is_file()
+        }
+        archive.extractall(tmp_path / "client-skills")
     installed = tmp_path / "client-skills" / "m365-mail"
-    shutil.copytree(SKILL, installed)
     for document in installed.rglob("*.md"):
         assert not missing_markdown_links(document, document.read_text("utf-8"))
 

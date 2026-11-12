@@ -16,7 +16,7 @@
 ## Install
 
 Download the appropriate files from the
-[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.4):
+[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.5):
 
 | Edition | Release file | Executable used below |
 | --- | --- | --- |

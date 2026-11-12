@@ -27,14 +27,15 @@ The .NET local edition provides 11, and Go provides 12.
 
 ## Releases
 
-[Download v0.1.4](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.4).
+[Download v0.1.5](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.5).
 
 | Artifact | Name |
 | --- | --- |
-| Container image | `ghcr.io/sagehou/m365-mcp-server:v0.1.4` |
+| Container image | `ghcr.io/sagehou/m365-mcp-server:v0.1.5` |
 | .NET NativeAOT, Windows x64 | `m365-mcp-windows-local-amd64.exe` |
 | Go, Windows x64 / ARM64 | `m365-mcp-windows-local-go-amd64.exe`, `m365-mcp-windows-local-go-arm64.exe` |
 | Go packages with both language guides | `m365-mcp-windows-local-go-amd64.zip`, `m365-mcp-windows-local-go-arm64.zip` |
+| Shared mail Skill with both language instructions | `m365-mail-skill.zip` |
 
 The release includes SHA-256 checksums and EXE hashes in its description.
 All three EXEs also have GitHub Artifact Attestation. Both local editions
@@ -55,7 +56,7 @@ environments, install test dependencies, or run local tests/builds.
 - [Security design](docs/security.md)
 - [Development plan](docs/development-plan.md)
 - [Release acceptance checklist](docs/release-checklist.md)
-- [v0.1.4 release notes](docs/releases/v0.1.4.md)
+- [v0.1.5 release notes](docs/releases/v0.1.5.md)
 
 Search continuation, reply/forward, HTML composition, OCR, shared mailboxes,
 enterprise policy features, and Calendar/OneDrive/SharePoint/Teams are future
