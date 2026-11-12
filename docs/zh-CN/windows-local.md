@@ -7,7 +7,7 @@
 | Windows 架构 | AMD64 / x64 | AMD64 / x64、ARM64 |
 | 安装运行时 | 无需 | 无需 |
 | Microsoft 登录 | 系统浏览器、Authorization Code + S256 PKCE | 系统浏览器、Authorization Code + S256 PKCE |
-| MCP 传输 | stdio，命令为 `stdio` | stdio，命令为 `serve`；可选本机鉴权 HTTP |
+| MCP 传输 | stdio，命令为 `stdio` | stdio，命令为 `stdio`；本机鉴权 HTTP，命令为 `http` |
 | 邮件工具 | 11 项 | 12 项，含附件下载 |
 | 附件文本提取 | UTF-8 文本、CSV、JSON、XML | PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 | 添加本地草稿附件 | 文件选择框或配置目录下的相对路径 | 配置目录下的相对路径 |
@@ -36,6 +36,17 @@ Get-FileHash .\m365-mcp-windows-local-go-amd64.zip -Algorithm SHA256
 执行与你下载文件对应的命令。单独下载 Go EXE 时，可重命名为
 `m365-mcp-windows-local-go.exe`；保留架构后缀时，所有命令和客户端路径也要保留。
 ZIP 包包含本指南的中英文版本及许可声明，实际运行只需 EXE。
+
+<details>
+<summary>ⓘ Go 命令更新与旧版配置</summary>
+
+下文的 `stdio`、`http` 和 `consumers` 支持需要包含本次命令与账户类型更新的构建。
+已发布的 Go `v0.1.3` 使用 `serve`，不接受 `consumers`；修改配置不会更新已有 EXE。
+升级程序后，将 `args: ["serve"]` 改为 `args: ["stdio"]`，或执行 `connection` 重新生成
+配置；HTTP 启动命令由 `serve --http` 改为 `http`。已有加密登录状态仍可使用，仅因
+命令更新无需重新登录。
+
+</details>
 
 ## 使用内置应用登录
 
@@ -69,16 +80,17 @@ ZIP 包包含本指南的中英文版本及许可声明，实际运行只需 EXE
    `http://localhost` 并保存。使用根地址，不加 `/callback` 或固定端口，不要在 **Web**
    或**单页应用程序**平台重复注册。
 4. 进入 **API 权限 > 添加权限 > Microsoft Graph > 委托的权限**，添加下表三项权限。
-   此本地应用无需创建 Client Secret、邮箱 Application 权限或 `access_as_user` API。
+   此本地应用无需创建 Client Secret、邮箱 Application 权限，或公开名为 `access_as_user`
+   的自定义 API 权限范围。
 5. 继续配置下文中所用版本。租户允许用户自行同意时，在登录过程中授权即可；只有需要批准
    时才走组织的管理员同意流程。
 
-| 注册时支持的账户类型 | 租户配置 | 适用版本 |
-| --- | --- | --- |
-| 仅此组织目录中的账户 | 应用所属目录（租户）GUID；单组织建议选择此项 | 两者 |
-| 任何组织目录中的账户 | `organizations`，或指定租户 GUID | 两者 |
-| 组织账户和个人 Microsoft 账户 | `common` | 两者 |
-| 仅个人 Microsoft 账户 | `consumers` | 仅 .NET NativeAOT |
+| 注册时支持的账户类型（两种版本一致） | 租户配置 |
+| --- | --- |
+| 仅此组织目录中的账户 | 应用所属目录（租户）GUID；单组织建议选择此项 |
+| 任何组织目录中的账户 | `organizations`，或指定租户 GUID |
+| 组织账户和个人 Microsoft 账户 | `common` |
+| 仅个人 Microsoft 账户 | `consumers` |
 
 | Graph 委托权限 | 当前用途 | 权限本身是否强制管理员同意 |
 | --- | --- | --- |
@@ -100,8 +112,8 @@ PKCE 会按公共客户端处理。Entra 匹配时忽略随机端口，但路径
 [桌面应用注册](https://learn.microsoft.com/zh-cn/entra/identity-platform/scenario-desktop-app-configuration)
 和[公共客户端说明](https://learn.microsoft.com/zh-cn/entra/identity-platform/msal-client-applications)。
 
-Go 接受租户 GUID、`organizations` 和 `common`，不接受 `consumers`。Go 使用个人
-Outlook.com 账户时，应注册为支持组织**及**个人账户，并使用 `common`。修改 Authority
+两种版本都接受租户 GUID、`organizations`、`common` 和 `consumers`。仅支持个人账户的
+应用使用 `consumers`；同时支持组织和个人账户的应用使用 `common`。修改 Authority
 不会改变应用注册支持的账户类型。账户需有可访问的 Outlook/Exchange 邮箱。租户禁用
 应用注册时，需单独申请注册权限；它与邮箱权限同意是两件事。
 
@@ -113,6 +125,11 @@ Outlook.com 账户时，应注册为支持组织**及**个人账户，并使用 
 邮件接口和 PKCE 本身不依赖 `User.Read`，但当前发布的两套版本仍默认请求它。仅从
 **API 权限**删除此项，不会改变 EXE 请求。.NET 支持下文的 Scope 覆盖；Go 目前既没有
 自定义 Scope 参数，也不支持 `M365_LOCAL_GRAPH_SCOPES`。
+
+两套默认登录还会请求 `openid`、`profile`、`offline_access`，Go 中由 MSAL 自动附加。
+管理员已批准但用户仍遇到审批提示时，按失败日志的应用程序 ID 找到**企业应用 > 此应用 >
+权限 > 管理员同意**，将实际请求的 Scope 与整个组织的委托授权逐项比较；只授予管理员
+个人的权限不覆盖其他用户。
 
 这三项委托权限在[微软权限表](https://learn.microsoft.com/zh-cn/graph/permissions-reference)
 中均为 **AdminConsentRequired: No**。[租户用户同意策略](https://learn.microsoft.com/zh-cn/entra/identity/enterprise-apps/configure-user-consent)
@@ -212,14 +229,15 @@ Go 没有 `doctor` 或 `status` 命令。
   "mcpServers": {
     "m365-local": {
       "command": "C:\\Tools\\m365-mcp-windows-local-go.exe",
-      "args": ["serve"]
+      "args": ["stdio"]
     }
   }
 }
 ```
 
-Go 登录后保存所选应用、租户和账户，`serve`、`connection` 使用已保存的配置，客户端
-无需再携带登录环境变量。仅改变量或给 `serve` 传 `--client-id` 不会切换应用。
+Go 登录后保存所选应用、租户和账户，`stdio`、`http`、`connection` 使用已保存的配置，
+客户端无需再携带登录环境变量。只有 `login` 接受 `--client-id`、`--tenant`；切换应用
+需重新执行 `login`。
 MCP 客户端负责启动进程，stdout 只输出协议数据，日志写入 stderr。
 
 ### Streamable HTTP
@@ -228,12 +246,12 @@ MCP 客户端负责启动进程，stdout 只输出协议数据，日志写入 st
 
 ```powershell
 .\m365-mcp-windows-local-go.exe connection --http --port 8000
-.\m365-mcp-windows-local-go.exe serve --http --port 8000
+.\m365-mcp-windows-local-go.exe http --port 8000
 ```
 
 将第一条命令输出的 JSON（包含 Bearer 请求头）填入客户端。监听仅绑定 `127.0.0.1`，
 所有 MCP 请求都需携带本机 Token，请妥善保管。重新登录会轮换此 Token，需重新生成 HTTP
-配置。stdio 模式使用默认 `serve` 命令。
+配置。stdio 模式使用 `stdio` 命令，不接受 `--http`。
 
 <details>
 <summary>ⓘ 服务器 OAuth 连接器与本机传输</summary>
@@ -268,7 +286,7 @@ $env:M365_ATTACHMENT_ROOT = 'C:\M365Artifacts'
 不传 `relative_path` 时使用 Windows 文件选择框。
 
 Go 设置目录后重新执行 `connection`，stdio JSON 会包含对应 `env`；HTTP 模式在启动
-`serve` 时继承变量。调用
+`http` 时继承变量。调用
 `mail_add_draft_attachment(draft_id, relative_path="reports/weekly.docx")`。
 Go 必须提供相对路径，不支持文件选择框。
 
@@ -307,7 +325,7 @@ Go 下载使用不可猜测、五分钟、一次性的 HTTP URL，仅绑定 `127
 
 .NET 设置新的应用/租户后执行 `doctor` 和 `login`，同步修改 MCP 客户端 `env` 再重启。
 Go 用新参数或变量执行 `login`，然后执行 `connection`。重新登录会轮换 HTTP Token，
-已有 HTTP 配置需替换；stdio 保持 EXE 路径和 `serve` 参数。
+已有 HTTP 配置需替换；stdio 保持 EXE 路径和 `stdio` 参数。
 
 <details>
 <summary>ⓘ 恢复内置应用与本机状态位置</summary>
@@ -345,7 +363,7 @@ Remove-Item Env:M365_LOCAL_CLIENT_ID, Env:M365_LOCAL_TENANT_ID, Env:M365_LOCAL_G
 | `AADSTS7000218` / 要求 Secret | 修正重定向平台；桌面公共客户端无需 Secret。 |
 | `AADSTS700016` / 找不到应用 | 检查应用程序（客户端）ID、所选租户和支持的账户类型。 |
 | .NET 在 PowerShell 登录成功，但 MCP 仍要求登录 | 核对 Windows 用户及 `env`；`--ephemeral` 不会跨进程保存状态。 |
-| Go 仍使用旧应用/账户 | 停止 `serve`，退出登录，再用显式参数 `login`，之后执行 `connection`。 |
+| Go 仍使用旧应用/账户 | 停止 `stdio` 或 `http`，退出登录，再用显式参数 `login`，之后执行 `connection`。 |
 | `doctor` 成功，但无法登录 | .NET `doctor` 只校验本机配置，不检查租户注册或同意。 |
 | 登录成功，但 Graph `403` | 检查委托邮件授权和 Exchange/Outlook 邮箱可用性。 |
 | Go 重新登录后 HTTP `401` | 重新生成 `connection --http`，替换旧 Bearer Token。 |
@@ -392,4 +410,4 @@ Go AMD64 在 Windows 执行运行检查，ARM64 进行交叉编译和版本资�
 EXE 尚未签名。Go 不保证降低杀毒软件检出；校验和、版本信息和来源证明不能替代
 Authenticode 签名或厂商审核。Worker 资源限制不等于文件系统/网络沙箱。真实租户登录、
 客户端兼容性和杀毒行为需在目标电脑验收。编辑环境不得构建、测试、安装测试依赖或创建
-测试虚拟环境。更新日期：2026-11-11。
+测试虚拟环境。更新日期：2026-11-12。

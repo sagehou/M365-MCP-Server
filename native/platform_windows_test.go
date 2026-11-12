@@ -3,16 +3,28 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/sys/windows"
 )
 
 func TestMain(m *testing.M) {
+	if os.Getenv("M365_TEST_COMMAND") == "1" {
+		if err := run(os.Args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	if len(os.Args) > 1 && os.Args[1] == "extract-worker" {
 		if os.Getenv("M365_SECRET_TEST") != "" {
 			os.Exit(2)
@@ -23,6 +35,67 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+func TestWindowsStdioConnectionWithConsumerAccount(t *testing.T) {
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	t.Setenv("M365_ATTACHMENT_ROOT", "")
+	dir, err := stateDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := localConfig{ClientID: builtInClientID, Tenant: "consumers", AccountID: "ci-consumer-account", HTTPToken: strings.Repeat("a", 64)}
+	data, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := saveProtected(filepath.Join(dir, "settings.dpapi"), data); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := loadConfig(dir)
+	if err != nil || stored != config {
+		t.Fatalf("consumer account configuration did not round-trip: %v", err)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, executable, "connection")
+	command.Env = append(os.Environ(), "M365_TEST_COMMAND=1")
+	output, err := command.Output()
+	if err != nil {
+		t.Fatalf("connection command failed: %v", err)
+	}
+	var connection struct {
+		Servers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(output, &connection); err != nil {
+		t.Fatal(err)
+	}
+	entry := connection.Servers["m365"]
+	if entry.Command != executable || len(entry.Args) != 1 || entry.Args[0] != "stdio" {
+		t.Fatalf("connection did not generate the stdio command: %s", output)
+	}
+	if bytes.Contains(output, []byte(config.HTTPToken)) || bytes.Contains(output, []byte(config.AccountID)) {
+		t.Fatal("stdio configuration exposed account credentials")
+	}
+	command = exec.CommandContext(ctx, entry.Command, entry.Args...)
+	command.Env = append(os.Environ(), "M365_TEST_COMMAND=1")
+	client := mcp.NewClient(&mcp.Implementation{Name: "windows-cli-check", Version: "1"}, nil)
+	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: command}, nil)
+	if err != nil {
+		t.Fatalf("generated stdio configuration could not initialize MCP: %v", err)
+	}
+	defer session.Close()
+	listed, err := session.ListTools(ctx, nil)
+	if err != nil || len(listed.Tools) != 12 {
+		t.Fatalf("stdio did not expose all twelve tools: %v %v", listed, err)
+	}
 }
 
 func TestWindowsProtectedStorageAndProcessLock(t *testing.T) {

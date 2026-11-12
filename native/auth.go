@@ -30,8 +30,8 @@ func (c localConfig) validate() error {
 	if !uuidPattern.MatchString(c.ClientID) {
 		return errors.New("client-id must be a Microsoft Entra application ID")
 	}
-	if c.Tenant != "organizations" && c.Tenant != "common" && !uuidPattern.MatchString(c.Tenant) {
-		return errors.New("tenant must be a tenant ID, organizations, or common")
+	if c.Tenant != "organizations" && c.Tenant != "common" && c.Tenant != "consumers" && !uuidPattern.MatchString(c.Tenant) {
+		return errors.New("tenant must be a tenant ID, organizations, common, or consumers")
 	}
 	return nil
 }

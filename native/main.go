@@ -32,7 +32,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "M365 MCP for Windows\nCommands: login [--client-id ID] [--tenant ID], serve [--http --port 8000], connection [--http --port 8000], logout, version\nBuilt-in public Client ID: "+builtInClientID+"\nLogin overrides: M365_LOCAL_CLIENT_ID, M365_LOCAL_TENANT_ID; command-line flags take precedence.")
+		fmt.Fprintln(os.Stderr, "M365 MCP for Windows\nCommands: login [--client-id ID] [--tenant ID], stdio, http [--port 8000], connection [--http --port 8000], logout, version\nBuilt-in public Client ID: "+builtInClientID+"\nTenants: tenant GUID, organizations, common, consumers\nLogin overrides: M365_LOCAL_CLIENT_ID, M365_LOCAL_TENANT_ID; command-line flags take precedence.")
 		return nil
 	}
 	if args[0] == "version" {
@@ -42,25 +42,41 @@ func run(args []string) error {
 	if args[0] == "extract-worker" {
 		return runExtractionWorker()
 	}
-	if runtime.GOOS != "windows" {
-		return errors.New("this application requires Windows 10/11; use the Python container on other platforms")
+	switch args[0] {
+	case "login", "logout", "stdio", "http", "connection":
+	case "serve":
+		return errors.New("serve has been replaced; use stdio for MCP stdio or http for Streamable HTTP")
+	default:
+		return errors.New("unknown command; use login, stdio, http, connection, logout, or version")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
-	loginConfig := loginFlags(flags)
-	httpMode := flags.Bool("http", false, "Use authenticated loopback Streamable HTTP instead of stdio")
-	port := flags.Int("port", 8000, "Local HTTP port")
+	var loginConfig *localConfig
+	if args[0] == "login" {
+		loginConfig = loginFlags(flags)
+	}
+	httpMode := args[0] == "http"
+	port := 8000
+	if args[0] == "connection" {
+		flags.BoolVar(&httpMode, "http", false, "Generate authenticated loopback Streamable HTTP configuration")
+	}
+	if args[0] == "http" || args[0] == "connection" {
+		flags.IntVar(&port, "port", port, "Local HTTP port")
+	}
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *port < 1 || *port > 65535 {
+	if flags.NArg() != 0 || port < 1 || port > 65535 {
 		return errors.New("invalid command arguments or port")
+	}
+	if runtime.GOOS != "windows" {
+		return errors.New("this application requires Windows 10/11; use the Python container on other platforms")
 	}
 	dir, err := stateDirectory()
 	if err != nil {
 		return err
 	}
 	if args[0] == "connection" {
-		return printConnection(dir, *httpMode, *port)
+		return printConnection(dir, httpMode, port)
 	}
 	unlock, err := lockState(dir)
 	if err != nil {
@@ -94,7 +110,7 @@ func run(args []string) error {
 		}
 		fmt.Fprintln(os.Stderr, "Local sign-in credentials removed.")
 		return nil
-	case "serve":
+	case "stdio", "http":
 		config, err := loadConfig(dir)
 		if err != nil {
 			return err
@@ -110,8 +126,8 @@ func run(args []string) error {
 		server := newMCP(newMailTools(graph, downloads, logger))
 		address := "127.0.0.1:0"
 		var handler http.Handler
-		if *httpMode {
-			address = "127.0.0.1:" + strconv.Itoa(*port)
+		if httpMode {
+			address = "127.0.0.1:" + strconv.Itoa(port)
 			handler = authenticatedMCP(server, config.HTTPToken)
 		}
 		listener, err := downloads.start(ctx, address, handler)
@@ -119,15 +135,14 @@ func run(args []string) error {
 			return errors.New("could not bind the local listener; check whether the port is already in use")
 		}
 		defer listener.Close()
-		if *httpMode {
+		if httpMode {
 			fmt.Fprintln(os.Stderr, "MCP listening at http://"+listener.Addr().String()+"/mcp")
 			<-ctx.Done()
 			return nil
 		}
 		return server.Run(ctx, &mcp.StdioTransport{MaxLineLength: 1 << 20})
-	default:
-		return errors.New("unknown command; use login, serve, connection, logout, or version")
 	}
+	return nil
 }
 
 func loginFlags(flags *flag.FlagSet) *localConfig {
@@ -139,7 +154,7 @@ func loginFlags(flags *flag.FlagSet) *localConfig {
 		config.Tenant = value
 	}
 	flags.StringVar(&config.ClientID, "client-id", config.ClientID, "Microsoft Entra public-client application ID")
-	flags.StringVar(&config.Tenant, "tenant", config.Tenant, "Tenant ID, organizations, or common")
+	flags.StringVar(&config.Tenant, "tenant", config.Tenant, "Tenant ID, organizations, common, or consumers")
 	return config
 }
 
@@ -170,7 +185,7 @@ func printConnection(dir string, httpMode bool, port int) error {
 		if err != nil {
 			return err
 		}
-		connection = map[string]any{"command": executable, "args": []string{"serve"}}
+		connection = map[string]any{"command": executable, "args": []string{"stdio"}}
 		if root := os.Getenv("M365_ATTACHMENT_ROOT"); root != "" {
 			if !filepath.IsAbs(root) {
 				return errors.New("M365_ATTACHMENT_ROOT must be an absolute operator-controlled directory")

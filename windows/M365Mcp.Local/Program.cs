@@ -180,7 +180,7 @@ internal static class Program
 
             Optional environment:
               M365_LOCAL_CLIENT_ID=<public desktop application id override>
-              M365_LOCAL_TENANT_ID=<tenant id or organizations>
+              M365_LOCAL_TENANT_ID=<tenant id or organizations/common/consumers>
               M365_LOCAL_GRAPH_SCOPES=<space/comma-separated delegated scopes>
               M365_ATTACHMENT_ROOT=<trusted absolute artifact directory>
               M365_ATTACHMENT_PUSH_URL=<trusted HTTPS endpoint ending /uploads/push>
