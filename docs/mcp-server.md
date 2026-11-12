@@ -305,6 +305,10 @@ handle acquisition, consent, expiry, and refresh. A Graph access token has the
 wrong audience. This mode exposes 11 mail tools; enabling server-managed OAuth
 adds the two tools marked below.
 
+For client-side mail workflows, optionally
+[install m365-mail](../workbuddy/skills/m365-mail/README.md). The same Skill
+supports the server and both local editions; the WorkBuddy template includes it.
+
 ## Mail tools
 
 | Tools | Use |
@@ -373,7 +377,8 @@ PDF/DOCX/XLSX/PPTX/ZIP files up to 20 MiB, verifies the opened file, and writes
 no temporary attachment. Pass grants through stdin, not command arguments or
 logs. Re-inspect and request a new grant if the file changes.
 
-WorkBuddy's compose Skill may invoke these commands through its Bash tool.
+The shared `m365-mail` Skill can use an already authorized shell capability
+to invoke these commands, including WorkBuddy's Bash tool.
 The helper's file-root check constrains that EXE operation; configure the
 client's own sandbox and authorization for its general Bash access. Other
 trusted uploaders can implement the same HTTP contract.

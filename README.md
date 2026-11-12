@@ -9,6 +9,9 @@
 | Server | [Server edition](docs/mcp-server.md) | Python container, HTTPS Streamable HTTP, Entra/OBO, optional browser OAuth |
 | Windows local | [Local edition: .NET and Go](docs/windows-local.md) | Single-user EXE, browser PKCE, stdio; Go also offers authenticated loopback HTTP |
 
+Optional AI workflow: [install the shared m365-mail Skill](workbuddy/skills/m365-mail/README.md)
+for the server, .NET, or Go connection.
+
 ## Mail capabilities
 
 - Search and read the signed-in user's Outlook mailbox through delegated `/me`

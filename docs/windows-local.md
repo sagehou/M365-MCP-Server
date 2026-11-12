@@ -308,6 +308,10 @@ Both editions provide `mail_search`, `mail_get`, `mail_create_draft`,
 `mail_set_category`. Go also provides `mail_download_attachment`.
 Every Graph request uses the signed-in user's `/me` mailbox.
 
+Optionally [install the shared m365-mail Skill](https://github.com/sagehou/M365-MCP-Server/blob/main/workbuddy/skills/m365-mail/README.md)
+in the AI client. It adapts attachment, download, and send workflows to the
+connected edition; it does not replace MCP configuration or sign-in.
+
 Drafts are plain text. Before sending, the MCP client must obtain per-message
 confirmation or enforce an explicit bounded automation authorization covering
 recipients, trusted content/attachment sources, volume, and expiry. Graph

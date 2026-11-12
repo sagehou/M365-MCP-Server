@@ -269,6 +269,9 @@ stdio/自定义请求头配置。Go HTTP Token 是本机访问凭据，不是 Mi
 `mail_mark_read`、`mail_archive`、`mail_move`、`mail_set_category`。
 Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户的 `/me` 邮箱。
 
+可在 AI 客户端中选装[通用 m365-mail Skill](https://github.com/sagehou/M365-MCP-Server/blob/main/workbuddy/skills/m365-mail/README.zh-CN.md)。
+它按当前版本适配附件、下载和发送流程，不代替 MCP 配置或登录。
+
 草稿使用纯文本。发送前，MCP 客户端需取得逐封确认，或执行明确的受限自动化授权，约束
 收件人、可信内容/附件来源、数量和有效期。Graph 接受请求不代表最终送达。结果不明的写入
 不会自动重试；先检查草稿和附件，再决定后续操作。

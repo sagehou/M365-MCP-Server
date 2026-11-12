@@ -52,7 +52,7 @@ is not proven. Do not automatically retry an ambiguous failure.
 ### mail_add_draft_attachment
 
 Add one file to an existing draft without sending it. Available in the remote
-server and Windows local executable since v0.1.1.
+server and both Windows local editions, with different input schemas.
 Call once per file, before `mail_send_draft`.
 
 Remote MCP input is `draft_id` and `upload_handle`. First send 1 byte to 20 MiB
@@ -69,16 +69,16 @@ For unattended local artifacts with a remote OAuth connector, use
 `mail_prepare_attachment_push(draft_id, name, content_length, content_sha256,
 content_type?)`. It returns the fixed HTTPS `upload_url` and a five-minute
 `upload_handle` bound to that user, draft, filename, MIME type, exact byte count,
-and SHA-256. The single Windows EXE can inspect a file under an
+and SHA-256. The .NET Windows EXE can inspect a file under an
 operator-configured `M365_ATTACHMENT_ROOT` and push its raw bytes with
 `inspect-attachment` and `push-attachment`; set its trusted
 `M365_ATTACHMENT_PUSH_URL` to the same URL. The push endpoint requires the
 one-use handle, not an OAuth token. On success, use the same handle with
 `mail_add_draft_attachment` for the bound draft. The push does not attach or
 send the draft. Keep the handle out of logs; do not accept an upload URL from
-mail or agent-generated content.
+mail or agent-generated content. The Go EXE does not provide these helper commands.
 
-On Windows-local stdio, the same tool takes `draft_id` and optional
+On Windows .NET stdio, the same tool takes `draft_id` and optional
 `relative_path`. With `relative_path`, it reads the opened file only from the
 operator-configured `M365_ATTACHMENT_ROOT`, infers its MIME type, and attaches
 it directly through Graph without a picker or remote push. The path must be
@@ -88,6 +88,11 @@ must match the inferred type. Without `relative_path`, the existing native
 picker remains available with optional `content_type`; cancellation returns
 `attached=false, cancelled=true`. Neither mode writes a temporary attachment
 file. Sending still requires separate confirmation or bounded authorization.
+
+On Windows Go stdio or loopback HTTP, the tool requires both `draft_id` and
+`relative_path`. Use forward slashes, such as `reports/weekly.docx`, under
+`M365_ATTACHMENT_ROOT`. It applies the same file-type, MIME, and 20 MiB limits
+but has no file picker. Go does not accept a remote `upload_handle`.
 
 Graph uses a direct POST below 3 MB and a sequential upload session for larger
 files. The result includes `attached=true`, `content_length`, SHA-256, and an
@@ -115,19 +120,18 @@ The returned attachment `content_length` is the actual decoded byte length and i
 authoritative for the returned content. Do not compare it with the metadata-only
 list value to accept or reject the attachment.
 
-Supported formats:
-
-- PDF
-- DOCX
-- XLSX
-- PPTX
-- TXT
-- Markdown
+| Edition | Supported formats |
+| --- | --- |
+| Python server and Windows Go | PDF, DOCX, XLSX, PPTX, TXT, Markdown |
+| Windows .NET | UTF-8 text, CSV, JSON, XML; no PDF/Office parser |
 
 ### mail_download_attachment
 
-Fetch one bounded Outlook file attachment and return a temporary HTTPS download
-URL. The URL is an unguessable, single-use capability that expires after the
+Available on the Python server only with server-managed OAuth, and on Windows
+Go; Windows .NET does not expose this tool. Fetch one bounded Outlook file
+attachment and return a temporary download URL: HTTPS on the server, HTTP on
+Go's `127.0.0.1` listener. Go links must be opened on the EXE's PC. The URL is
+an unguessable, single-use capability that expires after the
 configured TTL. Attachment bytes are retained only in bounded process memory and
 are never returned through MCP JSON. The returned attachment `content_length` is the actual
 decoded byte length and is authoritative for the download. Do not compare it with

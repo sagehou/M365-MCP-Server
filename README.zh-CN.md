@@ -9,6 +9,9 @@
 | 服务器 | [服务器版](docs/zh-CN/mcp-server.md) | Python 容器、HTTPS Streamable HTTP、Entra/OBO，可选浏览器 OAuth |
 | Windows 本地 | [本地版：.NET 与 Go](docs/zh-CN/windows-local.md) | 单用户 EXE、浏览器 PKCE、stdio；Go 另提供本机鉴权 HTTP |
 
+可选 AI 工作流：[安装通用 m365-mail Skill](workbuddy/skills/m365-mail/README.zh-CN.md)，
+服务器版、.NET 和 Go 连接共用。
+
 ## 邮件能力
 
 - 通过委托 `/me` 权限搜索、读取登录用户的 Outlook 邮箱。

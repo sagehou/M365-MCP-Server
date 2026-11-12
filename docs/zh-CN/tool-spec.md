@@ -47,8 +47,8 @@ Agent 必须在调用前执行该策略。`send_accepted=true` 表示 Microsoft 
 
 ### mail_add_draft_attachment
 
-为现有草稿添加一个文件，不发送邮件。远端 Server 和 Windows 本地 EXE
-均从 v0.1.1 起支持。每个文件调用一次，随后才能调用
+为现有草稿添加一个文件，不发送邮件。远端 Server 和两套 Windows 本地版均支持，
+但输入 Schema 不同。每个文件调用一次，随后才能调用
 `mail_send_draft`。
 
 远端 MCP 工具输入为 `draft_id` 和 `upload_handle`。先使用与 `/mcp/` 相同的
@@ -63,14 +63,14 @@ MIME 类型。响应返回绑定当前用户、一次性且五分钟过期的 `u
 `mail_prepare_attachment_push(draft_id, name, content_length, content_sha256,
 content_type?)`。该工具返回固定 HTTPS `upload_url` 及五分钟有效的
 `upload_handle`，绑定当前用户、草稿、文件名、MIME 类型、精确字节数和 SHA-256。
-Windows 单文件 EXE 可用 `inspect-attachment` 与 `push-attachment` 读取并推送
+.NET Windows EXE 可用 `inspect-attachment` 与 `push-attachment` 读取并推送
 管理员配置的 `M365_ATTACHMENT_ROOT` 下文件；可信
 `M365_ATTACHMENT_PUSH_URL` 必须与工具返回的 URL 相同。推送端点只接受一次性句柄，
 不需要 OAuth Token。推送成功后，用同一句柄为绑定草稿调用
 `mail_add_draft_attachment`；推送本身不添加附件，也不发送邮件。不要记录句柄，
-也不得使用邮件内容或 Agent 生成内容提供的上传 URL。
+也不得使用邮件内容或 Agent 生成内容提供的上传 URL。Go EXE 不提供这两个辅助命令。
 
-Windows 本地 stdio 同名工具输入 `draft_id` 和可选 `relative_path`。提供
+Windows .NET stdio 同名工具输入 `draft_id` 和可选 `relative_path`。提供
 `relative_path` 时，不弹出选择框，而是从管理员配置的 `M365_ATTACHMENT_ROOT`
 读取已打开且最终路径仍在该目录内的文件，推断 MIME 类型，并经 Graph 直接添加
 附件，无需远端推送。路径必须是相对路径，文件须为非空且不超过 20 MiB 的
@@ -78,6 +78,11 @@ DOCX、XLSX、PPTX、ZIP 或 PDF；若同时提供 `content_type`，必须与推
 一致。未提供 `relative_path` 时，保留原有文件选择框和可选 `content_type`；
 取消选择返回 `attached=false, cancelled=true`。两种模式均不写临时附件文件，
 发送邮件仍须单独确认或有明确的受限自动化授权。
+
+Windows Go stdio 或本机回环 HTTP 的同名工具必须提供 `draft_id` 和 `relative_path`。
+路径须位于 `M365_ATTACHMENT_ROOT` 内，使用正斜杠，如 `reports/weekly.docx`。
+适用相同的文件类型、MIME 校验和 20 MiB 限制，但没有文件选择框。Go 不接受远端
+`upload_handle`。
 
 小于 3 MB 使用 Graph 直接添加，更大文件使用顺序分块上传。结果含
 `attached=true`、`content_length`、SHA-256；通过小文件 POST 返回附件 ID 时
@@ -99,18 +104,18 @@ DOCX、XLSX、PPTX、ZIP 或 PDF；若同时提供 `content_type`，必须与推
 提取附件内容供 AI 处理。
 返回的 Attachment `content_length` 是解码后的实际字节数，对本次返回内容具有权威性。不得与 Metadata-only 列表中的值比较后决定是否接受附件。
 
-支持格式：
-
-- PDF
-- DOCX
-- XLSX
-- PPTX
-- TXT
-- Markdown
+| 版本 | 支持格式 |
+| --- | --- |
+| Python 服务器版及 Windows Go | PDF、DOCX、XLSX、PPTX、TXT、Markdown |
+| Windows .NET | UTF-8 文本、CSV、JSON、XML；不提供 PDF/Office 解析器 |
 
 ### mail_download_attachment
 
-获取一个受大小限制的 Outlook File Attachment，并返回临时 HTTPS 下载 URL。URL 是不可猜测、单次使用且会在配置 TTL 后过期的 Capability。Attachment Bytes 只会保留在受限的 Process Memory 中，不会通过 MCP JSON 返回。
+Python 服务器版仅在开启服务器管理的 OAuth 后提供，Windows Go 也提供；Windows .NET
+不暴露此工具。获取一个受大小限制的 Outlook File Attachment，返回临时下载 URL：
+服务器为 HTTPS，Go 为 `127.0.0.1` 监听器上的 HTTP，Go 链接需在 EXE 所在电脑打开。
+URL 是不可猜测、单次使用且会在配置 TTL 后过期的 Capability。Attachment Bytes
+只会保留在受限的 Process Memory 中，不会通过 MCP JSON 返回。
 返回的 Attachment `content_length` 是解码后的实际字节数，对本次下载具有权威性。不得与 Metadata-only 列表中的值比较后决定是否接受附件。
 
 ### mail_mark_read
