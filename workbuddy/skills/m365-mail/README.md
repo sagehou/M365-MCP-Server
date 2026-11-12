@@ -110,19 +110,27 @@ Skill mechanism. The local HTTP endpoint does not implement MCP OAuth.
   the final draft before sending.”
 - “List the selected email's attachments and download the original PDF if this
   connection supports downloads.”
-- “Save the selected email's original attachment as downloads/report.pdf under
-  the configured attachment root, without opening a browser.”
+- “Save the selected email's original attachment as reports/report.pdf in the
+  default download folder.”
+- “Save these attachments to D:\MailArchive using download_dir.”
 
 When updating, replace the installed `m365-mail` folder with the complete new
 folder and refresh the client. This consolidates `outlook-mail`,
 `outlook-mail-compose`, `outlook-mail-management`, and `outlook-attachments`;
 remove those old Skill copies from the client or replace its old WorkBuddy
 package so duplicate instructions are not selected. To use direct local saves,
-upgrade the .NET or Go EXE to v0.1.6 or later, configure `M365_ATTACHMENT_ROOT`
-in the MCP process environment, and create the destination's parent directories.
-Refresh/restart the MCP connection so it exposes the new tool. Updating the
-Skill alone does not add executable capabilities; older versions retain their
-existing supported workflows.
+upgrade the .NET or Go EXE to v0.1.7 or later and refresh/restart the MCP
+connection to load its current tool list. No download-folder configuration is
+required: saves default to the actual Windows Downloads folder plus `M365-MCP`,
+and missing directories are created automatically. A user, Skill, or Agent can
+pass an absolute `download_dir` for a task; it takes priority over the optional
+process environment `M365_ATTACHMENT_ROOT` and the default folder. The original
+file save limit defaults to 150 MiB; set positive-integer `M365_MAX_DOWNLOAD_MIB`
+in the MCP server's environment to change it. Text reads and Go temporary URLs
+remain limited to 10 MiB. Environment changes require restarting the MCP
+process; setting variables only during `login` does not persist them. Updating
+the Skill alone does not add executable capabilities; older versions retain
+their existing supported workflows.
 
 ---
 

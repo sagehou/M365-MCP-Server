@@ -40,6 +40,7 @@ func TestMain(m *testing.M) {
 func TestWindowsStdioConnectionWithConsumerAccount(t *testing.T) {
 	t.Setenv("LOCALAPPDATA", t.TempDir())
 	t.Setenv("M365_ATTACHMENT_ROOT", "")
+	t.Setenv("M365_MAX_DOWNLOAD_MIB", "512")
 	dir, err := stateDirectory()
 	if err != nil {
 		t.Fatal(err)
@@ -70,8 +71,9 @@ func TestWindowsStdioConnectionWithConsumerAccount(t *testing.T) {
 	}
 	var connection struct {
 		Servers map[string]struct {
-			Command string   `json:"command"`
-			Args    []string `json:"args"`
+			Command string            `json:"command"`
+			Args    []string          `json:"args"`
+			Env     map[string]string `json:"env"`
 		} `json:"mcpServers"`
 	}
 	if err := json.Unmarshal(output, &connection); err != nil {
@@ -80,6 +82,9 @@ func TestWindowsStdioConnectionWithConsumerAccount(t *testing.T) {
 	entry := connection.Servers["m365"]
 	if entry.Command != executable || len(entry.Args) != 1 || entry.Args[0] != "stdio" {
 		t.Fatalf("connection did not generate the stdio command: %s", output)
+	}
+	if entry.Env["M365_MAX_DOWNLOAD_MIB"] != "512" {
+		t.Fatal("connection omitted the configured download limit")
 	}
 	if bytes.Contains(output, []byte(config.HTTPToken)) || bytes.Contains(output, []byte(config.AccountID)) {
 		t.Fatal("stdio configuration exposed account credentials")

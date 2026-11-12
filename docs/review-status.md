@@ -18,9 +18,12 @@ mailboxes, OCR, Calendar, Drive, SharePoint and Teams are outside the implemente
 scope. Release `v0.1.4` includes the review corrections in
 [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) and the local-command
 and account-type alignment in [PR #63](https://github.com/sagehou/M365-MCP-Server/pull/63).
-Release `v0.1.6` adds the shared `mail_save_attachment` contract: bounded original
-file saves under the configured root, existing parent directories, no overwrite,
-and matching byte-count/SHA-256 results. It does not add a .NET PDF/Office parser.
+Release `v0.1.7` streams `mail_save_attachment` bytes to disk in both local
+editions with a configurable 150 MiB default limit. Directory priority is
+`download_dir`, `M365_ATTACHMENT_ROOT`, then Windows Downloads/M365-MCP; missing
+directories are created. Both return the actual absolute path, byte count,
+and SHA-256 without overwriting. Text reads and Go temporary URLs retain their
+10 MiB limits; .NET has no PDF/Office parser.
 
 ## Findings and corrections
 
@@ -62,9 +65,9 @@ share the dependency/security gates relevant to their artifacts.
 | Python tests and `pip-audit` | Application factory, both MCP protocol generations, every core mail tool, identity isolation, JWT/OBO, OAuth discovery/PKCE/refresh rotation/replay, upload/download handles and worker limits |
 | Ruff and Vulture | Unused imports, undefined names, duplicate definitions, unreachable code and unused variables at 100% confidence; three SDK protocol keyword parameters have line-specific exclusions |
 | Docker smoke and Trivy | Exact installed non-root image, health, authentication, OAuth storage, extraction worker, Compose; block known container findings at every severity, including those without fixes |
-| Windows .NET checks | All 12 tools through stdio with mock Graph, binary/empty/boundary attachment saves, no overwrite, path/link rejection, date/search/category/draft validation, small and chunked attachments, sanitized failures, DPAPI binding/ephemeral state, refresh and malformed token responses |
+| Windows .NET checks | All 12 tools through stdio with mock Graph, binary/empty/17 MiB saves, configured limits with known/unknown lengths, default/overridden directories and automatic creation, interrupted/cancelled cleanup, no overwrite, path/link rejection, date/search/category/draft validation, small and chunked attachments, sanitized failures, DPAPI binding/ephemeral state, refresh and malformed token responses |
 | Windows .NET artifact | NativeAOT single executable, Windows file details, client-ID defaults/overrides and startup without a runtime on PATH |
-| Windows Go checks | Windows/Linux race tests, common save-result contract, binary/empty/boundary saves, concurrent no-overwrite and path/link rejection, module verification, vet, unreachable application functions and Windows AMD64/ARM64 vulnerability analysis |
+| Windows Go checks | Windows/Linux race tests, common save-result contract, binary/empty/17 MiB saves, configured limits with fixed/chunked lengths, default/overridden directories and automatic creation, interrupted/cancelled cleanup, concurrent no-overwrite and path/link rejection, module verification, vet, unreachable application functions and Windows AMD64/ARM64 vulnerability analysis |
 | Windows Go artifacts | Single-file AMD64/ARM64 builds, version details, ZIPs/checksums, AMD64 startup without an external runtime, and generated stdio configuration with persisted personal-account state |
 
 ---

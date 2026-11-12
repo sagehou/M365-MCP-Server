@@ -40,7 +40,7 @@ internal sealed class AttachmentPushClient
         if (string.IsNullOrEmpty(relativePath) || Encoding.UTF8.GetByteCount(relativePath) > 1024
             || relativePath.Any(character => char.IsControl(character) || "<>:\"\\|?*".Contains(character)))
         {
-            throw new InvalidToolArgumentException("use a new relative file path with forward slashes under M365_ATTACHMENT_ROOT");
+            throw new InvalidToolArgumentException("use a new relative file path with forward slashes under the download directory");
         }
         var parts = relativePath.Split('/');
         foreach (var part in parts)
@@ -58,19 +58,80 @@ internal sealed class AttachmentPushClient
         return parts;
     }
 
-    internal static void SaveLocalArtifact(string relativePath, byte[] content)
+    internal static string DownloadDirectory(string? downloadDirectory = null)
+    {
+        var directory = string.IsNullOrEmpty(downloadDirectory)
+            ? Environment.GetEnvironmentVariable("M365_ATTACHMENT_ROOT") : downloadDirectory;
+        if (string.IsNullOrEmpty(directory))
+        {
+            var folderId = new Guid("374DE290-123F-4565-9164-39C4925E467B");
+            if (SHGetKnownFolderPath(ref folderId, 0x4000, IntPtr.Zero, out var path) < 0)
+            {
+                throw new IOException("Cannot locate the Windows Downloads folder");
+            }
+            try
+            {
+                directory = Path.Combine(Marshal.PtrToStringUni(path)
+                    ?? throw new IOException("Cannot locate the Windows Downloads folder"), "M365-MCP");
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(path);
+            }
+        }
+        if (!Path.IsPathFullyQualified(directory))
+        {
+            throw new InvalidToolArgumentException("download_dir or M365_ATTACHMENT_ROOT must be an absolute directory");
+        }
+        try
+        {
+            return Path.GetFullPath(directory);
+        }
+        catch (ArgumentException)
+        {
+            throw new InvalidToolArgumentException("download directory is invalid");
+        }
+    }
+
+    internal static long DownloadLimit()
+    {
+        var value = Environment.GetEnvironmentVariable("M365_MAX_DOWNLOAD_MIB")?.Trim();
+        if (string.IsNullOrEmpty(value))
+        {
+            return 150L * 1024 * 1024;
+        }
+        if (!long.TryParse(value, System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture, out var mib)
+            || mib <= 0 || mib > (long.MaxValue - 1) / (1024 * 1024))
+        {
+            throw new InvalidToolArgumentException("set M365_MAX_DOWNLOAD_MIB to a positive integer number of MiB");
+        }
+        return mib * 1024 * 1024;
+    }
+
+    internal sealed record SavedArtifact(string Path, long ContentLength, string ContentSha256);
+
+    internal static async Task<SavedArtifact> SaveLocalArtifactAsync(
+        string relativePath, string downloadDirectory, Stream input, long limit, CancellationToken cancellationToken)
     {
         var parts = SavePathSegments(relativePath);
-        var current = RequireRoot();
+        var current = Path.GetPathRoot(downloadDirectory)
+            ?? throw new InvalidToolArgumentException("download directory must be absolute");
+        var rootRelative = Path.GetRelativePath(current, downloadDirectory).Replace('\\', '/');
+        string[] parents = rootRelative == "." ? [] : SavePathSegments(rootRelative);
         var directories = new List<SafeFileHandle>();
         try
         {
             // Pin every parent without write/delete sharing before creating the file.
-            for (var index = 0; index < parts.Length; index++)
+            foreach (var segment in new[] { string.Empty }.Concat(parents).Concat(parts[..^1]))
             {
-                if (index > 0)
+                if (segment.Length > 0)
                 {
-                    current = Path.Combine(current, parts[index - 1]);
+                    current = Path.Combine(current, segment);
+                    if (!CreateDirectoryW(current, IntPtr.Zero) && Marshal.GetLastWin32Error() != 183)
+                    {
+                        throw new IOException("Cannot create download directory");
+                    }
                 }
                 var handle = CreateFileW(current, 0, FileShare.Read, IntPtr.Zero,
                     FileMode.Open, 0x02000000 | 0x00200000, IntPtr.Zero);
@@ -78,13 +139,15 @@ internal sealed class AttachmentPushClient
                 if (handle.IsInvalid
                     || (File.GetAttributes(current) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != FileAttributes.Directory)
                 {
-                    throw new InvalidToolArgumentException("attachment root and parent directories must exist and must not be symbolic links or junctions");
+                    throw new InvalidToolArgumentException("download directories must not be symbolic links or junctions");
                 }
                 current = FinalPath(handle);
             }
             var destination = Path.Combine(current, parts[^1]);
             var created = false;
             var saved = false;
+            long length = 0;
+            using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             try
             {
                 // OPEN_REPARSE_POINT keeps CREATE_NEW from following a dangling file link.
@@ -97,7 +160,23 @@ internal sealed class AttachmentPushClient
                     }
                     created = true;
                     using var file = new FileStream(handle, FileAccess.Write);
-                    file.Write(content);
+                    var buffer = new byte[64 * 1024];
+                    while (true)
+                    {
+                        var read = await input.ReadAsync(buffer, cancellationToken);
+                        if (read == 0)
+                        {
+                            break;
+                        }
+                        if (read > limit - length)
+                        {
+                            throw new InvalidToolArgumentException("attachment exceeds the M365_MAX_DOWNLOAD_MIB limit");
+                        }
+                        await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                        digest.AppendData(buffer, 0, read);
+                        length += read;
+                    }
+                    cancellationToken.ThrowIfCancellationRequested();
                     file.Flush(flushToDisk: true);
                 }
                 saved = true;
@@ -113,6 +192,8 @@ internal sealed class AttachmentPushClient
                     File.Delete(destination);
                 }
             }
+            return new SavedArtifact(Path.Combine(downloadDirectory, Path.Combine(parts)), length,
+                Convert.ToHexString(digest.GetHashAndReset()).ToLowerInvariant());
         }
         finally
         {
@@ -122,6 +203,13 @@ internal sealed class AttachmentPushClient
             }
         }
     }
+
+    [DllImport("shell32.dll", ExactSpelling = true)]
+    private static extern int SHGetKnownFolderPath(ref Guid folderId, uint flags, IntPtr token, out IntPtr path);
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateDirectoryW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateDirectoryW(string path, IntPtr securityAttributes);
 
     internal JsonObject Inspect(string relativePath)
     {

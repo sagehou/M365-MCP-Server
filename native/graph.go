@@ -62,6 +62,23 @@ type graphError struct{ status int }
 func (e graphError) Error() string { return fmt.Sprintf("Microsoft Graph returned HTTP %d", e.status) }
 
 func (g *graphClient) request(ctx context.Context, method, path string, params url.Values, payload any) (map[string]any, error) {
+	response, err := g.openResponse(ctx, method, path, params, payload, "application/json")
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	data, err := readBounded(response.Body, maxGraphBytes)
+	if err != nil {
+		return nil, errors.New("Microsoft Graph response could not be read within the byte limit")
+	}
+	result := map[string]any{}
+	if len(data) != 0 && json.Unmarshal(data, &result) != nil {
+		return nil, errors.New("Microsoft Graph returned an invalid response")
+	}
+	return result, nil
+}
+
+func (g *graphClient) openResponse(ctx context.Context, method, path string, params url.Values, payload any, accept string) (*http.Response, error) {
 	parsed, err := url.Parse(path)
 	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" ||
 		(parsed.Path != "/me" && !strings.HasPrefix(parsed.Path, "/me/")) {
@@ -87,17 +104,23 @@ func (g *graphClient) request(ctx context.Context, method, path string, params u
 	if len(params) > 0 {
 		address += "?" + params.Encode()
 	}
+	client := g.client
+	if accept == "application/octet-stream" {
+		streaming := *g.client
+		streaming.Timeout = 0 // The save operation's context bounds the entire transfer.
+		client = &streaming
+	}
 	for attempt := 0; attempt <= 3; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, method, address, bytes.NewReader(body))
 		if err != nil {
 			return nil, errors.New("cannot construct Graph request")
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Accept", accept)
 		if payload != nil {
 			req.Header.Set("Content-Type", "application/json")
 		}
-		response, err := g.client.Do(req)
+		response, err := client.Do(req)
 		if err != nil {
 			if method != http.MethodGet || attempt == 3 {
 				return nil, errors.New("Microsoft Graph connection failed")
@@ -107,12 +130,15 @@ func (g *graphClient) request(ctx context.Context, method, path string, params u
 			}
 			continue
 		}
-		data, readErr := readBounded(response.Body, maxGraphBytes)
+		status := response.StatusCode
+		if status >= 200 && status < 300 {
+			return response, nil
+		}
+		_, readErr := readBounded(response.Body, maxGraphBytes)
 		response.Body.Close()
 		if readErr != nil {
 			return nil, errors.New("Microsoft Graph response could not be read within the byte limit")
 		}
-		status := response.StatusCode
 		retry := status == 429 || (method == http.MethodGet && (status == 408 || status == 500 || status == 502 || status == 503 || status == 504))
 		if retry && attempt < 3 {
 			delay := retryDelay(response.Header.Get("Retry-After"), attempt, time.Now())
@@ -124,14 +150,7 @@ func (g *graphClient) request(ctx context.Context, method, path string, params u
 			}
 			continue
 		}
-		if status < 200 || status >= 300 {
-			return nil, graphError{status}
-		}
-		result := map[string]any{}
-		if len(data) != 0 && json.Unmarshal(data, &result) != nil {
-			return nil, errors.New("Microsoft Graph returned an invalid response")
-		}
-		return result, nil
+		return nil, graphError{status}
 	}
 	return nil, errors.New("Microsoft Graph retry limit reached")
 }

@@ -4,8 +4,8 @@
 
 ## Current Delivery Order
 
-1. `v0.1.1` is [released](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.1)
-   under MIT with a container image and Windows single EXE.
+1. `v0.1.7` ships under MIT with a container image, Windows .NET/Go single EXEs,
+   and the shared bilingual `m365-mail` Skill.
 2. Draft-file attachments up to 20 MiB are included: remote clients use binary
    staging and an optional one-use push grant, while Windows local stdio uses a
    bounded relative artifact path or optional native file picker.
@@ -17,8 +17,8 @@ Deployment-specific acceptance records are kept outside this repository.
 
 ## Windows local-mode implementation status
 
-The released Windows implementation is available in
-`windows/M365Mcp.Local` and documented in the
+The released Windows implementations are available in
+`windows/M365Mcp.Local` and `native`, and documented in the
 [Windows local mode guide](windows-local.md).
 
 Delivered in v0.1.0:
@@ -39,9 +39,19 @@ Added in v0.1.1:
 - relative-path attachment automation under `M365_ATTACHMENT_ROOT`
 - `inspect-attachment` and `push-attachment` commands for remote connectors
 
+Added since v0.1.2:
+
+- .NET 10 NativeAOT and Go AMD64/ARM64 single executables; shared `stdio` and
+  tenant/account options
+- Go PDF/Office extraction and temporary download URLs
+- both editions stream original attachments with `mail_save_attachment`;
+  default Windows Downloads/M365-MCP, optional `download_dir`, automatic
+  directory creation, and a configurable 150 MiB default limit in v0.1.7
+
 Current design boundaries:
 
-- local rich attachment extraction and download parity are not implemented
+- .NET reads UTF-8 text/CSV/JSON/XML and has no PDF/Office parser or download URL
+  endpoint; both editions can directly save original files
 - SHA-256 and GitHub build provenance are published; optional Authenticode
   signing and an SBOM are distinct distribution improvements
 - Windows Web Account Manager is optional and depends on deployment needs
@@ -82,9 +92,9 @@ Tools:
 - mail_move
 - mail_set_category
 
-Windows local mode currently implements every item above except
-`mail_download_attachment`; local `mail_read_attachment` is limited to bounded
-text-like content.
+Windows Go implements every item above; .NET omits `mail_download_attachment`
+and limits `mail_read_attachment` to bounded UTF-8 text-like content. Both add
+`mail_save_attachment` and bounded draft attachments.
 
 ## Phase 3 - Attachment Processing
 
