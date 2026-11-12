@@ -8,10 +8,19 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 ZH_ROOT = DOCS / "zh-CN"
+MAIL_SKILL = ROOT / "workbuddy" / "skills" / "m365-mail"
 
 
 def iter_pairs() -> list[tuple[Path, Path]]:
-    pairs: list[tuple[Path, Path]] = [(ROOT / "README.md", ROOT / "README.zh-CN.md")]
+    pairs: list[tuple[Path, Path]] = [
+        (ROOT / "README.md", ROOT / "README.zh-CN.md"),
+        (MAIL_SKILL / "SKILL.md", MAIL_SKILL / "references" / "zh-CN.md"),
+        (MAIL_SKILL / "README.md", MAIL_SKILL / "README.zh-CN.md"),
+        (
+            MAIL_SKILL / "references" / "remote-upload.md",
+            MAIL_SKILL / "references" / "remote-upload.zh-CN.md",
+        ),
+    ]
     for english in sorted(DOCS.rglob("*.md")):
         relative = english.relative_to(DOCS)
         if relative.parts and relative.parts[0] == "zh-CN":

@@ -270,6 +270,9 @@ Token，并在 MCP 请求中发送 `Authorization: Bearer <MCP-API-access-token>
 客户端负责获取、同意、过期和刷新处理；Graph Access Token 的 Audience 不匹配。
 此模式提供 11 个邮件工具，启用服务器管理的 OAuth 后增加下表标注的两项工具。
 
+客户端邮件工作流可选装 [m365-mail](../../workbuddy/skills/m365-mail/README.zh-CN.md)。
+同一个 Skill 支持服务器及两套本地版，WorkBuddy 模板已包含它。
+
 ## 邮件工具
 
 | 工具 | 用途 |
@@ -329,7 +332,8 @@ $grantJson | & 'C:\Tools\m365-mcp-windows-local-amd64.exe' push-attachment 'repo
 下的相对路径及非空、20 MiB 以内的 PDF/DOCX/XLSX/PPTX/ZIP，核验已打开的文件，不写临时
 附件。通过 stdin 传递 Grant，不放入命令行参数或日志。文件改变后需重新检查并申请 Grant。
 
-WorkBuddy 撰写 Skill 可通过 Bash 工具执行这些命令。辅助程序的目录检查只约束此 EXE 操作；
+通用 `m365-mail` Skill 可通过已有授权的 Shell 能力执行这些命令，包括 WorkBuddy 的
+Bash 工具。辅助程序的目录检查只约束此 EXE 操作；
 客户端的通用 Bash 访问还需配置自身沙箱和授权。其他可信上传程序也可实现同样的 HTTP 契约。
 
 </details>
