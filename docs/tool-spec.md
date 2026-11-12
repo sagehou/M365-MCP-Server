@@ -125,12 +125,39 @@ list value to accept or reject the attachment.
 | Python server and Windows Go | PDF, DOCX, XLSX, PPTX, TXT, Markdown |
 | Windows .NET | UTF-8 text, CSV, JSON, XML; no PDF/Office parser |
 
+### mail_save_attachment
+
+Windows .NET and Go v0.1.6+ expose the same required input:
+`message_id`, `attachment_id`, and `relative_path`. The Python server does not
+expose this tool. Save the original Outlook file attachment, up to 10 MiB of
+decoded bytes including zero-byte files, under the operator-configured
+`M365_ATTACHMENT_ROOT`. This is a filesystem write, not a read-only preview.
+It works over local stdio and Go HTTP without a browser or shell.
+
+Use forward slashes, for example `downloads/report.pdf`. The root and parent
+directories must exist and must not be symbolic links or junctions. Reject
+absolute paths, backslashes, parent traversal, alternate data streams, Windows
+device names, and existing destinations; simultaneous saves never overwrite
+each other. The caller chooses an authorized path, not the untrusted provider
+filename. All file formats can be saved without parsing or execution; mail
+item/reference attachments are unsupported. A failed write attempts to remove
+the incomplete file. Check the destination after an ambiguous failure before
+retrying rather than silently renaming or overwriting.
+
+Both return exactly `saved`, `relative_path`, `name`, `content_type`,
+`content_length`, and `content_sha256`. `name` is the original provider filename;
+`content_length` and the SHA-256 describe the saved bytes. No raw bytes,
+absolute path, or download URL are returned. The file is on the EXE's PC,
+including when a remote client calls the tool.
+
 ### mail_download_attachment
 
 Available on the Python server only with server-managed OAuth, and on Windows
 Go; Windows .NET does not expose this tool. Fetch one bounded Outlook file
 attachment and return a temporary download URL: HTTPS on the server, HTTP on
-Go's `127.0.0.1` listener. Go links must be opened on the EXE's PC. The URL is
+Go's `127.0.0.1` listener. Go links can be fetched by a browser or trusted
+downloader on the EXE's PC; a browser is optional. Prefer `mail_save_attachment`
+for automatic local saves. The URL is
 an unguessable, single-use capability that expires after the
 configured TTL. Attachment bytes are retained only in bounded process memory and
 are never returned through MCP JSON. The returned attachment `content_length` is the actual

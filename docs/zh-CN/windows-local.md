@@ -8,14 +8,15 @@
 | 安装运行时 | 无需 | 无需 |
 | Microsoft 登录 | 系统浏览器、Authorization Code + S256 PKCE | 系统浏览器、Authorization Code + S256 PKCE |
 | MCP 传输 | stdio，命令为 `stdio` | stdio，命令为 `stdio`；本机鉴权 HTTP，命令为 `http` |
-| 邮件工具 | 11 项 | 12 项，含附件下载 |
+| 邮件工具 | 12 项 | 13 项，含附件下载 URL |
 | 附件文本提取 | UTF-8 文本、CSV、JSON、XML | PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 | 添加本地草稿附件 | 文件选择框或配置目录下的相对路径 | 配置目录下的相对路径 |
+| 保存原附件 | `mail_save_attachment`，配置目录下的相对路径 | 与 .NET 的接口和行为一致 |
 | 远端服务器上传辅助命令 | `inspect-attachment`、`push-attachment` | 不提供 |
 
 ## 安装
 
-从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.5)
+从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.6)
 下载对应文件：
 
 | 版本 | 发布文件 | 下文使用的 EXE |
@@ -265,7 +266,7 @@ stdio/自定义请求头配置。Go HTTP Token 是本机访问凭据，不是 Mi
 ## 邮件与附件
 
 两套版本均提供 `mail_search`、`mail_get`、`mail_create_draft`、`mail_send_draft`、
-`mail_add_draft_attachment`、`mail_list_attachments`、`mail_read_attachment`、
+`mail_add_draft_attachment`、`mail_list_attachments`、`mail_read_attachment`、`mail_save_attachment`、
 `mail_mark_read`、`mail_archive`、`mail_move`、`mail_set_category`。
 Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户的 `/me` 邮箱。
 
@@ -275,6 +276,52 @@ Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户�
 草稿使用纯文本。发送前，MCP 客户端需取得逐封确认，或执行明确的受限自动化授权，约束
 收件人、可信内容/附件来源、数量和有效期。Graph 接受请求不代表最终送达。结果不明的写入
 不会自动重试；先检查草稿和附件，再决定后续操作。
+
+### 保存附件到配置目录
+
+从 v0.1.6 起，两种版本提供相同工具：
+
+```json
+{
+  "message_id": "<邮件 ID>",
+  "attachment_id": "<附件 ID>",
+  "relative_path": "downloads/report.pdf"
+}
+```
+
+在 MCP 进程环境中，将 `M365_ATTACHMENT_ROOT` 设置为已存在、由操作者控制的绝对
+目录，例如 `C:\M365Artifacts`；此示例需先创建 `C:\M365Artifacts\downloads`。
+将上述三个必填参数传给 `mail_save_attachment`，两种版本的 `relative_path` 均用
+正斜杠。EXE 获取 Outlook 原始文件附件后直接保存，stdio 和 Go HTTP 均无需浏览器、
+本机 Shell、文件选择框或独立下载器。目标在 EXE 所在电脑，即使 MCP 客户端运行在别处
+也是如此。
+
+两种版本返回相同字段：
+
+```json
+{
+  "saved": true,
+  "relative_path": "downloads/report.pdf",
+  "name": "report.pdf",
+  "content_type": "application/pdf",
+  "content_length": 12345,
+  "content_sha256": "<保存字节的 SHA-256>"
+}
+```
+
+<details>
+<summary>ⓘ 保存限制、目标路径与重试</summary>
+
+每个 Outlook 文件附件最多 10 MiB 解码字节，包括没有文本解析器的二进制格式；接受
+零字节文件。保存不会解析、打开或执行文件，不支持嵌入邮件项和引用附件。`name` 是
+服务方提供的原文件名，只有已获准的 `relative_path` 决定保存位置。
+
+根目录和父目录须已存在。拒绝绝对路径、反斜杠、父目录跳转、NTFS 备用数据流、Windows
+设备名及符号链接/联接目录。已有目标文件绝不覆盖，同时保存同名文件也只会成功一个。
+写入失败会尝试清理未完成文件；结果不明确时，先检查目标及大小/哈希，再决定是否重试，
+工具不会悄悄改名或覆盖。无人值守任务应提前配置目标和命名规则，不使用邮件内容决定。
+
+</details>
 
 ### 添加本地文件
 
@@ -306,7 +353,8 @@ Go 在独立 Worker 提取 PDF、DOCX、XLSX、PPTX、TXT、Markdown，限制为
 64 MiB/2,048 项，输出最多 100,000 字符。XLSX 使用缓存公式结果；扫描版 PDF 需要外部 OCR。
 
 Go 下载使用不可猜测、五分钟、一次性的 HTTP URL，仅绑定 `127.0.0.1`。stdio 在随机
-端口启动该监听器，内存最多保留 16 项、64 MiB，重启后 URL 失效；需在同一电脑打开。
+端口启动该监听器，内存最多保留 16 项、64 MiB，重启后 URL 失效。同一电脑上的浏览器或
+可信脚本可消费一次 URL；自动保存优先使用 `mail_save_attachment`。
 附件列表的 `size` 是服务方元数据，获取后的 `content_length` 是实际解码字节数。
 
 .NET EXE 还提供供远端服务器连接器使用的 `inspect-attachment` 和 `push-attachment`，

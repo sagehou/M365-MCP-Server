@@ -31,7 +31,7 @@ def test_connector_uses_official_oauth_package_shape_without_credentials() -> No
     assert metadata["source"] == "sagehou-m365-mcp-server"
     assert re.fullmatch(r"[a-z0-9-]+", metadata["source"])
     assert metadata["type"] == "mcp"
-    assert metadata["version"] == "0.1.5"
+    assert metadata["version"] == "0.1.6"
     assert metadata["minWorkbuddyVersion"] == "4.24.0"
     assert len(metadata["examples_zh"]) >= 2
     assert len(metadata["examples_en"]) >= 2

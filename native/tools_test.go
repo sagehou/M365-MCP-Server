@@ -96,8 +96,29 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 	}
 	defer session.Close()
 	listed, err := session.ListTools(ctx, nil)
-	if err != nil || len(listed.Tools) != 12 {
-		t.Fatalf("expected twelve tools: %v %v", listed, err)
+	if err != nil || len(listed.Tools) != 13 {
+		t.Fatalf("expected thirteen tools: %v %v", listed, err)
+	}
+	for _, tool := range listed.Tools {
+		if tool.Name == "mail_save_attachment" {
+			encoded, err := json.Marshal(tool.InputSchema)
+			var schema struct {
+				Required   []string       `json:"required"`
+				Properties map[string]any `json:"properties"`
+			}
+			if err != nil || json.Unmarshal(encoded, &schema) != nil || len(schema.Properties) != 3 || len(schema.Required) != 3 || tool.Annotations == nil || tool.Annotations.ReadOnlyHint {
+				t.Fatal("save tool must require the common three arguments and be a write operation")
+			}
+			for _, key := range []string{"message_id", "attachment_id", "relative_path"} {
+				found := false
+				for _, required := range schema.Required {
+					found = found || required == key
+				}
+				if !found || schema.Properties[key] == nil {
+					t.Fatalf("save tool is missing required argument %s", key)
+				}
+			}
+		}
 	}
 	cases := []struct {
 		name  string
@@ -111,6 +132,7 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 		{"mail_add_draft_attachment", map[string]any{"draft_id": "draft", "relative_path": "report.zip"}, "content_sha256"},
 		{"mail_list_attachments", map[string]any{"message_id": "message"}, "attachments"},
 		{"mail_read_attachment", map[string]any{"message_id": "message", "attachment_id": "file"}, "content"},
+		{"mail_save_attachment", map[string]any{"message_id": "message", "attachment_id": "file", "relative_path": "saved.txt"}, "content_sha256"},
 		{"mail_download_attachment", map[string]any{"message_id": "message", "attachment_id": "file"}, "download_url"},
 		{"mail_mark_read", map[string]any{"message_id": "message", "is_read": false}, "is_read"},
 		{"mail_archive", map[string]any{"message_id": "message"}, "archived"},
@@ -145,6 +167,12 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 			if tc.name == "mail_read_attachment" || tc.name == "mail_download_attachment" {
 				if payload["attachment"].(map[string]any)["content_length"] != float64(5) {
 					t.Fatal("used provider metadata as decoded byte length")
+				}
+			}
+			if tc.name == "mail_save_attachment" {
+				content, err := os.ReadFile(filepath.Join(root, "saved.txt"))
+				if err != nil || string(content) != "hello" || payload["content_length"] != float64(5) || payload["saved"] != true || len(payload) != 6 {
+					t.Fatalf("saved file or common result schema mismatch: %v %v", payload, err)
 				}
 			}
 			if tc.name == "mail_download_attachment" {

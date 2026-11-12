@@ -109,11 +109,30 @@ Windows Go stdio 或本机回环 HTTP 的同名工具必须提供 `draft_id` 和
 | Python 服务器版及 Windows Go | PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 | Windows .NET | UTF-8 文本、CSV、JSON、XML；不提供 PDF/Office 解析器 |
 
+### mail_save_attachment
+
+Windows .NET 和 Go v0.1.6+ 提供相同的三个必填参数：`message_id`、`attachment_id`、
+`relative_path`。Python 服务器版不提供此工具。将最多 10 MiB 解码字节的 Outlook 原始
+文件附件保存到操作者配置的 `M365_ATTACHMENT_ROOT` 内，接受零字节文件。这是文件系统
+写入操作，不是只读预览；本机 stdio 和 Go HTTP 均无需浏览器或 Shell。
+
+使用正斜杠，例如 `downloads/report.pdf`。根目录和父目录须已存在，且不能是符号链接或
+联接。拒绝绝对路径、反斜杠、父目录跳转、NTFS 备用数据流、Windows 设备名及已有目标；
+同时保存也不会相互覆盖。调用者指定已获准路径，不使用不可信的服务方文件名决定位置。
+任何文件格式均可原样保存，不解析或执行；不支持邮件项/引用附件。写入失败会尝试清理
+未完成文件；结果不明确时先检查目标再决定是否重试，不悄悄改名或覆盖。
+
+两种版本返回相同字段：`saved`、`relative_path`、`name`、`content_type`、
+`content_length`、`content_sha256`。`name` 是服务方提供的原文件名；大小和 SHA-256
+对应保存的实际字节。不返回原始字节、绝对路径或下载 URL。文件保存在 EXE 所在电脑，
+即使由远端客户端调用也是如此。
+
 ### mail_download_attachment
 
 Python 服务器版仅在开启服务器管理的 OAuth 后提供，Windows Go 也提供；Windows .NET
 不暴露此工具。获取一个受大小限制的 Outlook File Attachment，返回临时下载 URL：
-服务器为 HTTPS，Go 为 `127.0.0.1` 监听器上的 HTTP，Go 链接需在 EXE 所在电脑打开。
+服务器为 HTTPS，Go 为 `127.0.0.1` 监听器上的 HTTP。同一电脑上的浏览器或可信下载器
+均可获取 Go 链接，浏览器不是必需的；本地自动保存优先使用 `mail_save_attachment`。
 URL 是不可猜测、单次使用且会在配置 TTL 后过期的 Capability。Attachment Bytes
 只会保留在受限的 Process Memory 中，不会通过 MCP JSON 返回。
 返回的 Attachment `content_length` 是解码后的实际字节数，对本次下载具有权威性。不得与 Metadata-only 列表中的值比较后决定是否接受附件。

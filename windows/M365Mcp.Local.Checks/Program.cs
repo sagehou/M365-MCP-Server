@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using M365Mcp.Local;
@@ -87,7 +88,12 @@ try
         Call("mail_archive", "{\"message_id\":\"message\"}"),
         Call("mail_move", "{\"message_id\":\"message\",\"destination_folder_id\":\"folder\"}"),
         Call("mail_set_category", "{\"message_id\":\"message\",\"categories\":[]}"));
-    Check(results[1]["result"]?["tools"] is JsonArray { Count: 11 }, "all eleven tools must be exposed");
+    Check(results[1]["result"]?["tools"] is JsonArray { Count: 12 }, "all twelve tools must be exposed");
+    var saveTool = ((JsonArray)results[1]["result"]!["tools"]!).Single(tool => tool?["name"]?.GetValue<string>() == "mail_save_attachment")!;
+    Check(saveTool["inputSchema"]?["required"] is JsonArray { Count: 3 } required
+        && required.Select(value => value!.GetValue<string>()).SequenceEqual(["message_id", "attachment_id", "relative_path"])
+        && saveTool["annotations"]?["readOnlyHint"]?.GetValue<bool>() is false,
+        "save tool must require the common three arguments and be a write operation");
     foreach (var result in results.Skip(2))
     {
         Check(result["result"]?["isError"]?.GetValue<bool>() is false, "valid mail tool call failed: " + result);
@@ -98,6 +104,8 @@ try
     Check(Payload(results[11])["message_id"]?.GetValue<string>() == "archived"
         && Payload(results[12])["message_id"]?.GetValue<string>() == "moved", "move/archive must return the new Graph ID");
     transport.CheckEmpty();
+
+    await CheckAttachmentSaving(graph, transport, root);
 
     await File.WriteAllBytesAsync(Path.Combine(root, "large.pdf"), new byte[3_000_000]);
     transport.Expect("GET", "/v1.0/me/messages/draft", "{\"isDraft\":true}");
@@ -178,7 +186,7 @@ try
     await File.WriteAllBytesAsync(configuration.StateFile, oversized);
     try { store.Load(); throw new Exception("oversized authentication state was accepted"); }
     catch (LocalAuthException) { }
-    Console.WriteLine("Windows local checks passed: eleven tools, validation, protocol recovery, DPAPI binding and token refresh.");
+    Console.WriteLine("Windows local checks passed: twelve tools, attachment saving, validation, protocol recovery, DPAPI binding and token refresh.");
 }
 finally
 {
@@ -189,6 +197,130 @@ finally
 static void Check(bool condition, string message)
 {
     if (!condition) { throw new Exception(message); }
+}
+
+static async Task CheckAttachmentSaving(LocalGraphClient graph, MockGraph transport, string root)
+{
+    Directory.CreateDirectory(Path.Combine(root, "downloads"));
+    foreach (var (id, content, kind, valid) in new[]
+    {
+        ("binary", new byte[] { 0, 255, 1, 128 }, "#microsoft.graph.fileAttachment", true),
+        ("empty", Array.Empty<byte>(), "#microsoft.graph.fileAttachment", true),
+        ("limit", new byte[10 * 1024 * 1024], "#microsoft.graph.fileAttachment", true),
+        ("oversized", new byte[10 * 1024 * 1024 + 1], "#microsoft.graph.fileAttachment", false),
+        ("item", new byte[] { 1 }, "#microsoft.graph.itemAttachment", false),
+    })
+    {
+        var response = new JsonObject
+        {
+            ["@odata.type"] = kind, ["id"] = "file", ["name"] = "../untrusted.exe",
+            ["contentType"] = "application/octet-stream", ["size"] = 99999999,
+            ["contentBytes"] = Convert.ToBase64String(content),
+        }.ToJsonString();
+        var relativePath = "downloads/" + id + ".bin";
+        transport.Expect("GET", "/v1.0/me/messages/message/attachments/file", response);
+        var arguments = new JsonObject
+        {
+            ["message_id"] = "message", ["attachment_id"] = "file", ["relative_path"] = relativePath,
+        }.ToJsonString();
+        var result = (await Exchange(graph, Call("mail_save_attachment", arguments)))[0];
+        var destination = Path.Combine(root, "downloads", id + ".bin");
+        if (valid)
+        {
+            var payload = Payload(result);
+            Check(result["result"]?["isError"]?.GetValue<bool>() is false
+                && payload is JsonObject { Count: 6 } && payload["saved"]?.GetValue<bool>() is true
+                && payload["relative_path"]?.GetValue<string>() == relativePath
+                && payload["content_length"]?.GetValue<int>() == content.Length
+                && payload["content_sha256"]?.GetValue<string>() == Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant()
+                && (await File.ReadAllBytesAsync(destination)).SequenceEqual(content),
+                "attachment bytes or common result schema changed: " + id);
+            transport.Expect("GET", "/v1.0/me/messages/message/attachments/file", response);
+            var duplicate = (await Exchange(graph, Call("mail_save_attachment", arguments)))[0];
+            Check(duplicate["result"]?["isError"]?.GetValue<bool>() is true
+                && (await File.ReadAllBytesAsync(destination)).SequenceEqual(content), "save must not overwrite an existing file");
+        }
+        else
+        {
+            Check(result["result"]?["isError"]?.GetValue<bool>() is true && !File.Exists(destination),
+                "unsupported or oversized attachment left a file");
+        }
+        transport.CheckEmpty();
+    }
+    foreach (var relativePath in new[]
+    {
+        "", "/outside.bin", "../outside.bin", "a/../outside.bin", "a//b.bin", "a\\b.bin", "C:/outside.bin",
+        "file.bin:stream", "file.bin.", "file.bin ", "CON.txt", "COM1.bin", "LPT³.txt", "a\0.bin", "a?.bin", "missing/file.bin",
+    })
+    {
+        try
+        {
+            AttachmentPushClient.SaveLocalArtifact(relativePath, [1, 2, 3]);
+            throw new Exception("unsafe or missing parent path accepted: " + relativePath);
+        }
+        catch (InvalidToolArgumentException) { }
+    }
+    var outside = Path.Combine(root, "outside");
+    Directory.CreateDirectory(outside);
+    var link = Path.Combine(root, "linked");
+    Directory.CreateSymbolicLink(link, outside);
+    try
+    {
+        try
+        {
+            AttachmentPushClient.SaveLocalArtifact("linked/escaped.bin", [1, 2, 3]);
+            throw new Exception("parent symbolic link was followed");
+        }
+        catch (InvalidToolArgumentException) { }
+        Check(!File.Exists(Path.Combine(outside, "escaped.bin")), "save escaped the configured directory");
+    }
+    finally
+    {
+        Directory.Delete(link);
+    }
+    var fileLink = Path.Combine(root, "file-link.bin");
+    File.CreateSymbolicLink(fileLink, Path.Combine(outside, "new.bin"));
+    try
+    {
+        try
+        {
+            AttachmentPushClient.SaveLocalArtifact("file-link.bin", [1]);
+            throw new Exception("destination symbolic link was followed");
+        }
+        catch (Exception exception) when (exception is IOException or InvalidToolArgumentException) { }
+        Check(!File.Exists(Path.Combine(outside, "new.bin")), "destination link escaped the configured directory");
+    }
+    finally
+    {
+        File.Delete(fileLink);
+    }
+    var successes = 0;
+    await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
+    {
+        try
+        {
+            AttachmentPushClient.SaveLocalArtifact("unique.bin", [0, 255, 128]);
+            Interlocked.Increment(ref successes);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidToolArgumentException) { }
+    })));
+    Check(successes == 1 && (await File.ReadAllBytesAsync(Path.Combine(root, "unique.bin"))).SequenceEqual(new byte[] { 0, 255, 128 }),
+        "concurrent saves must create exactly one intact file");
+    var oldRoot = Environment.GetEnvironmentVariable("M365_ATTACHMENT_ROOT");
+    Environment.SetEnvironmentVariable("M365_ATTACHMENT_ROOT", null);
+    try
+    {
+        try
+        {
+            AttachmentPushClient.SaveLocalArtifact("no-root.bin", [1]);
+            throw new Exception("save did not require a configured root");
+        }
+        catch (InvalidToolArgumentException) { }
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("M365_ATTACHMENT_ROOT", oldRoot);
+    }
 }
 
 static JsonObject Rpc(string method) => new() { ["jsonrpc"] = "2.0", ["id"] = 1, ["method"] = method };
