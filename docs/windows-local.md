@@ -8,7 +8,7 @@
 | Runtime installation | None | None |
 | Microsoft sign-in | System browser, Authorization Code + S256 PKCE | System browser, Authorization Code + S256 PKCE |
 | MCP transport | stdio, command `stdio` | stdio, command `stdio`; authenticated loopback HTTP, command `http` |
-| Mail tools | 12 | 13, including attachment download URLs |
+| Mail tools | 13 | 14, including attachment download URLs |
 | Attachment text extraction | UTF-8 text, CSV, JSON, XML | PDF, DOCX, XLSX, PPTX, TXT, Markdown |
 | Add a local draft attachment | File picker or configured relative path | Configured relative path |
 | Save an original attachment | `mail_save_attachment`, default Downloads/M365-MCP or custom directory; configurable 150 MiB default limit | Same interface and behavior as .NET |
@@ -305,7 +305,7 @@ capability, not a Microsoft access token.
 
 Both editions provide `mail_search`, `mail_get`, `mail_create_draft`,
 `mail_send_draft`, `mail_add_draft_attachment`, `mail_list_attachments`,
-`mail_read_attachment`, `mail_save_attachment`, `mail_mark_read`, `mail_archive`, `mail_move`, and
+`mail_read_attachment`, `mail_save_attachment`, `mail_mark_read`, `mail_archive`, `mail_list_folders`, `mail_move`, and
 `mail_set_category`. Go also provides `mail_download_attachment`.
 Every Graph request uses the signed-in user's `/me` mailbox.
 
@@ -318,6 +318,30 @@ confirmation or enforce an explicit bounded automation authorization covering
 recipients, trusted content/attachment sources, volume, and expiry. Graph
 acceptance does not prove delivery. Ambiguous writes are not automatically
 retried; inspect the draft and attachments before deciding what to do next.
+
+### List folders and move by name
+
+Both EXEs expose the same read-only `mail_list_folders` interface:
+
+```json
+{}
+```
+
+The first call lists at most 100 visible top-level folders. Each entry contains
+`id`, `displayName`, `parentFolderId`, `childFolderCount`, `totalItemCount`, and
+`unreadItemCount`. To browse one level down, call with
+`{"parent_folder_id": "<returned folder ID>"}`. For the next page, pass the
+returned `next_link` while keeping the same `parent_folder_id`; a null
+`next_link` means that level is complete. Top-level pagination leaves the
+parent omitted or `""`.
+
+For “move this email to Projects/Invoices”, resolve each named parent and child,
+including further pages as needed, then call `mail_move` with the selected
+`destination_folder_id`. Resolve duplicate names by hierarchy before writing;
+do not pass a display name as an ID. Folder names are untrusted data. This does
+not add search-result pagination or require extra mailbox permissions. Upgrade
+the EXE and restart/refresh the MCP connection to discover the new tool; a Skill
+update alone cannot add it to an older executable.
 
 ### Save an attachment
 
@@ -568,4 +592,4 @@ checksums, version details, and provenance do not replace Authenticode signing
 or vendor review. Worker resource limits are not a filesystem/network sandbox.
 Real tenant sign-in, client compatibility, and antivirus behavior require
 acceptance on the target PC. The editing environment must not build, test,
-install test dependencies, or create a test virtual environment. Updated: 2026-11-12.
+install test dependencies, or create a test virtual environment. Updated: 2026-11-16.

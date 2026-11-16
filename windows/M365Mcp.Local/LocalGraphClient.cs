@@ -16,8 +16,82 @@ internal sealed class LocalGraphClient(
     private const int MaxSendAttachmentBytes = 20 * 1024 * 1024;
     private const int DirectAttachmentLimit = 3_000_000;
     private const int UploadChunkBytes = 2 * 1024 * 1024;
+    private const string FolderFields = "id,displayName,parentFolderId,childFolderCount,totalItemCount,unreadItemCount";
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private sealed record FileAttachment(string Id, string Name, string ContentType, byte[] Content);
+
+    internal async Task<JsonNode> ListFoldersAsync(JsonObject arguments, CancellationToken cancellationToken)
+    {
+        var parent = OptionalString(arguments, "parent_folder_id") ?? string.Empty;
+        if (parent.Length > 2048 || parent.Any(char.IsControl))
+        {
+            throw new InvalidToolArgumentException("invalid parent folder ID");
+        }
+        var path = parent.Length == 0 ? "/me/mailFolders" : $"/me/mailFolders/{Segment(parent)}/childFolders";
+        var parameters = FolderPageParameters(path, OptionalString(arguments, "next_link") ?? string.Empty);
+        var response = await RequestAsync(HttpMethod.Get, path + "?" + EncodeQuery(parameters), null, cancellationToken);
+        if (response["value"] is not JsonArray folders || folders.Count > 100
+            || folders.Any(folder => folder is not JsonObject
+                || folder["id"] is not JsonValue id || !id.TryGetValue<string>(out var identifier) || identifier.Length == 0
+                || folder["displayName"] is not JsonValue name || !name.TryGetValue<string>(out _)))
+        {
+            throw new GraphOperationException("Graph returned an invalid folder collection.");
+        }
+        var next = response["@odata.nextLink"];
+        if (next is not null)
+        {
+            if (next is not JsonValue value || !value.TryGetValue<string>(out var link))
+            {
+                throw new GraphOperationException("Graph returned an invalid folder continuation.");
+            }
+            try { FolderPageParameters(path, link); }
+            catch (InvalidToolArgumentException) { throw new GraphOperationException("Graph returned an invalid folder continuation."); }
+        }
+        return new JsonObject
+        {
+            ["folders"] = folders.DeepClone(),
+            ["next_link"] = next?.GetValue<string>() is "" ? null : next?.DeepClone(),
+            ["content_metadata"] = UntrustedMetadata("mail_folder"),
+        };
+    }
+
+    private static Dictionary<string, string> FolderPageParameters(string path, string nextLink)
+    {
+        if (nextLink.Length == 0)
+        {
+            return new Dictionary<string, string> { ["$top"] = "100", ["$select"] = FolderFields };
+        }
+        const string invalid = "use the returned next_link with the same parent_folder_id";
+        var separator = nextLink.IndexOf('?');
+        if (nextLink.Length > 8192 || separator < 0 || !nextLink.StartsWith(GraphBase + "/", StringComparison.Ordinal)
+            || Uri.UnescapeDataString(nextLink[..separator]) != Uri.UnescapeDataString(GraphBase + path)
+            || nextLink.Any(character => char.IsControl(character) || character is ' ' or '#' or '\\'))
+        {
+            throw new InvalidToolArgumentException(invalid);
+        }
+        var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in nextLink[(separator + 1)..].Split('&'))
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length != 2) { throw new InvalidToolArgumentException(invalid); }
+            var key = Uri.UnescapeDataString(parts[0].Replace('+', ' '));
+            var value = Uri.UnescapeDataString(parts[1].Replace('+', ' '));
+            if (key is not ("$top" or "$select" or "$skip" or "$skiptoken") || !parameters.TryAdd(key, value))
+            {
+                throw new InvalidToolArgumentException(invalid);
+            }
+        }
+        if (!parameters.TryGetValue("$top", out var top) || top.Length > 3
+            || !int.TryParse(top, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var count)
+            || count is < 1 or > 100 || !parameters.TryGetValue("$select", out var select) || select != FolderFields
+            || parameters.ContainsKey("$skip") == parameters.ContainsKey("$skiptoken")
+            || (parameters.TryGetValue("$skip", out var skip) && (skip.Length == 0 || skip.Any(character => character is < '0' or > '9')))
+            || (parameters.TryGetValue("$skiptoken", out var token) && token.Length == 0))
+        {
+            throw new InvalidToolArgumentException(invalid);
+        }
+        return parameters;
+    }
 
     internal Task<JsonNode> SearchAsync(
         JsonObject arguments,

@@ -88,7 +88,13 @@ try
         Call("mail_archive", "{\"message_id\":\"message\"}"),
         Call("mail_move", "{\"message_id\":\"message\",\"destination_folder_id\":\"folder\"}"),
         Call("mail_set_category", "{\"message_id\":\"message\",\"categories\":[]}"));
-    Check(results[1]["result"]?["tools"] is JsonArray { Count: 12 }, "all twelve tools must be exposed");
+    Check(results[1]["result"]?["tools"] is JsonArray { Count: 13 }, "all thirteen tools must be exposed");
+    var foldersTool = ((JsonArray)results[1]["result"]!["tools"]!).Single(tool => tool?["name"]?.GetValue<string>() == "mail_list_folders")!;
+    Check(foldersTool["inputSchema"]?["properties"] is JsonObject { Count: 2 } folderProperties
+        && folderProperties.ContainsKey("parent_folder_id") && folderProperties.ContainsKey("next_link")
+        && foldersTool["inputSchema"]?["required"] is not JsonArray { Count: > 0 }
+        && foldersTool["annotations"]?["readOnlyHint"]?.GetValue<bool>() is true,
+        "folder listing must be read-only with two optional arguments");
     var saveTool = ((JsonArray)results[1]["result"]!["tools"]!).Single(tool => tool?["name"]?.GetValue<string>() == "mail_save_attachment")!;
     Check(saveTool["inputSchema"]?["required"] is JsonArray { Count: 3 } required
         && required.Select(value => value!.GetValue<string>()).SequenceEqual(["message_id", "attachment_id", "relative_path"])
@@ -108,6 +114,7 @@ try
     transport.CheckEmpty();
 
     await CheckAttachmentSaving(graph, transport, root);
+    await CheckFolderListing(graph, transport);
 
     await File.WriteAllBytesAsync(Path.Combine(root, "large.pdf"), new byte[3_000_000]);
     transport.Expect("GET", "/v1.0/me/messages/draft", "{\"isDraft\":true}");
@@ -188,7 +195,7 @@ try
     await File.WriteAllBytesAsync(configuration.StateFile, oversized);
     try { store.Load(); throw new Exception("oversized authentication state was accepted"); }
     catch (LocalAuthException) { }
-    Console.WriteLine("Windows local checks passed: twelve tools, attachment saving, validation, protocol recovery, DPAPI binding and token refresh.");
+    Console.WriteLine("Windows local checks passed: thirteen tools, folder listing, attachment saving, validation, protocol recovery, DPAPI binding and token refresh.");
 }
 finally
 {
@@ -199,6 +206,102 @@ finally
 static void Check(bool condition, string message)
 {
     if (!condition) { throw new Exception(message); }
+}
+
+static async Task CheckFolderListing(LocalGraphClient graph, MockGraph transport)
+{
+    const string fields = "id,displayName,parentFolderId,childFolderCount,totalItemCount,unreadItemCount";
+    static string PageLink(string path, string key = "$skip", string value = "100", string top = "100", string select = fields) =>
+        "https://graph.microsoft.com/v1.0" + path + "?$top=" + Uri.EscapeDataString(top)
+        + "&$select=" + Uri.EscapeDataString(select) + "&" + key + "=" + Uri.EscapeDataString(value);
+    async Task<JsonObject> List(JsonObject arguments) => (await Exchange(graph, Call("mail_list_folders", arguments.ToJsonString())))[0];
+
+    foreach (var parent in new[] { "", "parent/a?b#c", "parent+==" })
+    {
+        foreach (var (key, token) in new[] { ("$skip", "100"), ("$skiptoken", "a+b/== &中文") })
+        {
+            var path = "/me/mailFolders" + (parent.Length == 0 ? "" : "/" + Uri.EscapeDataString(parent) + "/childFolders");
+            var link = PageLink(path.Replace("%2B", "+").Replace("%3D", "="), key, token);
+            var folders = new JsonArray(
+                new JsonObject { ["id"] = "folder-one", ["displayName"] = "项目 \"归档\"", ["parentFolderId"] = parent,
+                    ["childFolderCount"] = 1, ["totalItemCount"] = 20, ["unreadItemCount"] = 2 },
+                new JsonObject { ["id"] = "folder-two", ["displayName"] = "项目 \"归档\"", ["parentFolderId"] = parent });
+            transport.Expect("GET", "/v1.0" + path,
+                new JsonObject { ["value"] = folders, ["@odata.nextLink"] = link }.ToJsonString(), (request, _) =>
+                {
+                    var query = Query(request);
+                    Check(query.Count == 2 && query["$top"] == "100" && query["$select"] == fields, "folder metadata query mismatch");
+                });
+            var result = await List(new JsonObject { ["parent_folder_id"] = parent });
+            Check(result["result"]?["isError"]?.GetValue<bool>() is false, "folder listing failed");
+            var payload = Payload(result);
+            Check(payload.AsObject().Count == 3 && JsonNode.DeepEquals(payload["folders"], folders)
+                && payload["next_link"]?.GetValue<string>() == link
+                && payload["content_metadata"]?["trusted"]?.GetValue<bool>() is false,
+                "lost names, duplicate folders or common result fields");
+            transport.Expect("GET", "/v1.0" + path, "{\"value\":[]}", (request, _) =>
+                Check(Query(request)[key] == token, "lost continuation query"));
+            var last = Payload(await List(new JsonObject { ["parent_folder_id"] = parent, ["next_link"] = link }));
+            Check(last["folders"] is JsonArray { Count: 0 } && last["next_link"] is null, "invalid final folder page");
+            transport.Expect("POST", "/v1.0/me/messages/message/move", "{\"id\":\"new-message\"}", (_, body) =>
+                Check(body?["destinationId"]?.GetValue<string>() == "folder-two", "move must use the selected returned folder ID"));
+            var moved = await Exchange(graph, Call("mail_move", new JsonObject
+            {
+                ["message_id"] = "message", ["destination_folder_id"] = payload["folders"]![1]!["id"]!.GetValue<string>(),
+            }.ToJsonString()));
+            Check(Payload(moved[0])["message_id"]?.GetValue<string>() == "new-message", "move lost the new message ID");
+            transport.CheckEmpty();
+        }
+    }
+
+    var good = PageLink("/me/mailFolders");
+    var before = transport.RequestCount;
+    foreach (var link in new[]
+    {
+        "https://evil.example/v1.0/me/mailFolders?x=1",
+        good.Replace("/me/mailFolders?", "/users/other/mailFolders?"),
+        good.Replace("/me/mailFolders?", "/me/messages?"),
+        good.Replace("/me/mailFolders?", "/me/mailFolders/../messages?"),
+        PageLink("/me/mailFolders/other/childFolders"),
+        good + "&$skip=200", good + "&$skiptoken=token", good + "&$filter=anything",
+        good + "#fragment", good + "\\x", good + "\n", good + " ", new string('x', 8193),
+        PageLink("/me/mailFolders", value: ""), PageLink("/me/mailFolders", value: "-1"),
+        PageLink("/me/mailFolders", value: "١"), PageLink("/me/mailFolders", "$skiptoken", ""),
+        PageLink("/me/mailFolders", top: "101"), PageLink("/me/mailFolders", top: "0"),
+        PageLink("/me/mailFolders", top: "+10"), PageLink("/me/mailFolders", select: "id"),
+        "https://graph.microsoft.com/v1.0/me/mailFolders?$top=100&$select=" + Uri.EscapeDataString(fields),
+    })
+    {
+        var rejected = await List(new JsonObject { ["next_link"] = link });
+        Check(rejected["result"]?["isError"]?.GetValue<bool>() is true, "unsafe continuation accepted");
+    }
+    foreach (var arguments in new[]
+    {
+        new JsonObject { ["parent_folder_id"] = "." }, new JsonObject { ["parent_folder_id"] = ".." },
+        new JsonObject { ["parent_folder_id"] = "bad\0id" }, new JsonObject { ["parent_folder_id"] = new string('x', 2049) },
+        new JsonObject { ["parent_folder_id"] = 42 }, new JsonObject { ["next_link"] = 42 },
+        new JsonObject { ["parent_folder_id"] = "parent", ["next_link"] = good },
+    })
+    {
+        Check((await List(arguments))["result"]?["isError"]?.GetValue<bool>() is true, "invalid folder arguments accepted");
+    }
+    Check(transport.RequestCount == before, "invalid folder arguments reached Graph");
+
+    foreach (var page in new[]
+    {
+        "[]", "{}", "{\"value\":null}", "{\"value\":{}}", "{\"value\":[null]}",
+        "{\"value\":[{\"id\":\"\",\"displayName\":\"name\"}]}", "{\"value\":[{\"id\":\"id\",\"displayName\":42}]}",
+        "{\"value\":[],\"@odata.nextLink\":42}",
+        "{\"value\":[],\"@odata.nextLink\":\"https://evil.example/PROVIDER_SECRET\"}",
+        "{\"value\":[" + string.Join(',', Enumerable.Repeat("{\"id\":\"id\",\"displayName\":\"name\"}", 101)) + "]}",
+    })
+    {
+        transport.Expect("GET", "/v1.0/me/mailFolders", page);
+        var rejected = await List(new JsonObject());
+        Check(rejected["result"]?["isError"]?.GetValue<bool>() is true && !rejected.ToJsonString().Contains("PROVIDER_SECRET"),
+            "invalid Graph page accepted or leaked provider data");
+        transport.CheckEmpty();
+    }
 }
 
 static async Task CheckAttachmentSaving(LocalGraphClient graph, MockGraph transport, string root)
@@ -403,6 +506,7 @@ static async Task<JsonObject[]> Exchange(LocalGraphClient graph, params JsonObje
 sealed class MockGraph : HttpMessageHandler
 {
     private readonly Queue<Func<HttpRequestMessage, Task<HttpResponseMessage>>> requests = new();
+    internal int RequestCount { get; private set; }
 
     internal void Expect(string method, string path, string response, Action<HttpRequestMessage, JsonNode?>? inspect = null,
         HttpStatusCode status = HttpStatusCode.OK, HttpContent? content = null)
@@ -433,8 +537,11 @@ sealed class MockGraph : HttpMessageHandler
         if (requests.Count != 0) { throw new Exception("Expected Graph requests were not issued"); }
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-        requests.Count == 0 ? throw new Exception("Unexpected network request: " + request.RequestUri) : requests.Dequeue()(request);
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        RequestCount++;
+        return requests.Count == 0 ? throw new Exception("Unexpected network request: " + request.RequestUri) : requests.Dequeue()(request);
+    }
 }
 
 sealed class UnknownLengthContent(byte[] bytes) : HttpContent

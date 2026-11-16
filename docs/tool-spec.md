@@ -188,9 +188,60 @@ Mark message as read/unread.
 
 Move message to Outlook Archive folder.
 
+### mail_list_folders
+
+Read-only folder discovery in the signed-in user's mailbox, available on the
+Python server and both Windows local editions. It uses the existing delegated
+mail permissions; no additional consent scope is required.
+
+| Argument | Required | Meaning |
+| --- | --- | --- |
+| `parent_folder_id` | No | Omit or use `""` for top-level folders; pass a returned folder ID for its direct children; maximum 2048 characters |
+| `next_link` | No | Omit or use `""` for the first page; pass the returned continuation with the same `parent_folder_id`; maximum 8192 characters |
+
+Each call returns one level and at most 100 visible folders in `folders`.
+It does not recursively expand the tree or include hidden folders. Each folder
+contains Graph's `id`, `displayName`, `parentFolderId`, `childFolderCount`,
+`totalItemCount`, and `unreadItemCount`. Names, including Unicode and quotes,
+are returned as data with `content_metadata` marking them untrusted. Same-name
+folders remain separate entries. An empty page returns `folders: []`.
+
+Use a non-null `next_link` in another `mail_list_folders` call to continue the
+same level; a null value means the listing is complete. Both supplied and
+Graph-returned links are restricted to the same folder-list path and bounded
+pagination parameters. Invalid links or malformed Graph collections fail with
+an error; they are not treated as empty or complete results. Folder pagination
+does not add continuation support to `mail_search`.
+
+```json
+{}
+```
+
+For a nested destination, list each parent's children:
+
+```json
+{"parent_folder_id": "<returned parent folder ID>"}
+```
+
+For another page, keep that parent unchanged:
+
+```json
+{"parent_folder_id": "<same parent folder ID>", "next_link": "<returned next_link>"}
+```
+
 ### mail_move
 
-Move message to another folder.
+Move one `message_id` to `destination_folder_id`. When the user names a folder,
+first use `mail_list_folders` to match its `displayName` and parent hierarchy,
+including further pages in the relevant level. Resolve duplicate names or an
+unclear destination before moving. Pass the selected `id`, not its display name:
+
+```json
+{"message_id": "<message ID>", "destination_folder_id": "<selected folder ID>"}
+```
+
+The existing input contract and Graph well-known folder IDs remain supported.
+The result's `message_id` is the new ID after the move; use it for later calls.
 
 ### mail_set_category
 

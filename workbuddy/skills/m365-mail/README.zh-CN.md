@@ -98,6 +98,7 @@ skills/
 - “列出选定邮件的附件，当前连接支持下载时获取原始 PDF。”
 - “把选定邮件的原附件保存为默认下载目录下的 reports/report.pdf。”
 - “使用 download_dir 将这些附件保存到 D:\MailArchive。”
+- “列出 项目 下的文件夹，再把选定邮件移动到 项目/发票。”
 
 更新时用完整新文件夹替换已安装的 `m365-mail`，再刷新客户端。此 Skill 合并了原来的
 `outlook-mail`、`outlook-mail-compose`、`outlook-mail-management` 和
@@ -109,9 +110,10 @@ skills/
 及默认目录。原文件保存上限默认 150 MiB，可在 MCP Server 的环境中设置正整数
 `M365_MAX_DOWNLOAD_MIB` 修改；文本读取及 Go 临时 URL 仍限制 10 MiB。环境变量改变
 后需要重启 MCP 进程；只在 `login` 时设置不会持久保存。仅更新 Skill 不会增加 EXE
-的能力；旧版本继续使用原有受支持流程。
+的能力；旧版本继续使用原有受支持流程。按文件夹名操作需要连接提供
+`mail_list_folders`；更新服务器或 EXE 后刷新工具列表。
 
 ---
 
 Skill 发现方式和权限取决于宿主客户端。Skill 指导工具使用，不会授予邮箱或 Shell 权限。
-更新日期：2026-11-12。
+更新日期：2026-11-16。

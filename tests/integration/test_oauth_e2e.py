@@ -352,6 +352,7 @@ def test_mock_workbuddy_oauth_discovery_authorization_refresh_and_mcp(
             "mail_download_attachment",
             "mail_mark_read",
             "mail_archive",
+            "mail_list_folders",
             "mail_move",
             "mail_set_category",
         }

@@ -158,9 +158,55 @@ URL 是不可猜测、单次使用且会在配置 TTL 后过期的 Capability。
 
 把邮件移动到 Outlook Archive Folder。
 
+### mail_list_folders
+
+只读查询当前登录用户邮箱的文件夹，Python 服务器版及两种 Windows 本地版均提供。
+沿用已有委托邮箱权限，无需新增同意范围。
+
+| 参数 | 必填 | 含义 |
+| --- | --- | --- |
+| `parent_folder_id` | 否 | 省略或传 `""` 列出顶层；传返回的文件夹 ID 列出其直接子文件夹；最多 2048 个字符 |
+| `next_link` | 否 | 省略或传 `""` 查询第一页；传返回的续页链接并保持相同 `parent_folder_id`；最多 8192 个字符 |
+
+每次调用只返回一层，`folders` 最多包含 100 个可见文件夹，不递归展开整棵树，也不包含
+隐藏文件夹。每项包含 Graph 的 `id`、`displayName`、`parentFolderId`、
+`childFolderCount`、`totalItemCount`、`unreadItemCount`。中文、引号等名称作为数据
+原样返回，并由 `content_metadata` 标记为不可信；同名文件夹保留为不同条目。
+空页返回 `folders: []`。
+
+`next_link` 非 null 时，传给下一次 `mail_list_folders` 继续查询同一层；null 表示
+列举完成。调用者提供及 Graph 返回的链接均限制在同一文件夹列表路径和受限分页参数内。
+无效链接或异常 Graph 集合返回错误，不会当成空列表或已完成结果。文件夹分页不代表
+`mail_search` 已支持续页。
+
+```json
+{}
+```
+
+目标位于子层时，按父级逐层列出：
+
+```json
+{"parent_folder_id": "<返回的父文件夹 ID>"}
+```
+
+查询下一页时保持同一父级：
+
+```json
+{"parent_folder_id": "<相同的父文件夹 ID>", "next_link": "<返回的 next_link>"}
+```
+
 ### mail_move
 
-把邮件移动到其他 Folder。
+按 `message_id` 将一封邮件移动到 `destination_folder_id`。用户按名称指定文件夹时，
+先使用 `mail_list_folders` 匹配 `displayName` 和父级层级，必要时继续查询相关层的
+下一页。名称重复或目标不明确时先明确目标，再移动；传入选定的 `id`，不要传显示名称：
+
+```json
+{"message_id": "<邮件 ID>", "destination_folder_id": "<选定的文件夹 ID>"}
+```
+
+保留原有参数契约和 Graph 的已知文件夹 ID 支持。移动后结果的 `message_id` 是新 ID，
+后续调用使用新 ID。
 
 ### mail_set_category
 

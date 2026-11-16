@@ -6,19 +6,22 @@
 
 | 版本 | 接入方式 | 工具 | 附件读取 |
 | --- | --- | --- | --- |
-| Python 服务器版 | 认证的 Streamable HTTP | 11 个核心工具；开启 OAuth 后另提供下载及上传授权工具 | 在隔离的 Linux Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
-| Windows .NET 版 | stdio | 12 个邮件工具，含附件直接保存 | 有大小限制的 UTF-8 文本、JSON、CSV、XML |
-| Windows Go 版 | stdio；带认证的本机回环 Streamable HTTP | 13 个邮件工具，含直接保存及下载 URL | 在 Windows Job Object Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
+| Python 服务器版 | 认证的 Streamable HTTP | 12 个核心工具；开启 OAuth 后另提供下载及上传授权工具 | 在隔离的 Linux Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
+| Windows .NET 版 | stdio | 13 个邮件工具，含附件直接保存 | 有大小限制的 UTF-8 文本、JSON、CSV、XML |
+| Windows Go 版 | stdio；带认证的本机回环 Streamable HTTP | 14 个邮件工具，含直接保存及下载 URL | 在 Windows Job Object Worker 中解析 PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 
 三套实现均支持纯文本草稿及最多 20 MiB 的草稿附件。发送结果只表示 Graph 已接受请求，
 不表示已送达；逐封确认或受限自动化授权仍由客户端或 Agent 负责。搜索只返回一个有边界的
-分页；续页游标、回复、转发、共享邮箱、OCR、Calendar、Drive、SharePoint、Teams 尚未实现。
+分页；搜索续页、回复、转发、共享邮箱、OCR、Calendar、Drive、SharePoint、Teams 尚未实现。
 `v0.1.4` 包含 [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) 的复核修正，
 以及 [PR #63](https://github.com/sagehou/M365-MCP-Server/pull/63) 的本地命令和账户类型对齐。
 `v0.1.7` 将两种本地版的 `mail_save_attachment` 改为流式写入磁盘，默认上限 150 MiB
 且可配置。目录依次选择 `download_dir`、`M365_ATTACHMENT_ROOT`、Windows 下载目录下
 的 M365-MCP；缺失目录自动创建。两版均返回实际绝对路径、字节数和 SHA-256，不覆盖文件。
 文本读取和 Go 临时 URL 仍限制 10 MiB，.NET 没有 PDF/Office 解析器。
+三套实现均提供只读 `mail_list_folders`，使用一致的可选父级和续页参数，一次返回可见
+文件夹的一层一页、名称、ID、层级与数量。Agent 明确名称和同名目标后，再使用原有按 ID
+执行的 `mail_move`。分页校验固定路径及查询参数，不能作为任意 Graph 请求入口。
 
 ## 发现与修正
 
@@ -49,11 +52,12 @@ PR 检查覆盖以下路径；CI、测试镜像发布和稳定版发布使用各
 | Python 测试及 `pip-audit` | 应用工厂、两代 MCP 协议、全部核心邮件工具、身份隔离、JWT/OBO、OAuth 发现/PKCE/刷新轮换/重放防护、上传下载句柄及 Worker 限额 |
 | Ruff、Vulture | 未使用导入、未定义名称、重复定义、不可达代码及置信度 100% 的未使用变量；三个 SDK 协议关键字参数使用逐行排除标注 |
 | Docker 烟测及 Trivy | 安装后的确切非 root 镜像、健康检查、认证、OAuth 存储、附件 Worker、Compose；阻止所有严重程度的已知容器问题，包括尚无修复的项目 |
-| Windows .NET 功能检查 | 通过 stdio 和模拟 Graph 覆盖全部 12 个工具，二进制/空文件/17 MiB 保存、已知/未知长度的配置上限、默认/覆盖目录及自动创建、中断/取消清理、不覆盖、路径及链接拒绝，日期/搜索/分类/草稿校验，小附件及分块上传、错误脱敏，DPAPI 绑定/临时状态、刷新及异常令牌响应 |
+| 三套实现的文件夹查询检查 | 只读 Schema、MCP 分发、顶层/子层查询、中文/引号/同名名称、空页/末页、skip/skiptoken 分页、父级绑定续页、非法链接及异常 Graph 数据拒绝，以及使用返回 ID 移动 |
+| Windows .NET 功能检查 | 通过 stdio 和模拟 Graph 覆盖全部 13 个工具，二进制/空文件/17 MiB 保存、已知/未知长度的配置上限、默认/覆盖目录及自动创建、中断/取消清理、不覆盖、路径及链接拒绝，日期/搜索/分类/草稿校验，小附件及分块上传、错误脱敏，DPAPI 绑定/临时状态、刷新及异常令牌响应 |
 | Windows .NET 产物 | NativeAOT 单文件、Windows 详细信息、默认及覆盖 Client ID、PATH 无运行时时的启动 |
 | Windows Go 检查 | Windows/Linux 竞态测试、统一保存结果契约、二进制/空文件/17 MiB 保存、固定/分块长度的配置上限、默认/覆盖目录及自动创建、中断/取消清理、并发不覆盖及路径/链接拒绝、模块校验、vet、应用不可达函数检查，以及 Windows AMD64/ARM64 漏洞分析 |
 | Windows Go 产物 | AMD64/ARM64 单文件构建、详细信息、ZIP/校验值、AMD64 无外部运行时启动，以及使用已保存个人账户状态的自动生成 stdio 配置 |
 
 ---
 
-已知漏洞扫描和静态分析反映被检查的快照，不能证明缺陷或漏洞绝对为零。这些检查未验证真实租户同意、真实 Graph 投递、目标 Agent 集成、Windows ARM64 实机运行、交互式文件选择框及杀毒/代码签名信任。本次未在本地测试、构建、安装依赖或创建虚拟环境。更新日期：2026-11-12。
+已知漏洞扫描和静态分析反映被检查的快照，不能证明缺陷或漏洞绝对为零。这些检查未验证真实租户同意、真实 Graph 投递/文件夹列表、目标 Agent 集成、Windows ARM64 实机运行、交互式文件选择框及杀毒/代码签名信任。本次未在本地测试、构建、安装依赖或创建虚拟环境。更新日期：2026-11-16。

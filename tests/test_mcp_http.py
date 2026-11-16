@@ -58,6 +58,10 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
             return httpx.Response(200, json={"value": [{"id": "id", "subject": "test"}]})
         if request.url.path.endswith("/move"):
             return httpx.Response(201, json={"id": "moved-id"})
+        if request.url.path == "/v1.0/me/mailFolders":
+            return httpx.Response(200, json={"value": [
+                {"id": "folder", "displayName": "项目", "parentFolderId": "root", "childFolderCount": 0},
+            ]})
         return httpx.Response(200, json={"id": request.headers["authorization"]})
 
     async def exercise():
@@ -92,8 +96,12 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         "mail_search", "mail_get", "mail_create_draft", "mail_send_draft",
                         "mail_add_draft_attachment",
                         "mail_list_attachments", "mail_read_attachment",
-                        "mail_mark_read", "mail_archive", "mail_move", "mail_set_category",
+                        "mail_mark_read", "mail_archive", "mail_list_folders", "mail_move", "mail_set_category",
                     }
+                    folder_tool = next(tool for tool in listed["tools"] if tool["name"] == "mail_list_folders")
+                    assert folder_tool["annotations"]["readOnlyHint"] is True
+                    assert set(folder_tool["inputSchema"]["properties"]) == {"parent_folder_id", "next_link"}
+                    assert not folder_tool["inputSchema"].get("required")
                     search_schema = next(
                         tool["inputSchema"]["properties"]
                         for tool in listed["tools"]
@@ -115,6 +123,13 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         assert not result.get("isError")
                         payload = json.loads(result["content"][0]["text"])
                         assert payload["message"]["id"] == "Bearer graph-" + user
+                    folders = await asyncio.gather(*[
+                        rpc(user, "tools/call", {"name": "mail_list_folders", "arguments": {}})
+                        for user in ("alice", "bob")
+                    ])
+                    for result in folders:
+                        assert not result.get("isError")
+                        assert json.loads(result["content"][0]["text"])["folders"][0]["id"] == "folder"
                     staged = await client.post(
                         "/uploads/attachments",
                         headers={
@@ -152,6 +167,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                         ("mail_read_attachment", {"message_id": "id", "attachment_id": "attachment"}, "content"),
                         ("mail_mark_read", {"message_id": "id", "is_read": False}, "is_read"),
                         ("mail_archive", {"message_id": "id"}, "archived"),
+                        ("mail_list_folders", {}, "folders"),
                         ("mail_move", {"message_id": "id", "destination_folder_id": "folder"}, "destination_folder_id"),
                         ("mail_set_category", {"message_id": "id", "categories": ["Reviewed"]}, "categories"),
                     ]
@@ -244,7 +260,7 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
                     modern_tools = await modern_rpc(
                         "alice", "tools/list", {"_meta": modern_meta}
                     )
-                    assert len(modern_tools["tools"]) == 11
+                    assert len(modern_tools["tools"]) == 12
                     modern_result = await modern_rpc(
                         "bob",
                         "tools/call",
@@ -267,6 +283,8 @@ def test_http_initialize_list_and_concurrent_users_call_with_own_assertions(capf
     assert matching_audit_records[0].tool_name == "mail_get"
     assert ("Bearer graph-alice", "/v1.0/me/messages/id") in calls
     assert ("Bearer graph-bob", "/v1.0/me/messages/id") in calls
+    assert ("Bearer graph-alice", "/v1.0/me/mailFolders") in calls
+    assert ("Bearer graph-bob", "/v1.0/me/mailFolders") in calls
     assert calls.count(
         ("Bearer graph-alice", "/v1.0/me/messages/failure/send")
     ) == 1

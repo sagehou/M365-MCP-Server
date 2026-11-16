@@ -61,6 +61,10 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 			io.WriteString(w, `{"id":"moved-id"}`)
 			return
 		}
+		if r.URL.Path == "/me/mailFolders" {
+			io.WriteString(w, `{"value":[{"id":"folder","displayName":"项目","parentFolderId":"root","childFolderCount":0}]}`)
+			return
+		}
 		if r.URL.Path == "/me/messages" {
 			if r.Method == http.MethodPost {
 				io.WriteString(w, `{"id":"new-draft"}`)
@@ -101,10 +105,20 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 	}
 	defer session.Close()
 	listed, err := session.ListTools(ctx, nil)
-	if err != nil || len(listed.Tools) != 13 {
-		t.Fatalf("expected thirteen tools: %v %v", listed, err)
+	if err != nil || len(listed.Tools) != 14 {
+		t.Fatalf("expected fourteen tools: %v %v", listed, err)
 	}
 	for _, tool := range listed.Tools {
+		if tool.Name == "mail_list_folders" {
+			encoded, err := json.Marshal(tool.InputSchema)
+			var schema struct {
+				Required   []string       `json:"required"`
+				Properties map[string]any `json:"properties"`
+			}
+			if err != nil || json.Unmarshal(encoded, &schema) != nil || len(schema.Properties) != 2 || len(schema.Required) != 0 || schema.Properties["parent_folder_id"] == nil || schema.Properties["next_link"] == nil || tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+				t.Fatal("folder listing must be read-only with two optional arguments")
+			}
+		}
 		if tool.Name == "mail_save_attachment" {
 			encoded, err := json.Marshal(tool.InputSchema)
 			var schema struct {
@@ -141,6 +155,7 @@ func TestMCPAllMailToolsOverAuthenticatedHTTP(t *testing.T) {
 		{"mail_download_attachment", map[string]any{"message_id": "message", "attachment_id": "file"}, "download_url"},
 		{"mail_mark_read", map[string]any{"message_id": "message", "is_read": false}, "is_read"},
 		{"mail_archive", map[string]any{"message_id": "message"}, "archived"},
+		{"mail_list_folders", map[string]any{}, "folders"},
 		{"mail_move", map[string]any{"message_id": "message", "destination_folder_id": "folder"}, "destination_folder_id"},
 		{"mail_set_category", map[string]any{"message_id": "message", "categories": []string{}}, "categories"},
 	}

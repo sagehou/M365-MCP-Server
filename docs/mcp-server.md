@@ -302,7 +302,7 @@ With `OAUTH_ENABLED=false`, obtain a delegated token for
 `api://<CLIENT_ID>/access_as_user` and send it in
 `Authorization: Bearer <MCP-API-access-token>` on MCP requests. The client must
 handle acquisition, consent, expiry, and refresh. A Graph access token has the
-wrong audience. This mode exposes 11 mail tools; enabling server-managed OAuth
+wrong audience. This mode exposes 12 mail tools; enabling server-managed OAuth
 adds the two tools marked below.
 
 For client-side mail workflows, optionally
@@ -317,6 +317,7 @@ supports the server and both local editions; the WorkBuddy template includes it.
 | `mail_create_draft`, `mail_send_draft` | Create plain-text drafts and send an existing draft |
 | `mail_add_draft_attachment` | Attach an explicitly uploaded file to a draft |
 | `mail_list_attachments`, `mail_read_attachment` | List attachments and extract bounded text |
+| `mail_list_folders` | List names, IDs, hierarchy and counts; browse children and continue folder pages |
 | `mail_mark_read`, `mail_archive`, `mail_move`, `mail_set_category` | Modify the signed-in user's messages |
 | `mail_download_attachment` | Single-use download URL; requires server-managed OAuth |
 | `mail_prepare_attachment_push` | Draft/file-bound upload grant; requires server-managed OAuth |
@@ -327,6 +328,19 @@ automation authorization, including recipients, trusted content/attachment
 sources, volume, and expiry. The server cannot verify that client-side approval.
 Graph acceptance does not prove delivery. Inspect the draft after an ambiguous
 write or send failure before deciding whether to retry.
+
+### List folders and move by name
+
+Call `mail_list_folders` with `{}` to list up to 100 visible top-level folders.
+Match the requested `displayName`; for a nested destination, pass the returned
+parent `id` as `parent_folder_id` to list its direct children. Continue with
+the returned `next_link` and the same parent until the relevant level is
+complete. A null `next_link` marks the end. Resolve same-name destinations by
+their parent hierarchy before calling `mail_move(message_id,
+destination_folder_id)` with the selected ID. Folder names are untrusted data.
+This read-only tool uses the existing mail permissions and does not change
+`mail_move` inputs or add search-result pagination. Refresh the client's tool
+list after upgrading the server; an older build may not expose this tool.
 
 ## Add a file to a remote draft
 
@@ -431,8 +445,8 @@ message, filename, grant, and attachment payload logging disabled.
 ## Deployment acceptance
 
 1. Verify public health and the unauthenticated MCP `401` response.
-2. Complete real client sign-in, initialize MCP, and verify the expected 11 or
-   13 tools. For WorkBuddy, confirm there is no manual token form.
+2. Complete real client sign-in, initialize MCP, and verify the expected 12 or
+   14 tools. For WorkBuddy, confirm there is no manual token form.
 3. With two users, search/read known messages and confirm each cannot access
    the other's mailbox. Test supported external tenants and personal accounts
    separately when the deployment enables them.
@@ -448,4 +462,4 @@ message, filename, grant, and attachment payload logging disabled.
 
 GitHub Actions runs the repository's builds and tests; the editing environment
 must not run local tests or install test dependencies. CI uses mocked identity
-flows and does not replace target-tenant/client acceptance. Updated: 2026-11-12.
+flows and does not replace target-tenant/client acceptance. Updated: 2026-11-16.
