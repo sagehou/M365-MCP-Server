@@ -218,7 +218,7 @@ static async Task CheckFolderListing(LocalGraphClient graph, MockGraph transport
 
     foreach (var parent in new[] { "", "parent/a?b#c", "parent+==" })
     {
-        foreach (var (key, token) in new[] { ("$skip", "100"), ("$skiptoken", "a+b/== &中文") })
+        foreach (var (key, token) in new[] { ("$skip", "100"), ("$skiptoken", "a+b/== &中文..token") })
         {
             var path = "/me/mailFolders" + (parent.Length == 0 ? "" : "/" + Uri.EscapeDataString(parent) + "/childFolders");
             var link = PageLink(path.Replace("%2B", "+").Replace("%3D", "="), key, token);

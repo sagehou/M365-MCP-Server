@@ -727,8 +727,9 @@ internal sealed class LocalGraphClient(
         JsonNode? body,
         CancellationToken cancellationToken)
     {
-        if (!path.StartsWith("/me", StringComparison.Ordinal)
-            || path.Contains("..", StringComparison.Ordinal))
+        var resourcePath = path.Split('?', 2)[0];
+        if ((resourcePath != "/me" && !resourcePath.StartsWith("/me/", StringComparison.Ordinal))
+            || resourcePath.Contains("..", StringComparison.Ordinal))
         {
             throw new GraphOperationException("The Graph path was rejected.");
         }
