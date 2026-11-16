@@ -19,6 +19,7 @@ Implemented tools:
 - mail_download_attachment
 - mail_mark_read
 - mail_archive
+- mail_list_folders
 - mail_move
 - mail_set_category
 

@@ -4,7 +4,7 @@ import base64
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, unquote
 
 from ..auth.models import AuthContext
 from ..errors import InvalidToolInputError
@@ -18,6 +18,7 @@ MAX_DRAFT_BODY_CHARS = 100_000
 MAX_SEND_ATTACHMENT_BYTES = 20 * 1024 * 1024
 DIRECT_ATTACHMENT_LIMIT = 3_000_000
 UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024
+FOLDER_FIELDS = "id,displayName,parentFolderId,childFolderCount,totalItemCount,unreadItemCount"
 
 
 class MailService:
@@ -25,6 +26,81 @@ class MailService:
 
     def __init__(self, graph_client: GraphClient) -> None:
         self.graph_client = graph_client
+
+    async def list_folders(
+        self,
+        context: AuthContext,
+        *,
+        parent_folder_id: str = "",
+        next_link: str = "",
+    ) -> GraphResponse:
+        if (
+            parent_folder_id in {".", ".."} or len(parent_folder_id) > 2048
+            or any(ord(c) < 32 or ord(c) == 127 for c in parent_folder_id)
+        ):
+            raise InvalidToolInputError("parent_folder_id", "invalid_id", "invalid parent folder ID")
+        path = "/me/mailFolders"
+        if parent_folder_id:
+            path += f"/{self._segment(parent_folder_id)}/childFolders"
+        base = self.graph_client.settings.graph_base_url.rstrip("/")
+        params = self._folder_page_params(path, next_link, base)
+        response = await self.graph_client.request(context, "GET", path, params=params)
+        data = response.data
+        if (
+            not isinstance(data, dict) or not isinstance(data.get("value"), list)
+            or len(data["value"]) > 100
+            or any(
+                not isinstance(folder, dict) or not isinstance(folder.get("id"), str)
+                or not folder["id"] or not isinstance(folder.get("displayName"), str)
+                for folder in data["value"]
+            )
+        ):
+            raise ValueError("Graph returned an invalid folder collection")
+        continuation = data.get("@odata.nextLink")
+        if continuation is not None:
+            if not isinstance(continuation, str):
+                raise ValueError("Graph returned an invalid folder continuation")
+            try:
+                self._folder_page_params(path, continuation, base)
+            except InvalidToolInputError:
+                raise ValueError("Graph returned an invalid folder continuation") from None
+        return response
+
+    @staticmethod
+    def _folder_page_params(path: str, next_link: str, base: str) -> dict[str, str]:
+        if not next_link:
+            return {"$top": "100", "$select": FOLDER_FIELDS}
+        invalid = InvalidToolInputError(
+            "next_link", "invalid_continuation",
+            "use the returned next_link with the same parent_folder_id",
+        )
+        page_path, separator, query = next_link.partition("?")
+        if (
+            len(next_link) > 8192 or not separator or not next_link.startswith(base + "/")
+            or unquote(page_path) != unquote(base + path)
+            or any(ord(c) <= 32 or ord(c) == 127 for c in next_link)
+            or "#" in next_link or "\\" in next_link
+        ):
+            raise invalid
+        try:
+            pairs = parse_qsl(query, keep_blank_values=True, strict_parsing=True, max_num_fields=4)
+        except ValueError:
+            raise invalid from None
+        params = dict(pairs)
+        if (
+            len(params) != len(pairs)
+            or set(params) - {"$top", "$select", "$skip", "$skiptoken"}
+            or params.get("$select") != FOLDER_FIELDS
+            or len(params.get("$top", "")) > 3
+            or not params.get("$top", "").isascii()
+            or not params.get("$top", "").isdecimal()
+            or not 1 <= int(params["$top"]) <= 100
+            or ("$skip" in params) == ("$skiptoken" in params)
+            or ("$skip" in params and (not params["$skip"].isascii() or not params["$skip"].isdecimal()))
+            or ("$skiptoken" in params and not params["$skiptoken"])
+        ):
+            raise invalid
+        return params
 
     async def search_messages(
         self,

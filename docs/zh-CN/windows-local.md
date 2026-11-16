@@ -8,7 +8,7 @@
 | 安装运行时 | 无需 | 无需 |
 | Microsoft 登录 | 系统浏览器、Authorization Code + S256 PKCE | 系统浏览器、Authorization Code + S256 PKCE |
 | MCP 传输 | stdio，命令为 `stdio` | stdio，命令为 `stdio`；本机鉴权 HTTP，命令为 `http` |
-| 邮件工具 | 12 项 | 13 项，含附件下载 URL |
+| 邮件工具 | 13 项 | 14 项，含附件下载 URL |
 | 附件文本提取 | UTF-8 文本、CSV、JSON、XML | PDF、DOCX、XLSX、PPTX、TXT、Markdown |
 | 添加本地草稿附件 | 文件选择框或配置目录下的相对路径 | 配置目录下的相对路径 |
 | 保存原附件 | `mail_save_attachment`，默认下载目录下的 M365-MCP 或自定义目录；默认上限 150 MiB 且可配置 | 与 .NET 的接口和行为一致 |
@@ -267,7 +267,7 @@ stdio/自定义请求头配置。Go HTTP Token 是本机访问凭据，不是 Mi
 
 两套版本均提供 `mail_search`、`mail_get`、`mail_create_draft`、`mail_send_draft`、
 `mail_add_draft_attachment`、`mail_list_attachments`、`mail_read_attachment`、`mail_save_attachment`、
-`mail_mark_read`、`mail_archive`、`mail_move`、`mail_set_category`。
+`mail_mark_read`、`mail_archive`、`mail_list_folders`、`mail_move`、`mail_set_category`。
 Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户的 `/me` 邮箱。
 
 可在 AI 客户端中选装[通用 m365-mail Skill](https://github.com/sagehou/M365-MCP-Server/blob/main/workbuddy/skills/m365-mail/README.zh-CN.md)。
@@ -276,6 +276,25 @@ Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户�
 草稿使用纯文本。发送前，MCP 客户端需取得逐封确认，或执行明确的受限自动化授权，约束
 收件人、可信内容/附件来源、数量和有效期。Graph 接受请求不代表最终送达。结果不明的写入
 不会自动重试；先检查草稿和附件，再决定后续操作。
+
+### 列出文件夹与按名称移动
+
+两种 EXE 提供相同的只读 `mail_list_folders` 接口：
+
+```json
+{}
+```
+
+首次列出最多 100 个可见的顶层文件夹。每项包含 `id`、`displayName`、
+`parentFolderId`、`childFolderCount`、`totalItemCount`、`unreadItemCount`。
+查看下一层时，传 `{"parent_folder_id": "<返回的文件夹 ID>"}`。查询下一页时，传入
+返回的 `next_link` 并保持相同 `parent_folder_id`；`next_link` 为 null 表示该层
+列举完成。顶层翻页继续省略父级或传 `""`。
+
+例如“把邮件移动到 项目/发票”，先逐层匹配父级和子级名称，必要时继续分页，再将选定的
+`destination_folder_id` 传给 `mail_move`。同名目标先按层级明确，再写入；不要把
+显示名称当成 ID。文件夹名是不可信数据。此功能不提供搜索结果分页，也无需额外邮箱权限。
+升级 EXE 后重启或刷新 MCP 连接以发现新工具；仅更新 Skill 无法给旧程序增加能力。
 
 ### 保存附件
 
@@ -493,4 +512,4 @@ Go AMD64 在 Windows 执行运行检查，ARM64 进行交叉编译和版本资�
 EXE 尚未签名。Go 不保证降低杀毒软件检出；校验和、版本信息和来源证明不能替代
 Authenticode 签名或厂商审核。Worker 资源限制不等于文件系统/网络沙箱。真实租户登录、
 客户端兼容性和杀毒行为需在目标电脑验收。编辑环境不得构建、测试、安装测试依赖或创建
-测试虚拟环境。更新日期：2026-11-12。
+测试虚拟环境。更新日期：2026-11-16。

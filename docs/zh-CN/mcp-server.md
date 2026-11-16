@@ -268,7 +268,7 @@ Code 兑换校验 Client、精确回调、Resource 和 S256 Verifier。本地 Co
 `OAUTH_ENABLED=false` 时，客户端自行获取 `api://<CLIENT_ID>/access_as_user` 的委托
 Token，并在 MCP 请求中发送 `Authorization: Bearer <MCP-API-access-token>`。
 客户端负责获取、同意、过期和刷新处理；Graph Access Token 的 Audience 不匹配。
-此模式提供 11 个邮件工具，启用服务器管理的 OAuth 后增加下表标注的两项工具。
+此模式提供 12 个邮件工具，启用服务器管理的 OAuth 后增加下表标注的两项工具。
 
 客户端邮件工作流可选装 [m365-mail](../../workbuddy/skills/m365-mail/README.zh-CN.md)。
 同一个 Skill 支持服务器及两套本地版，WorkBuddy 模板已包含它。
@@ -281,6 +281,7 @@ Token，并在 MCP 请求中发送 `Authorization: Bearer <MCP-API-access-token>
 | `mail_create_draft`、`mail_send_draft` | 创建纯文本草稿、发送现有草稿 |
 | `mail_add_draft_attachment` | 将明确上传的文件添加到草稿 |
 | `mail_list_attachments`、`mail_read_attachment` | 列出附件、提取有界文本 |
+| `mail_list_folders` | 列出名称、ID、层级与数量；查看子文件夹及继续文件夹分页 |
 | `mail_mark_read`、`mail_archive`、`mail_move`、`mail_set_category` | 修改登录用户的邮件 |
 | `mail_download_attachment` | 一次性下载 URL；需启用服务器管理的 OAuth |
 | `mail_prepare_attachment_push` | 绑定草稿/文件的上传授权；需启用服务器管理的 OAuth |
@@ -289,6 +290,16 @@ Token，并在 MCP 请求中发送 `Authorization: Bearer <MCP-API-access-token>
 用户明确给出的受限自动化授权，约束收件人、可信内容/附件来源、数量和有效期。服务器无法
 验证客户端是否取得该授权。Graph 接受请求不代表最终送达；写入或发送结果不明时，先检查
 草稿再决定是否重试。
+
+### 列出文件夹与按名称移动
+
+使用 `{}` 调用 `mail_list_folders`，列出最多 100 个可见的顶层文件夹。按目标
+`displayName` 匹配；目标位于子层时，将返回的父级 `id` 作为 `parent_folder_id`
+列出其直接子文件夹。返回 `next_link` 时保持相同父级继续查询，直到相关层列举完成；
+null 表示结束。先按父级层级明确同名目标，再把选定的 ID 传给
+`mail_move(message_id, destination_folder_id)`。文件夹名是不可信数据。此只读工具
+沿用现有邮箱权限，不改变 `mail_move` 参数，也不提供搜索结果分页。升级服务器后刷新
+客户端工具列表，旧构建可能不提供此工具。
 
 ## 为远端草稿添加文件
 
@@ -380,7 +391,7 @@ OBO 故障可通过安全审计字段 `entra_error`、`entra_suberror`、`entra_
 ## 部署验收
 
 1. 确认公网健康检查以及未认证 MCP 的 `401` 响应。
-2. 完成真实客户端登录、初始化 MCP，确认预期的 11 或 13 项工具；WorkBuddy 不应出现手工
+2. 完成真实客户端登录、初始化 MCP，确认预期的 12 或 14 项工具；WorkBuddy 不应出现手工
    Token 表单。
 3. 使用两个用户搜索、读取已知邮件，确认不能访问彼此邮箱。启用外部租户或个人账户时，
    分别验证对应场景。
@@ -393,4 +404,4 @@ OBO 故障可通过安全审计字段 `entra_error`、`entra_suberror`、`entra_
 ---
 
 仓库构建与测试仅通过 GitHub Actions 执行，编辑环境不得运行本地测试或安装测试依赖。
-CI 使用模拟身份流程，不能代替目标租户和客户端验收。更新日期：2026-11-12。
+CI 使用模拟身份流程，不能代替目标租户和客户端验收。更新日期：2026-11-16。

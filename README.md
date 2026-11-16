@@ -19,14 +19,16 @@ for the server, .NET, or Go connection.
 - Create plain-text drafts, attach files, and send after client-enforced
   confirmation or bounded authorization.
 - Mark read/unread, archive, move, and set categories.
+- List folder names, IDs, hierarchy and counts with `mail_list_folders`, then
+  use the selected ID with `mail_move` for a destination named by the user.
 - Read bounded attachment text; extraction formats and download support depend
   on the edition and are listed in the local/server guide.
 - Stream original attachments in both local editions with `mail_save_attachment`:
   default Windows Downloads/M365-MCP, optional `download_dir`, and a configurable
   150 MiB default limit, without a browser or shell.
 
-The server provides 11 tools by default or 13 with server-managed OAuth.
-The .NET local edition provides 12, and Go provides 13.
+Current source provides 12 server tools by default or 14 with server-managed OAuth.
+The .NET local edition provides 13, and Go provides 14.
 
 ## Releases
 
@@ -77,4 +79,4 @@ dependencies retain their own licenses.
 
 Real tenant consent and client behavior require deployment acceptance. Windows
 EXEs are unsigned; hashes and provenance do not guarantee antivirus acceptance.
-Updated: 2026-11-12.
+Updated: 2026-11-16.

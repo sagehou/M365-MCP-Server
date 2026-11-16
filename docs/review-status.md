@@ -6,14 +6,14 @@
 
 | Edition | Transport | Tools | Attachment reading |
 | --- | --- | --- | --- |
-| Python server | Authenticated Streamable HTTP | 11 core tools; OAuth also enables download and upload-grant tools | PDF, DOCX, XLSX, PPTX, TXT, Markdown in isolated Linux workers |
-| Windows .NET | stdio | 12 mail tools, including direct attachment saves | Bounded UTF-8 text, JSON, CSV, XML |
-| Windows Go | stdio; authenticated loopback Streamable HTTP | 13 mail tools, including direct saves and download URLs | PDF, DOCX, XLSX, PPTX, TXT, Markdown in Windows Job Object workers |
+| Python server | Authenticated Streamable HTTP | 12 core tools; OAuth also enables download and upload-grant tools | PDF, DOCX, XLSX, PPTX, TXT, Markdown in isolated Linux workers |
+| Windows .NET | stdio | 13 mail tools, including direct attachment saves | Bounded UTF-8 text, JSON, CSV, XML |
+| Windows Go | stdio; authenticated loopback Streamable HTTP | 14 mail tools, including direct saves and download URLs | PDF, DOCX, XLSX, PPTX, TXT, Markdown in Windows Job Object workers |
 
 All editions create plain-text drafts and attach files up to 20 MiB. Sending
 returns Graph acceptance without claiming delivery. Per-message confirmation or
 bounded automation authorization remains a client/agent responsibility. Search
-returns one bounded page; continuation cursors, replies, forwarding, shared
+returns one bounded page; search continuation, replies, forwarding, shared
 mailboxes, OCR, Calendar, Drive, SharePoint and Teams are outside the implemented
 scope. Release `v0.1.4` includes the review corrections in
 [PR #60](https://github.com/sagehou/M365-MCP-Server/pull/60) and the local-command
@@ -24,6 +24,11 @@ editions with a configurable 150 MiB default limit. Directory priority is
 directories are created. Both return the actual absolute path, byte count,
 and SHA-256 without overwriting. Text reads and Go temporary URLs retain their
 10 MiB limits; .NET has no PDF/Office parser.
+All three editions expose read-only `mail_list_folders` with identical optional
+parent/continuation arguments, one visible level/page, names, IDs, hierarchy and
+counts. Agents resolve folder names and duplicate destinations before using the
+existing ID-based `mail_move`. Pagination validates the fixed path and query;
+it cannot be used as an arbitrary Graph request.
 
 ## Findings and corrections
 
@@ -65,11 +70,12 @@ share the dependency/security gates relevant to their artifacts.
 | Python tests and `pip-audit` | Application factory, both MCP protocol generations, every core mail tool, identity isolation, JWT/OBO, OAuth discovery/PKCE/refresh rotation/replay, upload/download handles and worker limits |
 | Ruff and Vulture | Unused imports, undefined names, duplicate definitions, unreachable code and unused variables at 100% confidence; three SDK protocol keyword parameters have line-specific exclusions |
 | Docker smoke and Trivy | Exact installed non-root image, health, authentication, OAuth storage, extraction worker, Compose; block known container findings at every severity, including those without fixes |
-| Windows .NET checks | All 12 tools through stdio with mock Graph, binary/empty/17 MiB saves, configured limits with known/unknown lengths, default/overridden directories and automatic creation, interrupted/cancelled cleanup, no overwrite, path/link rejection, date/search/category/draft validation, small and chunked attachments, sanitized failures, DPAPI binding/ephemeral state, refresh and malformed token responses |
+| Folder discovery checks in all editions | Read-only schema, MCP dispatch, top-level/child queries, Unicode/quoted/duplicate names, empty/final pages, skip/skiptoken pagination, parent-bound continuation, rejected links and malformed Graph data, and moving with the returned ID |
+| Windows .NET checks | All 13 tools through stdio with mock Graph, binary/empty/17 MiB saves, configured limits with known/unknown lengths, default/overridden directories and automatic creation, interrupted/cancelled cleanup, no overwrite, path/link rejection, date/search/category/draft validation, small and chunked attachments, sanitized failures, DPAPI binding/ephemeral state, refresh and malformed token responses |
 | Windows .NET artifact | NativeAOT single executable, Windows file details, client-ID defaults/overrides and startup without a runtime on PATH |
 | Windows Go checks | Windows/Linux race tests, common save-result contract, binary/empty/17 MiB saves, configured limits with fixed/chunked lengths, default/overridden directories and automatic creation, interrupted/cancelled cleanup, concurrent no-overwrite and path/link rejection, module verification, vet, unreachable application functions and Windows AMD64/ARM64 vulnerability analysis |
 | Windows Go artifacts | Single-file AMD64/ARM64 builds, version details, ZIPs/checksums, AMD64 startup without an external runtime, and generated stdio configuration with persisted personal-account state |
 
 ---
 
-Known-advisory scans and static analysis describe the checked snapshot, not a proof of zero defects or vulnerabilities. Live tenant consent, real Graph delivery, target-agent integration, Windows ARM64 execution, interactive file-picker behavior and antivirus/code-signing trust have not been validated by these checks. No local tests, builds, dependency installs or virtual environments were used. Updated: 2026-11-12.
+Known-advisory scans and static analysis describe the checked snapshot, not a proof of zero defects or vulnerabilities. Live tenant consent, real Graph delivery/folder listings, target-agent integration, Windows ARM64 execution, interactive file-picker behavior and antivirus/code-signing trust have not been validated by these checks. No local tests, builds, dependency installs or virtual environments were used. Updated: 2026-11-16.

@@ -113,6 +113,7 @@ Skill mechanism. The local HTTP endpoint does not implement MCP OAuth.
 - “Save the selected email's original attachment as reports/report.pdf in the
   default download folder.”
 - “Save these attachments to D:\MailArchive using download_dir.”
+- “List the folders under Projects, then move the selected email to Projects/Invoices.”
 
 When updating, replace the installed `m365-mail` folder with the complete new
 folder and refresh the client. This consolidates `outlook-mail`,
@@ -130,9 +131,10 @@ in the MCP server's environment to change it. Text reads and Go temporary URLs
 remain limited to 10 MiB. Environment changes require restarting the MCP
 process; setting variables only during `login` does not persist them. Updating
 the Skill alone does not add executable capabilities; older versions retain
-their existing supported workflows.
+their existing supported workflows. Folder-name workflows require a connection
+exposing `mail_list_folders`; refresh its tools after updating the server or EXE.
 
 ---
 
 Client discovery and permissions depend on the host application. A Skill guides
-tool use; it does not grant mailbox or shell permissions. Updated: 2026-11-12.
+tool use; it does not grant mailbox or shell permissions. Updated: 2026-11-16.
