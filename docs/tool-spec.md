@@ -190,8 +190,8 @@ Move message to Outlook Archive folder.
 
 ### mail_list_folders
 
-Read-only folder discovery in the signed-in user's mailbox, available on the
-Python server and both Windows local editions. It uses the existing delegated
+Read-only folder discovery in the signed-in user's mailbox, available in
+v0.1.8+ on the Python server and both Windows local editions. It uses the existing delegated
 mail permissions; no additional consent scope is required.
 
 | Argument | Required | Meaning |

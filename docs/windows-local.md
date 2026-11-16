@@ -54,7 +54,7 @@ reinstalling. Windows PowerShell 5.1 and PowerShell 7 are supported.
 ### Manual installation (.NET or Go)
 
 Download the appropriate files from the
-[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7):
+[GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.8):
 
 | Edition | Release file | Executable used below |
 | --- | --- | --- |
@@ -358,7 +358,7 @@ retried; inspect the draft and attachments before deciding what to do next.
 
 ### List folders and move by name
 
-Both EXEs expose the same read-only `mail_list_folders` interface:
+Both EXEs expose the same read-only `mail_list_folders` interface in v0.1.8+:
 
 ```json
 {}

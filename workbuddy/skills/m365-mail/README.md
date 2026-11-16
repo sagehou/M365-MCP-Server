@@ -136,8 +136,8 @@ in the MCP server's environment to change it. Text reads and Go temporary URLs
 remain limited to 10 MiB. Environment changes require restarting the MCP
 process; setting variables only during `login` does not persist them. Updating
 the Skill alone does not add executable capabilities; older versions retain
-their existing supported workflows. Folder-name workflows require a connection
-exposing `mail_list_folders`; refresh its tools after updating the server or EXE.
+their existing supported workflows. Folder-name workflows require a v0.1.8+
+connection exposing `mail_list_folders`; refresh its tools after updating the server or EXE.
 
 ---
 

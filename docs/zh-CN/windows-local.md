@@ -46,7 +46,7 @@ Agent 应先在对话中询问自定义 ID，再用
 
 ### 手动安装（.NET 或 Go）
 
-从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.7)
+从 [GitHub Release](https://github.com/sagehou/M365-MCP-Server/releases/tag/v0.1.8)
 下载对应文件：
 
 | 版本 | 发布文件 | 下文使用的 EXE |
@@ -309,7 +309,7 @@ Go 另提供 `mail_download_attachment`。所有 Graph 请求使用登录用户�
 
 ### 列出文件夹与按名称移动
 
-两种 EXE 提供相同的只读 `mail_list_folders` 接口：
+两种 EXE 从 v0.1.8 起提供相同的只读 `mail_list_folders` 接口：
 
 ```json
 {}

@@ -24,7 +24,7 @@ editions with a configurable 150 MiB default limit. Directory priority is
 directories are created. Both return the actual absolute path, byte count,
 and SHA-256 without overwriting. Text reads and Go temporary URLs retain their
 10 MiB limits; .NET has no PDF/Office parser.
-All three editions expose read-only `mail_list_folders` with identical optional
+In v0.1.8, all three editions expose read-only `mail_list_folders` with identical optional
 parent/continuation arguments, one visible level/page, names, IDs, hierarchy and
 counts. Agents resolve folder names and duplicate destinations before using the
 existing ID-based `mail_move`. Pagination validates the fixed path and query;

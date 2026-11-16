@@ -4,7 +4,7 @@
 
 ## Current Delivery Order
 
-1. `v0.1.7` ships under MIT with a container image, Windows .NET/Go single EXEs,
+1. `v0.1.8` ships under MIT with a container image, Windows .NET/Go single EXEs,
    and the shared bilingual `m365-mail` Skill.
 2. Draft-file attachments up to 20 MiB are included: remote clients use binary
    staging and an optional one-use push grant, while Windows local stdio uses a
@@ -47,6 +47,8 @@ Added since v0.1.2:
 - both editions stream original attachments with `mail_save_attachment`;
   default Windows Downloads/M365-MCP, optional `download_dir`, automatic
   directory creation, and a configurable 150 MiB default limit in v0.1.7
+- v0.1.8 adds folder discovery in all editions and a Go-first Windows installer
+  that asks for the application's Client ID and tenant ID
 
 Current design boundaries:
 

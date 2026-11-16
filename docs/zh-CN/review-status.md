@@ -19,7 +19,7 @@
 且可配置。目录依次选择 `download_dir`、`M365_ATTACHMENT_ROOT`、Windows 下载目录下
 的 M365-MCP；缺失目录自动创建。两版均返回实际绝对路径、字节数和 SHA-256，不覆盖文件。
 文本读取和 Go 临时 URL 仍限制 10 MiB，.NET 没有 PDF/Office 解析器。
-三套实现均提供只读 `mail_list_folders`，使用一致的可选父级和续页参数，一次返回可见
+v0.1.8 的三套实现均提供只读 `mail_list_folders`，使用一致的可选父级和续页参数，一次返回可见
 文件夹的一层一页、名称、ID、层级与数量。Agent 明确名称和同名目标后，再使用原有按 ID
 执行的 `mail_move`。分页校验固定路径及查询参数，不能作为任意 Graph 请求入口。
 

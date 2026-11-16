@@ -4,7 +4,7 @@
 
 ## 当前交付顺序
 
-1. `v0.1.7` 按 MIT 许可证交付容器镜像、Windows .NET/Go 单文件 EXE 及通用双语
+1. `v0.1.8` 按 MIT 许可证交付容器镜像、Windows .NET/Go 单文件 EXE 及通用双语
    `m365-mail` Skill。
 2. 草稿文件附件能力已包含在 v0.1.1：远端客户端可用二进制暂存和一次性推送
    凭据，Windows 本地 stdio 可用受限的产物相对路径或原生文件选择框，单文件
@@ -41,6 +41,8 @@ v0.1.2 起陆续新增：
 - Go PDF/Office 提取及临时下载 URL
 - 两版均通过 `mail_save_attachment` 流式保存原附件；v0.1.7 默认 Windows 下载目录下
   的 M365-MCP，可选 `download_dir`、自动创建目录，默认上限 150 MiB 且可配置
+- v0.1.8 为三套版本新增文件夹查询，并提供默认 Go 的 Windows 安装脚本，询问应用的
+  Client ID 和租户 ID
 
 当前设计边界：
 
