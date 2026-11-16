@@ -20,7 +20,7 @@ func folderLink(path string, cursor url.Values) string {
 
 func TestFolderListingPagesAndMove(t *testing.T) {
 	for _, parent := range []string{"", "parent/a?b#c", "parent+=="} {
-		for _, cursor := range []url.Values{{"$skip": {"100"}}, {"$skiptoken": {"a+b/== &中文"}}} {
+		for _, cursor := range []url.Values{{"$skip": {"100"}}, {"$skiptoken": {"a+b/== &中文..token"}}} {
 			path := "/me/mailFolders"
 			if parent != "" {
 				path += "/" + url.PathEscape(parent) + "/childFolders"

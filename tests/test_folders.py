@@ -33,7 +33,7 @@ class FolderGraph(StubGraphClient):
 
 
 @pytest.mark.parametrize("parent", ["", "parent/a?b#c", "parent+=="])
-@pytest.mark.parametrize("cursor", [{"$skip": "100"}, {"$skiptoken": "a+b/== &中文"}])
+@pytest.mark.parametrize("cursor", [{"$skip": "100"}, {"$skiptoken": "a+b/== &中文..token"}])
 def test_folders_list_pages_and_use_returned_id_for_move(parent, cursor):
     path = "/me/mailFolders" + (f"/{quote(parent, safe='')}/childFolders" if parent else "")
     link = page_link(path.replace("%2B", "+").replace("%3D", "="), **cursor)
